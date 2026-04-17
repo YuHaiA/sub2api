@@ -194,6 +194,17 @@ https://github.com/Wei-Shaw/sub2api/releases/download/docker-deploy/sub2api-dock
 
 This fixed URL can be used by the admin panel deployment settings so the server can download the latest deploy package and apply it without manual tar uploads.
 
+In addition, when you push a version tag such as `v0.1.113`, the workflow also publishes a versioned deploy package asset to that tag's release:
+
+```text
+https://github.com/YOUR_GITHUB_USERNAME/sub2api/releases/download/v0.1.113/sub2api-docker-image-v0.1.113.tar
+```
+
+Recommended usage:
+
+- Use the fixed `docker-deploy` asset URL for one-click "deploy latest" in the admin panel
+- Use the versioned asset URL when you need an explicit rollback or want to deploy a specific version
+
 #### Useful Commands
 
 ```bash
