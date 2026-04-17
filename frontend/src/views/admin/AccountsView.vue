@@ -124,6 +124,9 @@
               <button @click="openExportDataDialog" class="btn btn-secondary">
                 {{ selIds.length ? t('admin.accounts.dataExportSelected') : t('admin.accounts.dataExport') }}
               </button>
+              <button @click="showDeduplicateDialog = true" class="btn btn-secondary" :disabled="deduplicatingAccounts">
+                {{ deduplicatingAccounts ? t('admin.accounts.deduplicateRunning') : t('admin.accounts.deduplicateAction') }}
+              </button>
             </template>
           </AccountTableActions>
         </div>
@@ -305,6 +308,16 @@
         <span>{{ t('admin.accounts.dataExportIncludeProxies') }}</span>
       </label>
     </ConfirmDialog>
+    <ConfirmDialog
+      :show="showDeduplicateDialog"
+      :title="t('admin.accounts.deduplicateAction')"
+      :message="t('admin.accounts.deduplicateConfirm')"
+      :confirm-text="t('admin.accounts.deduplicateConfirmButton')"
+      :cancel-text="t('common.cancel')"
+      :danger="true"
+      @confirm="handleDeduplicateAccounts"
+      @cancel="showDeduplicateDialog = false"
+    />
     <ErrorPassthroughRulesModal :show="showErrorPassthrough" @close="showErrorPassthrough = false" />
     <TLSFingerprintProfilesModal :show="showTLSFingerprintProfiles" @close="showTLSFingerprintProfiles = false" />
   </AppLayout>
@@ -399,6 +412,8 @@ const scheduleModelOptions = ref<SelectOption[]>([])
 const togglingSchedulable = ref<number | null>(null)
 const menu = reactive<{show:boolean, acc:Account|null, pos:{top:number, left:number}|null}>({ show: false, acc: null, pos: null })
 const exportingData = ref(false)
+const showDeduplicateDialog = ref(false)
+const deduplicatingAccounts = ref(false)
 
 // Column settings
 const showColumnDropdown = ref(false)
@@ -637,6 +652,7 @@ const {
     platform: '',
     type: '',
     status: '',
+    health_status: '',
     privacy_mode: '',
     group: '',
     search: '',
@@ -741,11 +757,13 @@ const handleSort = (key: string, order: AccountSortOrder) => {
 }
 
 watch(loading, (isLoading, wasLoading) => {
-  if (wasLoading && !isLoading && pendingTodayStatsRefresh.value) {
-    pendingTodayStatsRefresh.value = false
-    refreshTodayStatsBatch().catch((error) => {
-      console.error('Failed to refresh account today stats after table load:', error)
-    })
+  if (wasLoading && !isLoading) {
+    if (pendingTodayStatsRefresh.value) {
+      pendingTodayStatsRefresh.value = false
+      refreshTodayStatsBatch().catch((error) => {
+        console.error('Failed to refresh account today stats after table load:', error)
+      })
+    }
   }
 })
 
@@ -756,6 +774,7 @@ const isAnyModalOpen = computed(() => {
     showSync.value ||
     showImportData.value ||
     showExportDataDialog.value ||
+    showDeduplicateDialog.value ||
     showBulkEdit.value ||
     showTempUnsched.value ||
     showDeleteDialog.value ||
@@ -872,6 +891,31 @@ const handleManualRefresh = async () => {
   await load()
   // Force usage cells to refetch /usage on explicit user refresh.
   usageManualRefreshToken.value += 1
+}
+
+const handleDeduplicateAccounts = async () => {
+  if (deduplicatingAccounts.value) return
+  deduplicatingAccounts.value = true
+  try {
+    const result = await adminAPI.accounts.deduplicateAccounts({
+      filters: buildAccountQueryFilters()
+    })
+    showDeduplicateDialog.value = false
+    clearSelection()
+    await reload()
+    usageManualRefreshToken.value += 1
+    appStore.showSuccess(
+      t('admin.accounts.deduplicateCompleted', {
+        deleted: result.deleted_count,
+        groups: result.duplicate_groups
+      })
+    )
+  } catch (error: any) {
+    console.error('Failed to deduplicate accounts:', error)
+    appStore.showError(error?.message || t('admin.accounts.deduplicateFailed'))
+  } finally {
+    deduplicatingAccounts.value = false
+  }
 }
 
 const syncPendingListChanges = async () => {
@@ -1180,6 +1224,7 @@ const buildAccountQueryFilters = () => ({
   platform: params.platform || '',
   type: params.type || '',
   status: params.status || '',
+  health_status: params.health_status || '',
   group: params.group || '',
   privacy_mode: params.privacy_mode || '',
   search: params.search || '',
@@ -1208,6 +1253,9 @@ const accountMatchesCurrentFilters = (account: Account) => {
     } else if (account.status !== filters.status) {
       return false
     }
+  }
+  if (filters.health_status && (account.health_status || 'unchecked') !== filters.health_status) {
+    return false
   }
   if (filters.group) {
     const groupIds = account.group_ids ?? account.groups?.map((group) => group.id) ?? []

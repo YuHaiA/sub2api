@@ -34,6 +34,7 @@ export async function list(
     platform?: string
     type?: string
     status?: string
+    health_status?: string
     group?: string
     search?: string
     privacy_mode?: string
@@ -69,6 +70,7 @@ export async function listWithEtag(
     platform?: string
     type?: string
     status?: string
+    health_status?: string
     group?: string
     search?: string
     privacy_mode?: string
@@ -406,6 +408,49 @@ export interface BatchTodayStatsResponse {
   stats: Record<string, WindowStats>
 }
 
+export interface AccountHealthSummary {
+  total_accounts: number
+  healthy_accounts: number
+  banned_or_exhausted_accounts: number
+  unavailable_accounts: number
+  unchecked_accounts: number
+  last_checked_at?: string
+}
+
+export interface AccountHealthAutoCheckConfig {
+  enabled: boolean
+  interval_minutes: number
+  model_id: string
+  last_run_at?: number | null
+}
+
+export interface AccountHealthCheckItem {
+  account_id: number
+  name: string
+  platform: string
+  type: string
+  health_status: 'healthy' | 'rate_limited' | 'banned_or_exhausted' | 'unavailable' | 'unchecked'
+  result_status: string
+  message?: string
+  latency_ms: number
+  last_checked_at: string
+}
+
+export interface AccountHealthCheckResponse {
+  summary: AccountHealthSummary
+  items: AccountHealthCheckItem[]
+}
+
+export interface DeduplicateAccountsResult {
+  duplicate_groups: number
+  deleted_count: number
+  kept_count: number
+}
+
+export interface DeleteUnhealthyAccountsResult {
+  deleted_count: number
+}
+
 /**
  * 批量获取多个账号的今日统计
  * @param accountIds - 账号 ID 列表
@@ -414,6 +459,95 @@ export interface BatchTodayStatsResponse {
 export async function getBatchTodayStats(accountIds: number[]): Promise<BatchTodayStatsResponse> {
   const { data } = await apiClient.post<BatchTodayStatsResponse>('/admin/accounts/today-stats/batch', {
     account_ids: accountIds
+  })
+  return data
+}
+
+export async function getHealthSummary(filters?: {
+  platform?: string
+  type?: string
+  status?: string
+  health_status?: string
+  group?: string
+  privacy_mode?: string
+  search?: string
+  sort_by?: string
+  sort_order?: 'asc' | 'desc'
+}): Promise<AccountHealthSummary> {
+  const { data } = await apiClient.get<AccountHealthSummary>('/admin/accounts/health-summary', {
+    params: filters
+  })
+  return data
+}
+
+export async function runHealthCheck(payload?: {
+  account_ids?: number[]
+  model_id?: string
+  filters?: {
+    platform?: string
+    type?: string
+    status?: string
+    health_status?: string
+    group?: string
+    privacy_mode?: string
+    search?: string
+    sort_by?: string
+    sort_order?: 'asc' | 'desc'
+  }
+}): Promise<AccountHealthCheckResponse> {
+  const { data } = await apiClient.post<AccountHealthCheckResponse>('/admin/accounts/health-check', payload ?? {}, {
+    timeout: 300000
+  })
+  return data
+}
+
+export async function getAccountHealthAutoCheckConfig(): Promise<AccountHealthAutoCheckConfig> {
+  const { data } = await apiClient.get<AccountHealthAutoCheckConfig>('/admin/settings/account-health-auto-check')
+  return data
+}
+
+export async function updateAccountHealthAutoCheckConfig(payload: {
+  enabled: boolean
+  interval_minutes: number
+  model_id: string
+}): Promise<AccountHealthAutoCheckConfig> {
+  const { data } = await apiClient.put<AccountHealthAutoCheckConfig>('/admin/settings/account-health-auto-check', payload)
+  return data
+}
+
+export async function deduplicateAccounts(payload?: {
+  filters?: {
+    platform?: string
+    type?: string
+    status?: string
+    group?: string
+    privacy_mode?: string
+    search?: string
+    sort_by?: string
+    sort_order?: 'asc' | 'desc'
+  }
+}): Promise<DeduplicateAccountsResult> {
+  const { data } = await apiClient.post<DeduplicateAccountsResult>('/admin/accounts/deduplicate', payload ?? {}, {
+    timeout: 300000
+  })
+  return data
+}
+
+export async function deleteUnhealthyAccounts(payload?: {
+  filters?: {
+    platform?: string
+    type?: string
+    status?: string
+    health_status?: string
+    group?: string
+    privacy_mode?: string
+    search?: string
+    sort_by?: string
+    sort_order?: 'asc' | 'desc'
+  }
+}): Promise<DeleteUnhealthyAccountsResult> {
+  const { data } = await apiClient.post<DeleteUnhealthyAccountsResult>('/admin/accounts/delete-unhealthy', payload ?? {}, {
+    timeout: 300000
   })
   return data
 }
@@ -643,6 +777,12 @@ export const accountsAPI = {
   getUsage,
   getTodayStats,
   getBatchTodayStats,
+  getHealthSummary,
+  runHealthCheck,
+  getAccountHealthAutoCheckConfig,
+  updateAccountHealthAutoCheckConfig,
+  deduplicateAccounts,
+  deleteUnhealthyAccounts,
   clearRateLimit,
   recoverState,
   resetAccountQuota,

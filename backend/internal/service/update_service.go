@@ -49,15 +49,19 @@ type GitHubReleaseClient interface {
 type UpdateService struct {
 	cache          UpdateCache
 	githubClient   GitHubReleaseClient
+	settingRepo    SettingRepository
+	deployRunner   DeployCommandRunner
 	currentVersion string
 	buildType      string // "source" for manual builds, "release" for CI builds
 }
 
 // NewUpdateService creates a new UpdateService
-func NewUpdateService(cache UpdateCache, githubClient GitHubReleaseClient, version, buildType string) *UpdateService {
+func NewUpdateService(cache UpdateCache, githubClient GitHubReleaseClient, settingRepo SettingRepository, version, buildType string) *UpdateService {
 	return &UpdateService{
 		cache:          cache,
 		githubClient:   githubClient,
+		settingRepo:    settingRepo,
+		deployRunner:   execDeployCommandRunner{},
 		currentVersion: version,
 		buildType:      buildType,
 	}
@@ -140,6 +144,11 @@ func (s *UpdateService) CheckUpdate(ctx context.Context, force bool) (*UpdateInf
 // PerformUpdate downloads and applies the update
 // Uses atomic file replacement pattern for safe in-place updates
 func (s *UpdateService) PerformUpdate(ctx context.Context) error {
+	if cfg, err := s.GetDeployConfig(ctx); err == nil && cfg.Enabled {
+		_, err := s.TriggerDeploy(ctx, &DeployTriggerRequest{})
+		return err
+	}
+
 	info, err := s.CheckUpdate(ctx, true)
 	if err != nil {
 		return err

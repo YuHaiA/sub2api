@@ -2,6 +2,8 @@ package admin
 
 import (
 	"context"
+	"errors"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -71,10 +73,17 @@ func (h *SystemHandler) PerformUpdate(c *gin.Context) {
 			return nil, err
 		}
 		succeeded = true
+		deployCfg, _ := h.updateSvc.GetDeployConfig(ctx)
+		needRestart := true
+		message := "Update completed. Please restart the service."
+		if deployCfg != nil && deployCfg.Enabled {
+			needRestart = false
+			message = "Deploy completed successfully."
+		}
 
 		return gin.H{
-			"message":      "Update completed. Please restart the service.",
-			"need_restart": true,
+			"message":      message,
+			"need_restart": needRestart,
 			"operation_id": lock.OperationID(),
 		}, nil
 	})
@@ -136,6 +145,92 @@ func (h *SystemHandler) RestartService(c *gin.Context) {
 		return gin.H{
 			"message":      "Service restart initiated",
 			"operation_id": lock.OperationID(),
+		}, nil
+	})
+}
+
+// GetDeployConfig returns the current deployment configuration.
+// GET /api/v1/admin/system/deploy-config
+func (h *SystemHandler) GetDeployConfig(c *gin.Context) {
+	cfg, err := h.updateSvc.GetDeployConfig(c.Request.Context())
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+	response.Success(c, cfg)
+}
+
+// UpdateDeployConfig updates the current deployment configuration.
+// PUT /api/v1/admin/system/deploy-config
+func (h *SystemHandler) UpdateDeployConfig(c *gin.Context) {
+	var req service.DeployConfig
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if err := h.updateSvc.SaveDeployConfig(c.Request.Context(), &req); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	cfg, err := h.updateSvc.GetDeployConfig(c.Request.Context())
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+	response.Success(c, cfg)
+}
+
+// GetDeployStatus returns the latest deployment state.
+// GET /api/v1/admin/system/deploy-status
+func (h *SystemHandler) GetDeployStatus(c *gin.Context) {
+	state, err := h.updateSvc.GetDeployState(c.Request.Context())
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+	response.Success(c, state)
+}
+
+// TriggerDeploy triggers a configured deployment update.
+// POST /api/v1/admin/system/deploy
+func (h *SystemHandler) TriggerDeploy(c *gin.Context) {
+	var req service.DeployTriggerRequest
+	if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	operationID := buildSystemOperationID(c, "deploy")
+	payload := gin.H{
+		"operation_id": operationID,
+		"image":        req.Image,
+		"dry_run":      req.DryRun,
+	}
+	executeAdminIdempotentJSON(c, "admin.system.deploy", payload, service.DefaultSystemOperationIdempotencyTTL(), func(ctx context.Context) (any, error) {
+		lock, release, err := h.acquireSystemLock(ctx, operationID)
+		if err != nil {
+			return nil, err
+		}
+		var releaseReason string
+		succeeded := false
+		defer func() {
+			release(releaseReason, succeeded)
+		}()
+
+		result, err := h.updateSvc.TriggerDeploy(ctx, &req)
+		if err != nil {
+			releaseReason = "SYSTEM_DEPLOY_FAILED"
+			return nil, err
+		}
+		succeeded = true
+		return gin.H{
+			"message":       result.Message,
+			"need_restart":  result.NeedRestart,
+			"operation_id":  lock.OperationID(),
+			"status":        result.Status,
+			"image":         result.Image,
+			"service_name":  result.ServiceName,
+			"compose_dir":   result.ComposeProjectDir,
+			"commands":      result.Commands,
 		}, nil
 	})
 }

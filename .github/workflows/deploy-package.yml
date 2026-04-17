@@ -1,0 +1,53 @@
+name: Deploy Package
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish-deploy-package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build deploy image
+        run: docker build -t sub2api-gha:docker-deploy .
+
+      - name: Export deploy image tar
+        run: docker save -o sub2api-docker-image.tar sub2api-gha:docker-deploy
+
+      - name: Generate checksum
+        shell: bash
+        run: sha256sum sub2api-docker-image.tar > sub2api-docker-image.tar.sha256
+
+      - name: Publish fixed deploy release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: docker-deploy
+          name: Docker Deploy Package
+          body: |
+            Fixed release asset used by the admin-panel deployment flow.
+
+            Asset URL:
+            https://github.com/${{ github.repository }}/releases/download/docker-deploy/sub2api-docker-image.tar
+          files: |
+            sub2api-docker-image.tar
+            sub2api-docker-image.tar.sha256
+          make_latest: false
+          prerelease: true
+          append_body: false
+          generate_release_notes: false
+          fail_on_unmatched_files: true
+          preserve_order: true
+          draft: false
+          target_commitish: ${{ github.sha }}
+          overwrite_files: true

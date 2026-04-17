@@ -697,6 +697,11 @@ export interface Account {
   rate_multiplier?: number // Account billing multiplier (>=0, 0 means free)
   status: 'active' | 'inactive' | 'error'
   error_message: string | null
+  health_status?: 'unchecked' | 'healthy' | 'rate_limited' | 'banned_or_exhausted' | 'unavailable'
+  health_result_status?: string | null
+  health_message?: string | null
+  health_latency_ms?: number
+  health_last_checked_at?: string | null
   last_used_at: string | null
   expires_at: number | null
   auto_pause_on_expired: boolean

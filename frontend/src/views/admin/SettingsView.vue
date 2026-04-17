@@ -2219,6 +2219,194 @@
         <div class="card">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              {{ t('admin.settings.deploy.title') }}
+            </h2>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {{ t('admin.settings.deploy.description') }}
+            </p>
+          </div>
+          <div class="space-y-5 p-6">
+            <div v-if="deployLoading" class="flex items-center gap-2 text-gray-500">
+              <div class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"></div>
+              {{ t('common.loading') }}
+            </div>
+
+            <template v-else>
+              <div class="flex items-center justify-between">
+                <div>
+                  <label class="font-medium text-gray-900 dark:text-white">
+                    {{ t('admin.settings.deploy.enabled') }}
+                  </label>
+                  <p class="text-sm text-gray-500 dark:text-gray-400">
+                    {{ t('admin.settings.deploy.enabledHint') }}
+                  </p>
+                </div>
+                <Toggle v-model="deployConfig.enabled" />
+              </div>
+
+              <div class="grid grid-cols-1 gap-4 border-t border-gray-100 pt-4 dark:border-dark-700 sm:grid-cols-2">
+                <div>
+                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t('admin.settings.deploy.sourceType') }}
+                  </label>
+                  <Select
+                    v-model="deployConfig.source_type"
+                    :options="[
+                      { value: 'docker_image', label: t('admin.settings.deploy.sourceTypeImage') },
+                      { value: 'docker_archive_url', label: t('admin.settings.deploy.sourceTypeArchive') }
+                    ]"
+                  />
+                </div>
+                <div></div>
+                <div>
+                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t('admin.settings.deploy.defaultImage') }}
+                  </label>
+                  <input
+                    v-model="deployConfig.default_image"
+                    type="text"
+                    class="input font-mono text-sm"
+                    :placeholder="t('admin.settings.deploy.defaultImagePlaceholder')"
+                  />
+                </div>
+                <div>
+                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t('admin.settings.deploy.allowedImagePrefix') }}
+                  </label>
+                  <input
+                    v-model="deployConfig.allowed_image_prefix"
+                    type="text"
+                    class="input font-mono text-sm"
+                    :placeholder="t('admin.settings.deploy.allowedImagePrefixPlaceholder')"
+                  />
+                </div>
+                <div class="sm:col-span-2" v-if="deployConfig.source_type === 'docker_archive_url'">
+                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t('admin.settings.deploy.archiveUrl') }}
+                  </label>
+                  <input
+                    v-model="deployConfig.archive_url"
+                    type="url"
+                    class="input font-mono text-sm"
+                    :placeholder="t('admin.settings.deploy.archiveUrlPlaceholder')"
+                  />
+                </div>
+                <div v-if="deployConfig.source_type === 'docker_archive_url'">
+                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t('admin.settings.deploy.loadedImage') }}
+                  </label>
+                  <input
+                    v-model="deployConfig.loaded_image"
+                    type="text"
+                    class="input font-mono text-sm"
+                    :placeholder="t('admin.settings.deploy.loadedImagePlaceholder')"
+                  />
+                </div>
+                <div>
+                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t('admin.settings.deploy.serviceName') }}
+                  </label>
+                  <input
+                    v-model="deployConfig.service_name"
+                    type="text"
+                    class="input font-mono text-sm"
+                  />
+                </div>
+                <div>
+                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t('admin.settings.deploy.composeProjectDir') }}
+                  </label>
+                  <input
+                    v-model="deployConfig.compose_project_dir"
+                    type="text"
+                    class="input font-mono text-sm"
+                  />
+                </div>
+                <div>
+                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t('admin.settings.deploy.composeBinary') }}
+                  </label>
+                  <input
+                    v-model="deployConfig.compose_binary"
+                    type="text"
+                    class="input font-mono text-sm"
+                  />
+                </div>
+                <div>
+                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t('admin.settings.deploy.dockerBinary') }}
+                  </label>
+                  <input
+                    v-model="deployConfig.docker_binary"
+                    type="text"
+                    class="input font-mono text-sm"
+                  />
+                </div>
+                <div class="sm:col-span-2">
+                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t('admin.settings.deploy.composeFile') }}
+                  </label>
+                  <input
+                    v-model="deployConfig.compose_file"
+                    type="text"
+                    class="input font-mono text-sm"
+                    :placeholder="t('admin.settings.deploy.composeFilePlaceholder')"
+                  />
+                </div>
+              </div>
+
+              <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm dark:border-dark-600 dark:bg-dark-800/60">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p class="font-medium text-gray-900 dark:text-white">
+                      {{ t('admin.settings.deploy.status') }}: {{ deployState.status || 'idle' }}
+                    </p>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      {{ deployState.last_message || t('admin.settings.deploy.statusHint') }}
+                    </p>
+                    <p v-if="deployState.last_error" class="mt-1 text-xs text-red-500">
+                      {{ deployState.last_error }}
+                    </p>
+                  </div>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      class="btn btn-secondary btn-sm"
+                      :disabled="deployRefreshing"
+                      @click="refreshDeployStatus"
+                    >
+                      {{ t('admin.settings.deploy.refreshStatus') }}
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-primary btn-sm"
+                      :disabled="deployRunning"
+                      @click="triggerDeployNow"
+                    >
+                      {{ deployRunning ? t('version.updating') : t('admin.settings.deploy.deployNow') }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex justify-end border-t border-gray-100 pt-4 dark:border-dark-700">
+                <button
+                  type="button"
+                  @click="saveDeployConfig"
+                  :disabled="deploySaving"
+                  class="btn btn-primary btn-sm"
+                >
+                  {{ deploySaving ? t('common.saving') : t('common.save') }}
+                </button>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Custom Menu Items -->
+        <div class="card">
+          <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
               {{ t('admin.settings.customMenu.title') }}
             </h2>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -2820,6 +3008,7 @@ import type {
   WebSearchProviderConfig,
   WebSearchTestResult,
 } from '@/api/admin/settings'
+import type { DeployConfig as SystemDeployConfig, DeployState } from '@/api/admin/system'
 import type { AdminGroup, Proxy, NotifyEmailEntry } from '@/types'
 import type { ProviderInstance } from '@/types/payment'
 import AppLayout from '@/components/layout/AppLayout.vue'
@@ -3066,6 +3255,33 @@ const wsTestLoading = ref(false)
 const wsTestResult = ref<WebSearchTestResult | null>(null)
 const wsTestDialogOpen = ref(false)
 
+const deployLoading = ref(true)
+const deploySaving = ref(false)
+const deployRunning = ref(false)
+const deployRefreshing = ref(false)
+const deployConfig = reactive<SystemDeployConfig>({
+  enabled: false,
+  mode: 'docker_compose',
+  source_type: 'docker_archive_url',
+  default_image: 'weishaw/sub2api:latest',
+  allowed_image_prefix: '',
+  archive_url: 'https://github.com/YuHaiA/sub2api/releases/download/docker-deploy/sub2api-docker-image.tar',
+  loaded_image: 'sub2api-gha:docker-deploy',
+  service_name: 'sub2api',
+  compose_project_dir: '/home/ec2-user/sub2api-deploy',
+  compose_file: '',
+  docker_binary: 'docker',
+  compose_binary: 'docker-compose'
+})
+const deployState = reactive<DeployState>({
+  status: 'idle',
+  requested_image: '',
+  last_message: '',
+  last_error: '',
+  started_at: undefined,
+  finished_at: undefined
+})
+
 function openTestDialog() {
   wsTestResult.value = null
   wsTestDialogOpen.value = true
@@ -3183,6 +3399,103 @@ async function loadWebSearchConfig() {
     if (status !== 404 && status !== undefined) {
       appStore.showError(extractApiErrorMessage(err, t('common.error')))
     }
+  }
+}
+
+function applyDeployConfig(config: SystemDeployConfig) {
+  deployConfig.enabled = config.enabled
+  deployConfig.mode = config.mode || 'docker_compose'
+  deployConfig.source_type = config.source_type || 'docker_image'
+  deployConfig.default_image = config.default_image || 'weishaw/sub2api:latest'
+  deployConfig.allowed_image_prefix = config.allowed_image_prefix || ''
+  deployConfig.archive_url = config.archive_url || ''
+  deployConfig.loaded_image = config.loaded_image || ''
+  deployConfig.service_name = config.service_name || 'sub2api'
+  deployConfig.compose_project_dir = config.compose_project_dir || '/home/ec2-user/sub2api-deploy'
+  deployConfig.compose_file = config.compose_file || ''
+  deployConfig.docker_binary = config.docker_binary || 'docker'
+  deployConfig.compose_binary = config.compose_binary || 'docker-compose'
+}
+
+function applyDeployState(state: DeployState) {
+  deployState.status = state.status || 'idle'
+  deployState.requested_image = state.requested_image || ''
+  deployState.last_message = state.last_message || ''
+  deployState.last_error = state.last_error || ''
+  deployState.started_at = state.started_at
+  deployState.finished_at = state.finished_at
+}
+
+async function loadDeployConfig() {
+  deployLoading.value = true
+  try {
+    const [config, state] = await Promise.all([
+      adminAPI.system.getDeployConfig(),
+      adminAPI.system.getDeployStatus()
+    ])
+    applyDeployConfig(config)
+    applyDeployState(state)
+  } catch (err: unknown) {
+    appStore.showError(extractApiErrorMessage(err, t('common.error')))
+  } finally {
+    deployLoading.value = false
+  }
+}
+
+async function saveDeployConfig() {
+  deploySaving.value = true
+  try {
+    const updated = await adminAPI.system.updateDeployConfig({
+      enabled: deployConfig.enabled,
+      mode: deployConfig.mode,
+      source_type: deployConfig.source_type || 'docker_image',
+      default_image: deployConfig.default_image.trim(),
+      allowed_image_prefix: deployConfig.allowed_image_prefix?.trim() || '',
+      archive_url: deployConfig.archive_url?.trim() || '',
+      loaded_image: deployConfig.loaded_image?.trim() || '',
+      service_name: deployConfig.service_name.trim(),
+      compose_project_dir: deployConfig.compose_project_dir.trim(),
+      compose_file: deployConfig.compose_file?.trim() || '',
+      docker_binary: deployConfig.docker_binary?.trim() || 'docker',
+      compose_binary: deployConfig.compose_binary?.trim() || 'docker-compose'
+    })
+    applyDeployConfig(updated)
+    appStore.showSuccess(t('admin.settings.deploy.saved'))
+  } catch (err: unknown) {
+    appStore.showError(extractApiErrorMessage(err, t('common.error')))
+  } finally {
+    deploySaving.value = false
+  }
+}
+
+async function refreshDeployStatus() {
+  deployRefreshing.value = true
+  try {
+    const state = await adminAPI.system.getDeployStatus()
+    applyDeployState(state)
+  } catch (err: unknown) {
+    appStore.showError(extractApiErrorMessage(err, t('common.error')))
+  } finally {
+    deployRefreshing.value = false
+  }
+}
+
+async function triggerDeployNow() {
+  if (deployRunning.value) return
+  deployRunning.value = true
+  try {
+    const result = await adminAPI.system.triggerDeploy()
+    deployState.status = result.status
+    deployState.last_message = result.message
+    deployState.last_error = ''
+    deployState.requested_image = result.image
+    appStore.showSuccess(result.message)
+    await refreshDeployStatus()
+  } catch (err: unknown) {
+    appStore.showError(extractApiErrorMessage(err, t('version.updateFailed')))
+    await refreshDeployStatus()
+  } finally {
+    deployRunning.value = false
   }
 }
 
@@ -3437,6 +3750,7 @@ async function loadSettings() {
 
     // Load web search emulation config separately
     await loadWebSearchConfig()
+    await loadDeployConfig()
   } catch (error: unknown) {
     loadFailed.value = true
     appStore.showError(extractApiErrorMessage(error, t('admin.settings.failedToLoad')))

@@ -251,8 +251,12 @@ func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	accounts := admin.Group("/accounts")
 	{
 		accounts.GET("", h.Admin.Account.List)
+		accounts.POST("/deduplicate", h.Admin.Account.Deduplicate)
+		accounts.POST("/delete-unhealthy", h.Admin.Account.DeleteUnhealthy)
+		accounts.GET("/health-summary", h.Admin.Account.GetHealthSummary)
 		accounts.GET("/:id", h.Admin.Account.GetByID)
 		accounts.POST("", h.Admin.Account.Create)
+		accounts.POST("/health-check", h.Admin.Account.RunHealthCheck)
 		accounts.POST("/check-mixed-channel", h.Admin.Account.CheckMixedChannel)
 		accounts.POST("/sync/crs", h.Admin.Account.SyncFromCRS)
 		accounts.POST("/sync/crs/preview", h.Admin.Account.PreviewFromCRS)
@@ -412,6 +416,8 @@ func registerSettingsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		adminSettings.PUT("/web-search-emulation", h.Admin.Setting.UpdateWebSearchEmulationConfig)
 		adminSettings.POST("/web-search-emulation/test", h.Admin.Setting.TestWebSearchEmulation)
 		adminSettings.POST("/web-search-emulation/reset-usage", h.Admin.Setting.ResetWebSearchUsage)
+		adminSettings.GET("/account-health-auto-check", h.Admin.Setting.GetAccountHealthAutoCheckConfig)
+		adminSettings.PUT("/account-health-auto-check", h.Admin.Setting.UpdateAccountHealthAutoCheckConfig)
 	}
 }
 
@@ -467,6 +473,10 @@ func registerSystemRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	{
 		system.GET("/version", h.Admin.System.GetVersion)
 		system.GET("/check-updates", h.Admin.System.CheckUpdates)
+		system.GET("/deploy-config", h.Admin.System.GetDeployConfig)
+		system.PUT("/deploy-config", h.Admin.System.UpdateDeployConfig)
+		system.GET("/deploy-status", h.Admin.System.GetDeployStatus)
+		system.POST("/deploy", h.Admin.System.TriggerDeploy)
 		system.POST("/update", h.Admin.System.PerformUpdate)
 		system.POST("/rollback", h.Admin.System.Rollback)
 		system.POST("/restart", h.Admin.System.RestartService)

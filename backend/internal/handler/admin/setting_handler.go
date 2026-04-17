@@ -2008,3 +2008,34 @@ func (h *SettingHandler) TestWebSearchEmulation(c *gin.Context) {
 	}
 	response.Success(c, result)
 }
+
+// GetAccountHealthAutoCheckConfig 获取自动测活配置
+// GET /api/v1/admin/settings/account-health-auto-check
+func (h *SettingHandler) GetAccountHealthAutoCheckConfig(c *gin.Context) {
+	cfg, err := h.settingService.GetAccountHealthAutoCheckConfig(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, cfg)
+}
+
+// UpdateAccountHealthAutoCheckConfig 更新自动测活配置
+// PUT /api/v1/admin/settings/account-health-auto-check
+func (h *SettingHandler) UpdateAccountHealthAutoCheckConfig(c *gin.Context) {
+	var req service.AccountHealthAutoCheckConfig
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if err := h.settingService.SaveAccountHealthAutoCheckConfig(c.Request.Context(), &req); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	updated, err := h.settingService.GetAccountHealthAutoCheckConfig(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, updated)
+}

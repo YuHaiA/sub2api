@@ -152,6 +152,11 @@ type Account struct {
 	RateMultiplier     float64        `json:"rate_multiplier"`
 	Status             string         `json:"status"`
 	ErrorMessage       string         `json:"error_message"`
+	HealthStatus       string         `json:"health_status,omitempty"`
+	HealthResultStatus string         `json:"health_result_status,omitempty"`
+	HealthMessage      string         `json:"health_message,omitempty"`
+	HealthLatencyMs    int64          `json:"health_latency_ms,omitempty"`
+	HealthLastCheckedAt string        `json:"health_last_checked_at,omitempty"`
 	LastUsedAt         *time.Time     `json:"last_used_at"`
 	ExpiresAt          *int64         `json:"expires_at"`
 	AutoPauseOnExpired bool           `json:"auto_pause_on_expired"`

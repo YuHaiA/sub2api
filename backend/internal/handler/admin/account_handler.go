@@ -8,9 +8,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"log/slog"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -177,6 +179,13 @@ func (h *AccountHandler) buildAccountResponseWithRuntime(ctx context.Context, ac
 		return item
 	}
 
+	snapshot := parseStoredAccountHealth(account)
+	item.Account.HealthStatus = snapshot.Status
+	item.Account.HealthResultStatus = snapshot.ResultStatus
+	item.Account.HealthMessage = snapshot.Message
+	item.Account.HealthLatencyMs = snapshot.LatencyMs
+	item.Account.HealthLastCheckedAt = snapshot.LastCheckedAt
+
 	if h.concurrencyService != nil {
 		if counts, err := h.concurrencyService.GetAccountConcurrencyBatch(ctx, []int64{account.ID}); err == nil {
 			item.CurrentConcurrency = counts[account.ID]
@@ -219,6 +228,7 @@ func (h *AccountHandler) List(c *gin.Context) {
 	platform := c.Query("platform")
 	accountType := c.Query("type")
 	status := c.Query("status")
+	healthStatus := normalizeAccountHealthStatusFilter(c.Query("health_status"))
 	search := c.Query("search")
 	privacyMode := strings.TrimSpace(c.Query("privacy_mode"))
 	sortBy := c.DefaultQuery("sort_by", "name")
@@ -252,6 +262,25 @@ func (h *AccountHandler) List(c *gin.Context) {
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
+	}
+	if healthStatus != "" {
+		allAccounts, listErr := h.listAccountsFiltered(c.Request.Context(), platform, accountType, status, search, groupID, privacyMode, sortBy, sortOrder)
+		if listErr != nil {
+			response.ErrorFrom(c, listErr)
+			return
+		}
+		filtered := filterAccountsByHealthStatus(allAccounts, healthStatus)
+		total = int64(len(filtered))
+		start := (page - 1) * pageSize
+		if start > len(filtered) {
+			accounts = []service.Account{}
+		} else {
+			end := start + pageSize
+			if end > len(filtered) {
+				end = len(filtered)
+			}
+			accounts = filtered[start:end]
+		}
 	}
 
 	// Get current concurrency counts for all accounts
@@ -345,6 +374,12 @@ func (h *AccountHandler) List(c *gin.Context) {
 			Account:            dto.AccountFromService(acc),
 			CurrentConcurrency: concurrencyCounts[acc.ID],
 		}
+		snapshot := parseStoredAccountHealth(acc)
+		item.Account.HealthStatus = snapshot.Status
+		item.Account.HealthResultStatus = snapshot.ResultStatus
+		item.Account.HealthMessage = snapshot.Message
+		item.Account.HealthLatencyMs = snapshot.LatencyMs
+		item.Account.HealthLastCheckedAt = snapshot.LastCheckedAt
 
 		// 添加窗口费用（仅当启用时）
 		if windowCosts != nil {
@@ -370,7 +405,7 @@ func (h *AccountHandler) List(c *gin.Context) {
 		result[i] = item
 	}
 
-	etag := buildAccountsListETag(result, total, page, pageSize, platform, accountType, status, search, lite)
+	etag := buildAccountsListETag(result, total, page, pageSize, platform, accountType, status, healthStatus, search, lite)
 	if etag != "" {
 		c.Header("ETag", etag)
 		c.Header("Vary", "If-None-Match")
@@ -387,7 +422,7 @@ func buildAccountsListETag(
 	items []AccountWithConcurrency,
 	total int64,
 	page, pageSize int,
-	platform, accountType, status, search string,
+	platform, accountType, status, healthStatus, search string,
 	lite bool,
 ) string {
 	payload := struct {
@@ -397,6 +432,7 @@ func buildAccountsListETag(
 		Platform    string                   `json:"platform"`
 		AccountType string                   `json:"type"`
 		Status      string                   `json:"status"`
+		HealthStatus string                  `json:"health_status"`
 		Search      string                   `json:"search"`
 		Lite        bool                     `json:"lite"`
 		Items       []AccountWithConcurrency `json:"items"`
@@ -407,6 +443,7 @@ func buildAccountsListETag(
 		Platform:    platform,
 		AccountType: accountType,
 		Status:      status,
+		HealthStatus: healthStatus,
 		Search:      search,
 		Lite:        lite,
 		Items:       items,
@@ -648,10 +685,171 @@ func (h *AccountHandler) Delete(c *gin.Context) {
 	response.Success(c, gin.H{"message": "Account deleted successfully"})
 }
 
+// Deduplicate handles deleting duplicate accounts under the current filters.
+// POST /api/v1/admin/accounts/deduplicate
+func (h *AccountHandler) Deduplicate(c *gin.Context) {
+	var req DeduplicateAccountsRequest
+	if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	filters := normalizeAccountHealthFilters(req.Filters)
+	accounts, err := h.listAccountsForHealthFilters(c.Request.Context(), filters)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	grouped := make(map[string][]service.Account)
+	for _, account := range accounts {
+		key := strings.ToLower(strings.TrimSpace(account.Platform)) + "|" +
+			strings.ToLower(strings.TrimSpace(account.Type)) + "|" +
+			strings.ToLower(strings.TrimSpace(account.Name))
+		grouped[key] = append(grouped[key], account)
+	}
+
+	result := DeduplicateAccountsResult{}
+	for _, group := range grouped {
+		if len(group) <= 1 {
+			continue
+		}
+		result.DuplicateGroups++
+		sort.Slice(group, func(i, j int) bool {
+			return group[i].ID < group[j].ID
+		})
+
+		result.KeptCount++
+		for _, duplicate := range group[1:] {
+			if err := h.adminService.DeleteAccount(c.Request.Context(), duplicate.ID); err != nil {
+				response.ErrorFrom(c, err)
+				return
+			}
+			result.DeletedCount++
+		}
+	}
+
+	response.Success(c, result)
+}
+
+// DeleteUnhealthy handles deleting unavailable accounts under the current filters.
+// POST /api/v1/admin/accounts/delete-unhealthy
+func (h *AccountHandler) DeleteUnhealthy(c *gin.Context) {
+	var req DeleteUnhealthyAccountsRequest
+	if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	filters := normalizeAccountHealthFilters(req.Filters)
+	accounts, err := h.listAccountsForHealthFilters(c.Request.Context(), filters)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	result := DeleteUnhealthyAccountsResult{}
+	for _, account := range accounts {
+		snapshot := parseStoredAccountHealth(&account)
+		if snapshot.Status != accountHealthStatusUnavailable {
+			continue
+		}
+		if err := h.adminService.DeleteAccount(c.Request.Context(), account.ID); err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+		result.DeletedCount++
+	}
+
+	response.Success(c, result)
+}
+
 // TestAccountRequest represents the request body for testing an account
 type TestAccountRequest struct {
 	ModelID string `json:"model_id"`
 	Prompt  string `json:"prompt"`
+}
+
+const (
+	accountHealthStatusUnchecked          = "unchecked"
+	accountHealthStatusHealthy            = "healthy"
+	accountHealthStatusRateLimited        = "rate_limited"
+	accountHealthStatusBannedOrExhausted  = "banned_or_exhausted"
+	accountHealthStatusUnavailable        = "unavailable"
+	accountHealthCheckExtraKey            = "health_check"
+	defaultAccountHealthCheckConcurrency  = 4
+	defaultAccountHealthFetchPageSize     = 200
+)
+
+type AccountHealthCheckFilters struct {
+	Platform    string `json:"platform"`
+	Type        string `json:"type"`
+	Status      string `json:"status"`
+	HealthStatus string `json:"health_status"`
+	Group       string `json:"group"`
+	Search      string `json:"search"`
+	PrivacyMode string `json:"privacy_mode"`
+	SortBy      string `json:"sort_by"`
+	SortOrder   string `json:"sort_order"`
+}
+
+type AccountHealthCheckRequest struct {
+	AccountIDs []int64                  `json:"account_ids"`
+	Filters    *AccountHealthCheckFilters `json:"filters"`
+	ModelID    string                   `json:"model_id"`
+}
+
+type DeduplicateAccountsRequest struct {
+	Filters *AccountHealthCheckFilters `json:"filters"`
+}
+
+type DeduplicateAccountsResult struct {
+	DuplicateGroups int `json:"duplicate_groups"`
+	DeletedCount    int `json:"deleted_count"`
+	KeptCount       int `json:"kept_count"`
+}
+
+type DeleteUnhealthyAccountsRequest struct {
+	Filters *AccountHealthCheckFilters `json:"filters"`
+}
+
+type DeleteUnhealthyAccountsResult struct {
+	DeletedCount int `json:"deleted_count"`
+}
+
+type AccountHealthAutoConfigRequest struct {
+	Enabled         bool   `json:"enabled"`
+	IntervalMinutes int    `json:"interval_minutes"`
+	ModelID         string `json:"model_id"`
+}
+
+type AccountHealthSummary struct {
+	TotalAccounts                   int    `json:"total_accounts"`
+	HealthyAccounts                 int    `json:"healthy_accounts"`
+	BannedOrExhaustedAccounts       int    `json:"banned_or_exhausted_accounts"`
+	UnavailableAccounts             int    `json:"unavailable_accounts"`
+	UncheckedAccounts               int    `json:"unchecked_accounts"`
+	LastCheckedAt                   string `json:"last_checked_at,omitempty"`
+}
+
+type AccountHealthCheckItem struct {
+	AccountID      int64  `json:"account_id"`
+	Name           string `json:"name"`
+	Platform       string `json:"platform"`
+	Type           string `json:"type"`
+	HealthStatus   string `json:"health_status"`
+	ResultStatus   string `json:"result_status"`
+	Message        string `json:"message,omitempty"`
+	LatencyMs      int64  `json:"latency_ms"`
+	LastCheckedAt  string `json:"last_checked_at"`
+}
+
+type accountHealthSnapshot struct {
+	Status        string
+	ResultStatus  string
+	Message       string
+	LatencyMs     int64
+	LastCheckedAt string
 }
 
 type SyncFromCRSRequest struct {
@@ -692,6 +890,413 @@ func (h *AccountHandler) Test(c *gin.Context) {
 			_ = c.Error(err)
 		}
 	}
+
+	accounts, fetchErr := h.adminService.GetAccountsByIDs(c.Request.Context(), []int64{accountID})
+	if fetchErr != nil {
+		log.Printf("account test fetch failed for account=%d: %v", accountID, fetchErr)
+		return
+	}
+	if len(accounts) == 0 || accounts[0] == nil {
+		return
+	}
+	if persistErr := h.persistAccountHealthSnapshot(c.Request.Context(), accounts[0], accountHealthSnapshot{
+		Status:        accountHealthStatusHealthy,
+		ResultStatus:  "success",
+		LastCheckedAt: time.Now().UTC().Format(time.RFC3339),
+	}); persistErr != nil {
+		log.Printf("account test persist failed for account=%d: %v", accountID, persistErr)
+	}
+}
+
+func normalizeAccountHealthFilters(filters *AccountHealthCheckFilters) AccountHealthCheckFilters {
+	if filters == nil {
+		return AccountHealthCheckFilters{
+			SortBy:    "name",
+			SortOrder: "asc",
+		}
+	}
+	normalized := *filters
+	normalized.Platform = strings.TrimSpace(normalized.Platform)
+	normalized.Type = strings.TrimSpace(normalized.Type)
+	normalized.Status = strings.TrimSpace(normalized.Status)
+	normalized.HealthStatus = normalizeAccountHealthStatusFilter(normalized.HealthStatus)
+	normalized.Group = strings.TrimSpace(normalized.Group)
+	normalized.Search = strings.TrimSpace(normalized.Search)
+	normalized.PrivacyMode = strings.TrimSpace(normalized.PrivacyMode)
+	normalized.SortBy = strings.TrimSpace(normalized.SortBy)
+	if normalized.SortBy == "" {
+		normalized.SortBy = "name"
+	}
+	normalized.SortOrder = strings.TrimSpace(strings.ToLower(normalized.SortOrder))
+	if normalized.SortOrder != "desc" {
+		normalized.SortOrder = "asc"
+	}
+	return normalized
+}
+
+func parseAccountHealthGroupID(raw string) (int64, error) {
+	if raw == "" {
+		return 0, nil
+	}
+	if raw == accountListGroupUngroupedQueryValue {
+		return service.AccountListGroupUngrouped, nil
+	}
+	groupID, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || groupID < 0 {
+		return 0, infraerrors.BadRequest("INVALID_GROUP_FILTER", "invalid group filter")
+	}
+	return groupID, nil
+}
+
+func (h *AccountHandler) listAccountsForHealthFilters(ctx context.Context, filters AccountHealthCheckFilters) ([]service.Account, error) {
+	groupID, err := parseAccountHealthGroupID(filters.Group)
+	if err != nil {
+		return nil, err
+	}
+
+	page := 1
+	accounts := make([]service.Account, 0)
+	for {
+		rows, total, err := h.adminService.ListAccounts(
+			ctx,
+			page,
+			defaultAccountHealthFetchPageSize,
+			filters.Platform,
+			filters.Type,
+			filters.Status,
+			filters.Search,
+			groupID,
+			filters.PrivacyMode,
+			filters.SortBy,
+			filters.SortOrder,
+		)
+		if err != nil {
+			return nil, err
+		}
+		accounts = append(accounts, rows...)
+		if int64(len(accounts)) >= total || len(rows) < defaultAccountHealthFetchPageSize {
+			break
+		}
+		page++
+	}
+	accounts = filterAccountsByHealthStatus(accounts, filters.HealthStatus)
+	return accounts, nil
+}
+
+func cloneMap(src map[string]any) map[string]any {
+	if len(src) == 0 {
+		return map[string]any{}
+	}
+	dst := make(map[string]any, len(src))
+	for key, value := range src {
+		dst[key] = value
+	}
+	return dst
+}
+
+func classifyAccountHealthStatus(result *service.ScheduledTestResult) string {
+	if result == nil {
+		return accountHealthStatusUnchecked
+	}
+	if strings.EqualFold(result.Status, "success") {
+		return accountHealthStatusHealthy
+	}
+	lower := strings.ToLower(strings.TrimSpace(result.ErrorMessage))
+	switch {
+	case lower == "":
+		return accountHealthStatusUnavailable
+	case strings.Contains(lower, "too many requests"),
+		strings.Contains(lower, "rate limit"),
+		strings.Contains(lower, "rate_limit"),
+		strings.Contains(lower, "rate-limited"),
+		strings.Contains(lower, "retry after"),
+		strings.Contains(lower, "api returned 429"),
+		strings.Contains(lower, "(429)"):
+		return accountHealthStatusRateLimited
+	case strings.Contains(lower, "quota exhausted"),
+		strings.Contains(lower, "quota_exhausted"),
+		strings.Contains(lower, "insufficient quota"),
+		strings.Contains(lower, "insufficient balance"),
+		strings.Contains(lower, "insufficient credit"),
+		strings.Contains(lower, "credits exhausted"),
+		strings.Contains(lower, "credit exhausted"),
+		strings.Contains(lower, "resource_exhausted"),
+		strings.Contains(lower, "payment required"),
+		strings.Contains(lower, "api returned 402"),
+		strings.Contains(lower, "(402)"),
+		strings.Contains(lower, "banned"),
+		strings.Contains(lower, "suspend"),
+		strings.Contains(lower, "violation"):
+		return accountHealthStatusBannedOrExhausted
+	default:
+		return accountHealthStatusUnavailable
+	}
+}
+
+func normalizeAccountHealthStatusFilter(raw string) string {
+	switch strings.TrimSpace(strings.ToLower(raw)) {
+	case accountHealthStatusUnchecked,
+		accountHealthStatusHealthy,
+		accountHealthStatusRateLimited,
+		accountHealthStatusBannedOrExhausted,
+		accountHealthStatusUnavailable:
+		return strings.TrimSpace(strings.ToLower(raw))
+	default:
+		return ""
+	}
+}
+
+func filterAccountsByHealthStatus(accounts []service.Account, healthStatus string) []service.Account {
+	if healthStatus == "" {
+		return accounts
+	}
+	filtered := make([]service.Account, 0, len(accounts))
+	for i := range accounts {
+		if parseStoredAccountHealth(&accounts[i]).Status == healthStatus {
+			filtered = append(filtered, accounts[i])
+		}
+	}
+	return filtered
+}
+
+func buildAccountHealthSnapshot(result *service.ScheduledTestResult) accountHealthSnapshot {
+	snapshot := accountHealthSnapshot{
+		Status:        classifyAccountHealthStatus(result),
+		LastCheckedAt: time.Now().UTC().Format(time.RFC3339),
+	}
+	if result != nil {
+		snapshot.ResultStatus = result.Status
+		snapshot.Message = result.ErrorMessage
+		snapshot.LatencyMs = result.LatencyMs
+	}
+	return snapshot
+}
+
+func parseStoredAccountHealth(account *service.Account) accountHealthSnapshot {
+	if account == nil || account.Extra == nil {
+		return accountHealthSnapshot{Status: accountHealthStatusUnchecked}
+	}
+	raw, ok := account.Extra[accountHealthCheckExtraKey]
+	if !ok {
+		return accountHealthSnapshot{Status: accountHealthStatusUnchecked}
+	}
+	data, ok := raw.(map[string]any)
+	if !ok {
+		return accountHealthSnapshot{Status: accountHealthStatusUnchecked}
+	}
+
+	status, _ := data["status"].(string)
+	if status == "" {
+		status = accountHealthStatusUnchecked
+	}
+	resultStatus, _ := data["result_status"].(string)
+	message, _ := data["message"].(string)
+	lastCheckedAt, _ := data["last_checked_at"].(string)
+
+	var latencyMs int64
+	switch value := data["latency_ms"].(type) {
+	case int64:
+		latencyMs = value
+	case int:
+		latencyMs = int64(value)
+	case float64:
+		latencyMs = int64(value)
+	}
+
+	return accountHealthSnapshot{
+		Status:        status,
+		ResultStatus:  resultStatus,
+		Message:       message,
+		LatencyMs:     latencyMs,
+		LastCheckedAt: lastCheckedAt,
+	}
+}
+
+func summarizeAccountHealthSnapshots(snapshots []accountHealthSnapshot) AccountHealthSummary {
+	summary := AccountHealthSummary{}
+	for _, snapshot := range snapshots {
+		summary.TotalAccounts++
+		switch snapshot.Status {
+		case accountHealthStatusHealthy:
+			summary.HealthyAccounts++
+		case accountHealthStatusRateLimited:
+			summary.HealthyAccounts++
+		case accountHealthStatusBannedOrExhausted:
+			summary.BannedOrExhaustedAccounts++
+		case accountHealthStatusUnavailable:
+			summary.UnavailableAccounts++
+		default:
+			summary.UncheckedAccounts++
+		}
+		if snapshot.LastCheckedAt > summary.LastCheckedAt {
+			summary.LastCheckedAt = snapshot.LastCheckedAt
+		}
+	}
+	return summary
+}
+
+func buildAccountHealthItem(account *service.Account, snapshot accountHealthSnapshot) AccountHealthCheckItem {
+	item := AccountHealthCheckItem{
+		HealthStatus:  accountHealthStatusUnchecked,
+		LastCheckedAt: snapshot.LastCheckedAt,
+		ResultStatus:  snapshot.ResultStatus,
+		Message:       snapshot.Message,
+		LatencyMs:     snapshot.LatencyMs,
+	}
+	if account != nil {
+		item.AccountID = account.ID
+		item.Name = account.Name
+		item.Platform = account.Platform
+		item.Type = account.Type
+	}
+	if snapshot.Status != "" {
+		item.HealthStatus = snapshot.Status
+	}
+	return item
+}
+
+func (h *AccountHandler) persistAccountHealthSnapshot(ctx context.Context, account *service.Account, snapshot accountHealthSnapshot) error {
+	if account == nil {
+		return nil
+	}
+	extra := cloneMap(account.Extra)
+	extra[accountHealthCheckExtraKey] = map[string]any{
+		"status":          snapshot.Status,
+		"result_status":   snapshot.ResultStatus,
+		"message":         snapshot.Message,
+		"latency_ms":      snapshot.LatencyMs,
+		"last_checked_at": snapshot.LastCheckedAt,
+	}
+	updated, err := h.adminService.UpdateAccount(ctx, account.ID, &service.UpdateAccountInput{
+		Extra: extra,
+	})
+	if err != nil {
+		return err
+	}
+	if updated != nil {
+		account.Extra = updated.Extra
+	}
+	return nil
+}
+
+// GetHealthSummary handles aggregate account health summary for the current filters.
+// GET /api/v1/admin/accounts/health-summary
+func (h *AccountHandler) GetHealthSummary(c *gin.Context) {
+	filters := normalizeAccountHealthFilters(&AccountHealthCheckFilters{
+		Platform:    strings.TrimSpace(c.Query("platform")),
+		Type:        strings.TrimSpace(c.Query("type")),
+		Status:      strings.TrimSpace(c.Query("status")),
+		HealthStatus: strings.TrimSpace(c.Query("health_status")),
+		Group:       strings.TrimSpace(c.Query("group")),
+		Search:      strings.TrimSpace(c.Query("search")),
+		PrivacyMode: strings.TrimSpace(c.Query("privacy_mode")),
+		SortBy:      strings.TrimSpace(c.Query("sort_by")),
+		SortOrder:   strings.TrimSpace(c.Query("sort_order")),
+	})
+
+	accounts, err := h.listAccountsForHealthFilters(c.Request.Context(), filters)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	snapshots := make([]accountHealthSnapshot, 0, len(accounts))
+	for i := range accounts {
+		snapshots = append(snapshots, parseStoredAccountHealth(&accounts[i]))
+	}
+
+	response.Success(c, summarizeAccountHealthSnapshots(snapshots))
+}
+
+// RunHealthCheck handles batch account health checks for selected or filtered accounts.
+// POST /api/v1/admin/accounts/health-check
+func (h *AccountHandler) RunHealthCheck(c *gin.Context) {
+	var req AccountHealthCheckRequest
+	if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	ctx := c.Request.Context()
+	modelID := strings.TrimSpace(req.ModelID)
+	accounts := make([]*service.Account, 0)
+	if len(req.AccountIDs) > 0 {
+		normalizedIDs := normalizeInt64IDList(req.AccountIDs)
+		fetched, err := h.adminService.GetAccountsByIDs(ctx, normalizedIDs)
+		if err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+		accounts = fetched
+	} else {
+		filters := normalizeAccountHealthFilters(req.Filters)
+		rows, err := h.listAccountsForHealthFilters(ctx, filters)
+		if err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+		for i := range rows {
+			account := rows[i]
+			accounts = append(accounts, &account)
+		}
+	}
+
+	items := make([]AccountHealthCheckItem, 0, len(accounts))
+	if len(accounts) == 0 {
+		response.Success(c, gin.H{
+			"summary": summarizeAccountHealthSnapshots(nil),
+			"items":   items,
+		})
+		return
+	}
+
+	var (
+		mu        sync.Mutex
+		snapshots = make([]accountHealthSnapshot, 0, len(accounts))
+	)
+	group, gctx := errgroup.WithContext(ctx)
+	group.SetLimit(defaultAccountHealthCheckConcurrency)
+
+	for _, account := range accounts {
+		if account == nil {
+			continue
+		}
+		accountRef := account
+		group.Go(func() error {
+			result, err := h.accountTestService.RunTestBackground(gctx, accountRef.ID, modelID)
+			if err != nil {
+				log.Printf("account health check failed for account=%d: %v", accountRef.ID, err)
+			}
+
+			snapshot := buildAccountHealthSnapshot(result)
+
+			if result != nil && strings.EqualFold(result.Status, "success") && h.rateLimitService != nil {
+				if _, recoverErr := h.rateLimitService.RecoverAccountAfterSuccessfulTest(gctx, accountRef.ID); recoverErr != nil {
+					log.Printf("account health check recover failed for account=%d: %v", accountRef.ID, recoverErr)
+				}
+			}
+
+			if persistErr := h.persistAccountHealthSnapshot(gctx, accountRef, snapshot); persistErr != nil {
+				log.Printf("account health check persist failed for account=%d: %v", accountRef.ID, persistErr)
+			}
+
+			mu.Lock()
+			snapshots = append(snapshots, snapshot)
+			items = append(items, buildAccountHealthItem(accountRef, snapshot))
+			mu.Unlock()
+			return nil
+		})
+	}
+
+	if err := group.Wait(); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, gin.H{
+		"summary": summarizeAccountHealthSnapshots(snapshots),
+		"items":   items,
+	})
 }
 
 // RecoverState handles unified recovery of recoverable account runtime state.

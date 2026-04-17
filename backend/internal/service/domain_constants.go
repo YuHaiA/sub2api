@@ -258,9 +258,12 @@ const (
 	// Account Quota Notification
 	SettingKeyAccountQuotaNotifyEnabled = "account_quota_notify_enabled" // 全局开关
 	SettingKeyAccountQuotaNotifyEmails  = "account_quota_notify_emails"  // 管理员通知邮箱列表（JSON 数组）
+	SettingKeyAccountHealthAutoCheckConfig = "account_health_auto_check_config" // JSON 配置
 
 	// Web Search Emulation
 	SettingKeyWebSearchEmulationConfig = "web_search_emulation_config" // JSON 配置
+	SettingKeySystemDeployConfig       = "system_deploy_config"        // JSON 配置
+	SettingKeySystemDeployState        = "system_deploy_state"         // JSON 状态
 )
 
 // AdminAPIKeyPrefix is the prefix for admin API keys (distinct from user "sk-" keys).

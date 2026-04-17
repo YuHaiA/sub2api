@@ -28,6 +28,10 @@
       </span>
     </template>
 
+    <span v-if="healthBadgeText" :class="['badge text-xs', healthBadgeClass]">
+      {{ healthBadgeText }}
+    </span>
+
     <!-- Error Info Indicator -->
     <div v-if="hasError && account.error_message" class="group/error relative">
       <svg
@@ -297,6 +301,35 @@ const rateLimitResumeText = computed(() => {
 // Computed: countdown text for overload (529)
 const overloadCountdown = computed(() => {
   return formatCountdownWithSuffix(props.account.overload_until)
+})
+
+const healthBadgeClass = computed(() => {
+  switch (props.account.health_status) {
+    case 'healthy':
+      return 'badge-success'
+    case 'rate_limited':
+      return 'badge-warning'
+    case 'banned_or_exhausted':
+      return 'badge-warning'
+    case 'unavailable':
+      return 'badge-danger'
+    case 'unchecked':
+      return 'badge-gray'
+    default:
+      return 'badge-gray'
+  }
+})
+
+const healthBadgeText = computed(() => {
+  const status = props.account.health_status
+  if (!status) return ''
+  if (status === 'rate_limited') {
+    return t('admin.accounts.healthStatus.rateLimited')
+  }
+  if (status === 'banned_or_exhausted') {
+    return t('admin.accounts.healthStatus.bannedOrExhausted')
+  }
+  return t(`admin.accounts.healthStatus.${status}`)
 })
 
 // Computed: status badge class

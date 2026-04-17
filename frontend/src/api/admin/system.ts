@@ -45,12 +45,66 @@ export interface UpdateResult {
   need_restart: boolean
 }
 
+export interface DeployConfig {
+  enabled: boolean
+  mode: string
+  source_type?: string
+  default_image: string
+  allowed_image_prefix?: string
+  archive_url?: string
+  loaded_image?: string
+  service_name: string
+  compose_project_dir: string
+  compose_file?: string
+  docker_binary?: string
+  compose_binary?: string
+}
+
+export interface DeployState {
+  status: string
+  requested_image?: string
+  last_message?: string
+  last_error?: string
+  started_at?: number
+  finished_at?: number
+}
+
+export interface DeployResult {
+  message: string
+  need_restart: boolean
+  status: string
+  image: string
+  service_name: string
+  compose_dir: string
+  commands?: string[]
+}
+
 /**
  * Perform system update
  * Downloads and applies the latest version
  */
 export async function performUpdate(): Promise<UpdateResult> {
   const { data } = await apiClient.post<UpdateResult>('/admin/system/update')
+  return data
+}
+
+export async function getDeployConfig(): Promise<DeployConfig> {
+  const { data } = await apiClient.get<DeployConfig>('/admin/system/deploy-config')
+  return data
+}
+
+export async function updateDeployConfig(payload: DeployConfig): Promise<DeployConfig> {
+  const { data } = await apiClient.put<DeployConfig>('/admin/system/deploy-config', payload)
+  return data
+}
+
+export async function getDeployStatus(): Promise<DeployState> {
+  const { data } = await apiClient.get<DeployState>('/admin/system/deploy-status')
+  return data
+}
+
+export async function triggerDeploy(payload?: { image?: string; dry_run?: boolean }): Promise<DeployResult> {
+  const { data } = await apiClient.post<DeployResult>('/admin/system/deploy', payload ?? {})
   return data
 }
 
@@ -74,6 +128,10 @@ export const systemAPI = {
   getVersion,
   checkUpdates,
   performUpdate,
+  getDeployConfig,
+  updateDeployConfig,
+  getDeployStatus,
+  triggerDeploy,
   rollback,
   restartService
 }

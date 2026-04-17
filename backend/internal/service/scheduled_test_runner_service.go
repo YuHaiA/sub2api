@@ -2,11 +2,13 @@ package service
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/robfig/cron/v3"
 )
 
@@ -18,6 +20,8 @@ type ScheduledTestRunnerService struct {
 	scheduledSvc   *ScheduledTestService
 	accountTestSvc *AccountTestService
 	rateLimitSvc   *RateLimitService
+	settingService *SettingService
+	accountRepo    AccountRepository
 	cfg            *config.Config
 
 	cron      *cron.Cron
@@ -31,6 +35,8 @@ func NewScheduledTestRunnerService(
 	scheduledSvc *ScheduledTestService,
 	accountTestSvc *AccountTestService,
 	rateLimitSvc *RateLimitService,
+	settingService *SettingService,
+	accountRepo AccountRepository,
 	cfg *config.Config,
 ) *ScheduledTestRunnerService {
 	return &ScheduledTestRunnerService{
@@ -38,6 +44,8 @@ func NewScheduledTestRunnerService(
 		scheduledSvc:   scheduledSvc,
 		accountTestSvc: accountTestSvc,
 		rateLimitSvc:   rateLimitSvc,
+		settingService: settingService,
+		accountRepo:    accountRepo,
 		cfg:            cfg,
 	}
 }
@@ -92,6 +100,7 @@ func (s *ScheduledTestRunnerService) runScheduled() {
 	defer cancel()
 
 	now := time.Now()
+	s.runAutoAccountHealthCheck(ctx, now)
 	plans, err := s.planRepo.ListDue(ctx, now)
 	if err != nil {
 		logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] ListDue error: %v", err)
@@ -117,6 +126,159 @@ func (s *ScheduledTestRunnerService) runScheduled() {
 	}
 
 	wg.Wait()
+}
+
+func (s *ScheduledTestRunnerService) runAutoAccountHealthCheck(ctx context.Context, now time.Time) {
+	if s.settingService == nil || s.accountRepo == nil || s.accountTestSvc == nil {
+		return
+	}
+	cfg, err := s.settingService.GetAccountHealthAutoCheckConfig(ctx)
+	if err != nil || cfg == nil || !cfg.Enabled {
+		return
+	}
+	interval := time.Duration(cfg.IntervalMinutes) * time.Minute
+	if interval <= 0 {
+		interval = time.Duration(DefaultAccountHealthIntervalMinutes) * time.Minute
+	}
+	if cfg.LastRunAt != nil {
+		lastRunAt := time.Unix(*cfg.LastRunAt, 0)
+		if now.Sub(lastRunAt) < interval {
+			return
+		}
+	}
+
+	accounts, err := s.listAllAccountsForAutoHealthCheck(ctx)
+	if err != nil {
+		logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health list accounts error: %v", err)
+		return
+	}
+	if len(accounts) == 0 {
+		_ = s.settingService.MarkAccountHealthAutoCheckRun(ctx, now)
+		return
+	}
+
+	logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health check started (accounts=%d interval=%dmin)", len(accounts), cfg.IntervalMinutes)
+	sem := make(chan struct{}, scheduledTestDefaultMaxWorkers)
+	var wg sync.WaitGroup
+	for i := range accounts {
+		account := accounts[i]
+		sem <- struct{}{}
+		wg.Add(1)
+		go func(acc *Account) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			s.runOneAutoHealthCheck(ctx, acc, strings.TrimSpace(cfg.ModelID), now)
+		}(&account)
+	}
+	wg.Wait()
+	if err := s.settingService.MarkAccountHealthAutoCheckRun(ctx, now); err != nil {
+		logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health mark last run error: %v", err)
+	}
+}
+
+func (s *ScheduledTestRunnerService) listAllAccountsForAutoHealthCheck(ctx context.Context) ([]Account, error) {
+	page := 1
+	pageSize := 200
+	out := make([]Account, 0)
+	for {
+		items, result, err := s.accountRepo.ListWithFilters(ctx, pagination.PaginationParams{
+			Page:      page,
+			PageSize:  pageSize,
+			SortBy:    "name",
+			SortOrder: "asc",
+		}, "", "", "", "", 0, "")
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, items...)
+		if result == nil || len(out) >= int(result.Total) || len(items) == 0 {
+			break
+		}
+		page++
+	}
+	return out, nil
+}
+
+func (s *ScheduledTestRunnerService) runOneAutoHealthCheck(ctx context.Context, account *Account, modelID string, checkedAt time.Time) {
+	if account == nil {
+		return
+	}
+	result, err := s.accountTestSvc.RunTestBackground(ctx, account.ID, modelID)
+	if err != nil {
+		logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health account=%d test error: %v", account.ID, err)
+	}
+	snapshot := map[string]any{
+		"status":          autoHealthStatusFromResult(result),
+		"result_status":   "",
+		"message":         "",
+		"latency_ms":      int64(0),
+		"last_checked_at": checkedAt.UTC().Format(time.RFC3339),
+	}
+	if result != nil {
+		snapshot["result_status"] = result.Status
+		snapshot["message"] = result.ErrorMessage
+		snapshot["latency_ms"] = result.LatencyMs
+	}
+	extra := cloneAutoHealthExtra(account.Extra)
+	extra["health_check"] = snapshot
+	if err := s.accountRepo.UpdateExtra(ctx, account.ID, extra); err != nil {
+		logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health account=%d persist error: %v", account.ID, err)
+	}
+	if result != nil && strings.EqualFold(result.Status, "success") && s.rateLimitSvc != nil {
+		if _, recoverErr := s.rateLimitSvc.RecoverAccountAfterSuccessfulTest(ctx, account.ID); recoverErr != nil {
+			logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health account=%d recover error: %v", account.ID, recoverErr)
+		}
+	}
+}
+
+func cloneAutoHealthExtra(src map[string]any) map[string]any {
+	if len(src) == 0 {
+		return map[string]any{}
+	}
+	dst := make(map[string]any, len(src))
+	for key, value := range src {
+		dst[key] = value
+	}
+	return dst
+}
+
+func autoHealthStatusFromResult(result *ScheduledTestResult) string {
+	if result == nil {
+		return "unchecked"
+	}
+	if strings.EqualFold(result.Status, "success") {
+		return "healthy"
+	}
+	lower := strings.ToLower(strings.TrimSpace(result.ErrorMessage))
+	switch {
+	case lower == "":
+		return "unavailable"
+	case strings.Contains(lower, "too many requests"),
+		strings.Contains(lower, "rate limit"),
+		strings.Contains(lower, "rate_limit"),
+		strings.Contains(lower, "rate-limited"),
+		strings.Contains(lower, "retry after"),
+		strings.Contains(lower, "api returned 429"),
+		strings.Contains(lower, "(429)"):
+		return "rate_limited"
+	case strings.Contains(lower, "quota exhausted"),
+		strings.Contains(lower, "quota_exhausted"),
+		strings.Contains(lower, "insufficient quota"),
+		strings.Contains(lower, "insufficient balance"),
+		strings.Contains(lower, "insufficient credit"),
+		strings.Contains(lower, "credits exhausted"),
+		strings.Contains(lower, "credit exhausted"),
+		strings.Contains(lower, "resource_exhausted"),
+		strings.Contains(lower, "payment required"),
+		strings.Contains(lower, "api returned 402"),
+		strings.Contains(lower, "(402)"),
+		strings.Contains(lower, "banned"),
+		strings.Contains(lower, "suspend"),
+		strings.Contains(lower, "violation"):
+		return "banned_or_exhausted"
+	default:
+		return "unavailable"
+	}
 }
 
 func (s *ScheduledTestRunnerService) runOnePlan(ctx context.Context, plan *ScheduledTestPlan) {

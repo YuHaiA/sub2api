@@ -178,6 +178,22 @@ The web interface will:
 - Download and apply updates with one click
 - Support rollback if needed
 
+#### GitHub Automated Docker Deploy Package
+
+For Docker-based deployments, this repository also includes a GitHub Actions workflow at [`.github/workflows/deploy-package.yml`](./.github/workflows/deploy-package.yml).
+
+After you push to the `main` branch, the workflow will:
+
+1. Build the Docker image
+2. Export it as a tar package
+3. Publish or replace the fixed release asset at:
+
+```text
+https://github.com/Wei-Shaw/sub2api/releases/download/docker-deploy/sub2api-docker-image.tar
+```
+
+This fixed URL can be used by the admin panel deployment settings so the server can download the latest deploy package and apply it without manual tar uploads.
+
 #### Useful Commands
 
 ```bash
