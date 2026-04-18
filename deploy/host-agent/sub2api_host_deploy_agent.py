@@ -10,7 +10,7 @@ DEFAULT_PORT = int(os.environ.get("SUB2API_DEPLOY_AGENT_PORT", "18080"))
 AGENT_TOKEN = os.environ.get("SUB2API_DEPLOY_AGENT_TOKEN", "").strip()
 SCRIPT_PATH = os.environ.get(
     "SUB2API_DEPLOY_SCRIPT",
-    "/home/ec2-user/sub2api-deploy/bin/deploy-from-git.sh",
+    "/home/ec2-user/sub2api-deploy/bin/deploy-from-package.sh",
 ).strip()
 
 
@@ -44,10 +44,9 @@ def read_json(handler: BaseHTTPRequestHandler) -> Dict[str, Any]:
 def build_env(payload: Dict[str, Any]) -> Dict[str, str]:
     env = os.environ.copy()
     mapping = {
+        "archive_url": "ARCHIVE_URL",
+        "loaded_image": "LOADED_IMAGE",
         "default_image": "IMAGE_TAG",
-        "repo_url": "REPO_URL",
-        "branch": "BRANCH",
-        "repo_dir": "REPO_DIR",
         "compose_project_dir": "COMPOSE_PROJECT_DIR",
         "compose_file": "COMPOSE_FILE",
         "service_name": "SERVICE_NAME",
@@ -62,7 +61,7 @@ def build_env(payload: Dict[str, Any]) -> Dict[str, str]:
 
 
 def handle_deploy(payload: Dict[str, Any]) -> Dict[str, Any]:
-    if str(payload.get("source_type", "")).strip() != "git_sync":
+    if str(payload.get("source_type", "")).strip() != "docker_archive_url":
         raise RuntimeError("unsupported source_type")
     if not os.path.isfile(SCRIPT_PATH):
         raise RuntimeError(f"deploy script not found: {SCRIPT_PATH}")

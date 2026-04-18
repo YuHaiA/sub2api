@@ -25,10 +25,8 @@ const (
 	deployStatusSucceeded = "succeeded"
 	deployStatusFailed    = "failed"
 
-	deployExecutionModeInProcess = "in_process"
 	deployExecutionModeHostAgent = "host_agent"
-
-	deploySourceTypeGitSync = "git_sync"
+	deploySourceTypeArchive      = "docker_archive_url"
 )
 
 type DeployConfig struct {
@@ -37,9 +35,8 @@ type DeployConfig struct {
 	ExecutionMode     string `json:"execution_mode,omitempty"`
 	SourceType        string `json:"source_type,omitempty"`
 	DefaultImage      string `json:"default_image"`
-	RepoURL           string `json:"repo_url,omitempty"`
-	Branch            string `json:"branch,omitempty"`
-	RepoDir           string `json:"repo_dir,omitempty"`
+	ArchiveURL        string `json:"archive_url,omitempty"`
+	LoadedImage       string `json:"loaded_image,omitempty"`
 	ServiceName       string `json:"service_name"`
 	ComposeProjectDir string `json:"compose_project_dir"`
 	ComposeFile       string `json:"compose_file,omitempty"`
@@ -78,9 +75,8 @@ type DeployResult struct {
 type deployAgentRequest struct {
 	SourceType        string   `json:"source_type"`
 	DefaultImage      string   `json:"default_image"`
-	RepoURL           string   `json:"repo_url"`
-	Branch            string   `json:"branch"`
-	RepoDir           string   `json:"repo_dir"`
+	ArchiveURL        string   `json:"archive_url"`
+	LoadedImage       string   `json:"loaded_image"`
 	ServiceName       string   `json:"service_name"`
 	ComposeProjectDir string   `json:"compose_project_dir"`
 	ComposeFile       string   `json:"compose_file,omitempty"`
@@ -119,11 +115,10 @@ func defaultDeployConfig() *DeployConfig {
 		Enabled:           false,
 		Mode:              "docker_compose",
 		ExecutionMode:     deployExecutionModeHostAgent,
-		SourceType:        deploySourceTypeGitSync,
+		SourceType:        deploySourceTypeArchive,
 		DefaultImage:      "weishaw/sub2api:latest",
-		RepoURL:           "https://github.com/YuHaiA/sub2api.git",
-		Branch:            "main",
-		RepoDir:           "/home/ec2-user/sub2api-source",
+		ArchiveURL:        "https://github.com/YuHaiA/sub2api/releases/download/docker-deploy/sub2api-docker-image.tar",
+		LoadedImage:       "sub2api-gha:docker-deploy",
 		ServiceName:       "sub2api",
 		ComposeProjectDir: "/home/ec2-user/sub2api-deploy",
 		DockerBinary:      "docker",
@@ -141,26 +136,21 @@ func normalizeDeployConfig(cfg *DeployConfig) *DeployConfig {
 	if strings.TrimSpace(out.Mode) == "" {
 		out.Mode = "docker_compose"
 	}
-	if strings.TrimSpace(out.ExecutionMode) == "" {
-		out.ExecutionMode = deployExecutionModeHostAgent
-	}
+	out.ExecutionMode = deployExecutionModeHostAgent
 	switch strings.TrimSpace(strings.ToLower(out.SourceType)) {
-	case "", "docker_archive_url", "docker_image":
-		out.SourceType = deploySourceTypeGitSync
+	case "", "git_sync", "docker_image":
+		out.SourceType = deploySourceTypeArchive
 	default:
 		out.SourceType = strings.TrimSpace(strings.ToLower(out.SourceType))
 	}
 	if strings.TrimSpace(out.DefaultImage) == "" {
 		out.DefaultImage = "weishaw/sub2api:latest"
 	}
-	if strings.TrimSpace(out.RepoURL) == "" {
-		out.RepoURL = "https://github.com/YuHaiA/sub2api.git"
+	if strings.TrimSpace(out.ArchiveURL) == "" {
+		out.ArchiveURL = "https://github.com/YuHaiA/sub2api/releases/download/docker-deploy/sub2api-docker-image.tar"
 	}
-	if strings.TrimSpace(out.Branch) == "" {
-		out.Branch = "main"
-	}
-	if strings.TrimSpace(out.RepoDir) == "" {
-		out.RepoDir = "/home/ec2-user/sub2api-source"
+	if strings.TrimSpace(out.LoadedImage) == "" {
+		out.LoadedImage = "sub2api-gha:docker-deploy"
 	}
 	if strings.TrimSpace(out.ServiceName) == "" {
 		out.ServiceName = "sub2api"
@@ -181,11 +171,9 @@ func normalizeDeployConfig(cfg *DeployConfig) *DeployConfig {
 		out.AgentTimeoutSecs = 900
 	}
 	out.Mode = strings.TrimSpace(strings.ToLower(out.Mode))
-	out.ExecutionMode = strings.TrimSpace(strings.ToLower(out.ExecutionMode))
 	out.DefaultImage = strings.TrimSpace(out.DefaultImage)
-	out.RepoURL = strings.TrimSpace(out.RepoURL)
-	out.Branch = strings.TrimSpace(out.Branch)
-	out.RepoDir = strings.TrimSpace(out.RepoDir)
+	out.ArchiveURL = strings.TrimSpace(out.ArchiveURL)
+	out.LoadedImage = strings.TrimSpace(out.LoadedImage)
 	out.ServiceName = strings.TrimSpace(out.ServiceName)
 	out.ComposeProjectDir = strings.TrimSpace(out.ComposeProjectDir)
 	out.ComposeFile = strings.TrimSpace(out.ComposeFile)
@@ -203,17 +191,14 @@ func validateDeployConfig(cfg *DeployConfig) error {
 	if cfg.Mode != "docker_compose" {
 		return fmt.Errorf("unsupported mode: %s", cfg.Mode)
 	}
-	if cfg.ExecutionMode != deployExecutionModeInProcess && cfg.ExecutionMode != deployExecutionModeHostAgent {
-		return fmt.Errorf("unsupported execution_mode: %s", cfg.ExecutionMode)
+	if cfg.ExecutionMode != deployExecutionModeHostAgent {
+		return fmt.Errorf("archive deployment requires host_agent execution mode")
 	}
-	if cfg.SourceType != deploySourceTypeGitSync {
+	if cfg.SourceType != deploySourceTypeArchive {
 		return fmt.Errorf("unsupported source_type: %s", cfg.SourceType)
 	}
 	if !cfg.Enabled {
 		return nil
-	}
-	if cfg.ExecutionMode != deployExecutionModeHostAgent {
-		return fmt.Errorf("git_sync deployment requires host_agent execution mode")
 	}
 	if cfg.AgentURL == "" {
 		return fmt.Errorf("agent_url is required when deployment is enabled")
@@ -224,20 +209,14 @@ func validateDeployConfig(cfg *DeployConfig) error {
 	if cfg.DefaultImage == "" {
 		return fmt.Errorf("default_image is required when deployment is enabled")
 	}
-	if cfg.RepoURL == "" {
-		return fmt.Errorf("repo_url is required when deployment is enabled")
+	if cfg.ArchiveURL == "" {
+		return fmt.Errorf("archive_url is required when deployment is enabled")
 	}
-	if parsed, err := neturl.Parse(cfg.RepoURL); err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || strings.TrimSpace(parsed.Host) == "" {
-		return fmt.Errorf("repo_url must be a valid http or https URL")
+	if err := validateDownloadURL(cfg.ArchiveURL); err != nil {
+		return err
 	}
-	if cfg.Branch == "" {
-		return fmt.Errorf("branch is required when deployment is enabled")
-	}
-	if cfg.RepoDir == "" {
-		return fmt.Errorf("repo_dir is required when deployment is enabled")
-	}
-	if !filepath.IsAbs(cfg.RepoDir) {
-		return fmt.Errorf("repo_dir must be an absolute path")
+	if cfg.LoadedImage == "" {
+		return fmt.Errorf("loaded_image is required when deployment is enabled")
 	}
 	if cfg.ServiceName == "" {
 		return fmt.Errorf("service_name is required when deployment is enabled")
@@ -399,36 +378,23 @@ func (s *UpdateService) TriggerDeploy(ctx context.Context, req *DeployTriggerReq
 }
 
 func (s *UpdateService) buildDeployCommands(cfg *DeployConfig) []string {
-	commands := []string{}
-	if cfg.ExecutionMode == deployExecutionModeHostAgent {
-		commands = append(commands, fmt.Sprintf("POST %s/deploy", cfg.AgentURL))
+	return []string{
+		fmt.Sprintf("POST %s/deploy", cfg.AgentURL),
+		fmt.Sprintf("download %s -> %s/deploy-update.tar", cfg.ArchiveURL, cfg.ComposeProjectDir),
+		fmt.Sprintf("%s load -i %s/deploy-update.tar", cfg.DockerBinary, cfg.ComposeProjectDir),
+		fmt.Sprintf("%s tag %s %s", cfg.DockerBinary, cfg.LoadedImage, cfg.DefaultImage),
+		buildComposeCommandPreview(cfg),
 	}
-	commands = append(commands, buildDeployCommandsForExecution(cfg)...)
-	return commands
 }
 
-func buildDeployCommandsForExecution(cfg *DeployConfig) []string {
-	backupTag := fmt.Sprintf("%s:backup-<timestamp>", strings.Split(cfg.DefaultImage, ":")[0])
-	commands := []string{
-		fmt.Sprintf("if [ ! -d %s/.git ]; then git clone %s %s; fi", cfg.RepoDir, cfg.RepoURL, cfg.RepoDir),
-		fmt.Sprintf("cd %s && git fetch origin", cfg.RepoDir),
-		fmt.Sprintf("cd %s && git checkout %s", cfg.RepoDir, cfg.Branch),
-		fmt.Sprintf("cd %s && git pull --ff-only origin %s", cfg.RepoDir, cfg.Branch),
-		fmt.Sprintf("%s image inspect %s && %s tag %s %s", cfg.DockerBinary, cfg.DefaultImage, cfg.DockerBinary, cfg.DefaultImage, backupTag),
-		fmt.Sprintf("cd %s && %s build -t %s .", cfg.RepoDir, cfg.DockerBinary, cfg.DefaultImage),
-	}
-	composeTarget := fmt.Sprintf("cd %s && %s up -d --no-deps %s", cfg.ComposeProjectDir, cfg.ComposeBinary, cfg.ServiceName)
+func buildComposeCommandPreview(cfg *DeployConfig) string {
 	if cfg.ComposeFile != "" {
-		composeTarget = fmt.Sprintf("cd %s && %s -f %s up -d --no-deps %s", cfg.ComposeProjectDir, cfg.ComposeBinary, cfg.ComposeFile, cfg.ServiceName)
+		return fmt.Sprintf("cd %s && %s -f %s up -d --no-deps %s", cfg.ComposeProjectDir, cfg.ComposeBinary, cfg.ComposeFile, cfg.ServiceName)
 	}
-	commands = append(commands, composeTarget)
-	return commands
+	return fmt.Sprintf("cd %s && %s up -d --no-deps %s", cfg.ComposeProjectDir, cfg.ComposeBinary, cfg.ServiceName)
 }
 
 func (s *UpdateService) executeDeployCommands(ctx context.Context, cfg *DeployConfig) (string, error) {
-	if cfg.ExecutionMode != deployExecutionModeHostAgent {
-		return "", fmt.Errorf("git_sync deployment requires host_agent execution mode")
-	}
 	return s.executeDeployViaAgent(ctx, cfg)
 }
 
@@ -461,15 +427,14 @@ func (s *UpdateService) executeDeployViaAgent(ctx context.Context, cfg *DeployCo
 	agentReq := deployAgentRequest{
 		SourceType:        cfg.SourceType,
 		DefaultImage:      cfg.DefaultImage,
-		RepoURL:           cfg.RepoURL,
-		Branch:            cfg.Branch,
-		RepoDir:           cfg.RepoDir,
+		ArchiveURL:        cfg.ArchiveURL,
+		LoadedImage:       cfg.LoadedImage,
 		ServiceName:       cfg.ServiceName,
 		ComposeProjectDir: cfg.ComposeProjectDir,
 		ComposeFile:       cfg.ComposeFile,
 		DockerBinary:      cfg.DockerBinary,
 		ComposeBinary:     cfg.ComposeBinary,
-		Commands:          buildDeployCommandsForExecution(cfg),
+		Commands:          s.buildDeployCommands(cfg),
 	}
 
 	payload, err := json.Marshal(agentReq)

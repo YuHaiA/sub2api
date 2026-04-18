@@ -2253,35 +2253,35 @@
                 </div>
                 <div class="sm:col-span-2">
                   <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {{ t('admin.settings.deploy.repoUrl') }}
+                    {{ t('admin.settings.deploy.archiveUrl') }}
                   </label>
                   <input
-                    v-model="deployConfig.repo_url"
+                    v-model="deployConfig.archive_url"
                     type="url"
                     class="input font-mono text-sm"
-                    :placeholder="t('admin.settings.deploy.repoUrlPlaceholder')"
+                    :placeholder="t('admin.settings.deploy.archiveUrlPlaceholder')"
                   />
                 </div>
                 <div>
                   <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {{ t('admin.settings.deploy.branch') }}
+                    {{ t('admin.settings.deploy.loadedImage') }}
                   </label>
                   <input
-                    v-model="deployConfig.branch"
+                    v-model="deployConfig.loaded_image"
                     type="text"
                     class="input font-mono text-sm"
-                    :placeholder="t('admin.settings.deploy.branchPlaceholder')"
+                    :placeholder="t('admin.settings.deploy.loadedImagePlaceholder')"
                   />
                 </div>
                 <div>
                   <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {{ t('admin.settings.deploy.repoDir') }}
+                    {{ t('admin.settings.deploy.defaultImage') }}
                   </label>
                   <input
-                    v-model="deployConfig.repo_dir"
+                    v-model="deployConfig.default_image"
                     type="text"
                     class="input font-mono text-sm"
-                    :placeholder="t('admin.settings.deploy.repoDirPlaceholder')"
+                    :placeholder="t('admin.settings.deploy.defaultImagePlaceholder')"
                   />
                 </div>
                 <div class="sm:col-span-2">
@@ -3283,11 +3283,10 @@ const deployConfig = reactive<SystemDeployConfig>({
   enabled: false,
   mode: 'docker_compose',
   execution_mode: 'host_agent',
-  source_type: 'git_sync',
+  source_type: 'docker_archive_url',
   default_image: 'weishaw/sub2api:latest',
-  repo_url: 'https://github.com/YuHaiA/sub2api.git',
-  branch: 'main',
-  repo_dir: '/home/ec2-user/sub2api-source',
+  archive_url: 'https://github.com/YuHaiA/sub2api/releases/download/docker-deploy/sub2api-docker-image.tar',
+  loaded_image: 'sub2api-gha:docker-deploy',
   service_name: 'sub2api',
   compose_project_dir: '/home/ec2-user/sub2api-deploy',
   compose_file: '',
@@ -3431,11 +3430,10 @@ function applyDeployConfig(config: SystemDeployConfig) {
   deployConfig.enabled = config.enabled
   deployConfig.mode = config.mode || 'docker_compose'
   deployConfig.execution_mode = config.execution_mode || 'host_agent'
-  deployConfig.source_type = config.source_type || 'git_sync'
+  deployConfig.source_type = config.source_type || 'docker_archive_url'
   deployConfig.default_image = config.default_image || 'weishaw/sub2api:latest'
-  deployConfig.repo_url = config.repo_url || 'https://github.com/YuHaiA/sub2api.git'
-  deployConfig.branch = config.branch || 'main'
-  deployConfig.repo_dir = config.repo_dir || '/home/ec2-user/sub2api-source'
+  deployConfig.archive_url = config.archive_url || 'https://github.com/YuHaiA/sub2api/releases/download/docker-deploy/sub2api-docker-image.tar'
+  deployConfig.loaded_image = config.loaded_image || 'sub2api-gha:docker-deploy'
   deployConfig.service_name = config.service_name || 'sub2api'
   deployConfig.compose_project_dir = config.compose_project_dir || '/home/ec2-user/sub2api-deploy'
   deployConfig.compose_file = config.compose_file || ''
@@ -3449,16 +3447,16 @@ function applyDeployConfig(config: SystemDeployConfig) {
 
 const deployManualCommand = computed(() => {
   const envParts = [
-    `REPO_URL='${(deployConfig.repo_url || '').replace(/'/g, "'\"'\"'")}'`,
-    `BRANCH='${(deployConfig.branch || '').replace(/'/g, "'\"'\"'")}'`,
-    `REPO_DIR='${(deployConfig.repo_dir || '').replace(/'/g, "'\"'\"'")}'`,
+    `ARCHIVE_URL='${(deployConfig.archive_url || '').replace(/'/g, "'\"'\"'")}'`,
+    `LOADED_IMAGE='${(deployConfig.loaded_image || '').replace(/'/g, "'\"'\"'")}'`,
+    `IMAGE_TAG='${(deployConfig.default_image || '').replace(/'/g, "'\"'\"'")}'`,
     `COMPOSE_PROJECT_DIR='${(deployConfig.compose_project_dir || '').replace(/'/g, "'\"'\"'")}'`,
     `SERVICE_NAME='${(deployConfig.service_name || '').replace(/'/g, "'\"'\"'")}'`
   ]
   if (deployConfig.compose_file?.trim()) {
     envParts.push(`COMPOSE_FILE='${deployConfig.compose_file.trim().replace(/'/g, "'\"'\"'")}'`)
   }
-  return `${envParts.join(' ')} /home/ec2-user/sub2api-deploy/bin/deploy-from-git.sh`
+  return `${envParts.join(' ')} /home/ec2-user/sub2api-deploy/bin/deploy-from-package.sh`
 })
 
 function applyDeployState(state: DeployState) {
@@ -3493,11 +3491,10 @@ async function saveDeployConfig() {
       enabled: deployConfig.enabled,
       mode: deployConfig.mode,
       execution_mode: deployConfig.execution_mode || 'host_agent',
-      source_type: 'git_sync',
+      source_type: 'docker_archive_url',
       default_image: deployConfig.default_image.trim(),
-      repo_url: deployConfig.repo_url.trim(),
-      branch: deployConfig.branch.trim(),
-      repo_dir: deployConfig.repo_dir.trim(),
+      archive_url: deployConfig.archive_url?.trim() || '',
+      loaded_image: deployConfig.loaded_image?.trim() || '',
       service_name: deployConfig.service_name.trim(),
       compose_project_dir: deployConfig.compose_project_dir.trim(),
       compose_file: deployConfig.compose_file?.trim() || '',

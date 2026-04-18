@@ -51,9 +51,8 @@ export interface DeployConfig {
   execution_mode: string
   source_type: string
   default_image: string
-  repo_url: string
-  branch: string
-  repo_dir: string
+  archive_url?: string
+  loaded_image?: string
   service_name: string
   compose_project_dir: string
   compose_file?: string

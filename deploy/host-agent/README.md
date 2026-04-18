@@ -1,10 +1,10 @@
-# Sub2API Git Deploy Host Agent
+# Sub2API Package Deploy Host Agent
 
 这套方案保留 Docker 运行方式，只把部署动作挪到宿主机执行。
 
 ## 组成
 
-- 宿主机真实部署脚本：`deploy-from-git.sh`
+- 宿主机真实部署脚本：`deploy-from-package.sh`
 - 轻量 HTTP 触发器：`sub2api_host_deploy_agent.py`
 - systemd 服务文件：`sub2api-host-deploy-agent.service`
 
@@ -14,25 +14,25 @@
 
 ```bash
 mkdir -p /home/ec2-user/sub2api-deploy/bin
-cp deploy/host-agent/deploy-from-git.sh /home/ec2-user/sub2api-deploy/bin/
-chmod +x /home/ec2-user/sub2api-deploy/bin/deploy-from-git.sh
+cp deploy/host-agent/deploy-from-package.sh /home/ec2-user/sub2api-deploy/bin/
+chmod +x /home/ec2-user/sub2api-deploy/bin/deploy-from-package.sh
 ```
 
 直接执行：
 
 ```bash
-/home/ec2-user/sub2api-deploy/bin/deploy-from-git.sh
+/home/ec2-user/sub2api-deploy/bin/deploy-from-package.sh
 ```
 
 自定义参数执行：
 
 ```bash
-REPO_URL="https://github.com/YuHaiA/sub2api.git" \
-BRANCH="main" \
-REPO_DIR="/home/ec2-user/sub2api-source" \
+ARCHIVE_URL="https://github.com/YuHaiA/sub2api/releases/download/docker-deploy/sub2api-docker-image.tar" \
+LOADED_IMAGE="sub2api-gha:docker-deploy" \
+IMAGE_TAG="weishaw/sub2api:latest" \
 COMPOSE_PROJECT_DIR="/home/ec2-user/sub2api-deploy" \
 SERVICE_NAME="sub2api" \
-/home/ec2-user/sub2api-deploy/bin/deploy-from-git.sh
+/home/ec2-user/sub2api-deploy/bin/deploy-from-package.sh
 ```
 
 ## 后台一键部署
@@ -52,9 +52,9 @@ curl http://127.0.0.1:18080/health
 
 后台建议配置：
 
-- 仓库地址：`https://github.com/YuHaiA/sub2api.git`
-- 分支：`main`
-- 源码目录：`/home/ec2-user/sub2api-source`
+- 镜像包地址：`https://github.com/YuHaiA/sub2api/releases/download/docker-deploy/sub2api-docker-image.tar`
+- 镜像包内镜像名：`sub2api-gha:docker-deploy`
+- 目标镜像标签：`weishaw/sub2api:latest`
 - 部署目录：`/home/ec2-user/sub2api-deploy`
 - 服务名：`sub2api`
 - 代理地址：`http://172.17.0.1:18080`
@@ -63,9 +63,9 @@ curl http://127.0.0.1:18080/health
 
 宿主机需要：
 
-- `git`
 - `docker`
 - `docker-compose`
 - `python3`
+- `curl`
 
 数据库和 Redis 不需要重装，也不会被这套部署脚本重建。

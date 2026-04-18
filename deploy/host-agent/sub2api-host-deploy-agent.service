@@ -10,7 +10,7 @@ WorkingDirectory=/opt/sub2api-host-agent
 Environment=SUB2API_DEPLOY_AGENT_HOST=0.0.0.0
 Environment=SUB2API_DEPLOY_AGENT_PORT=18080
 Environment=SUB2API_DEPLOY_AGENT_TOKEN=change-me
-Environment=SUB2API_DEPLOY_SCRIPT=/home/ec2-user/sub2api-deploy/bin/deploy-from-git.sh
+Environment=SUB2API_DEPLOY_SCRIPT=/home/ec2-user/sub2api-deploy/bin/deploy-from-package.sh
 ExecStart=/usr/bin/python3 /opt/sub2api-host-agent/sub2api_host_deploy_agent.py
 Restart=always
 RestartSec=3
