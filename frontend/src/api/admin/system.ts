@@ -48,16 +48,21 @@ export interface UpdateResult {
 export interface DeployConfig {
   enabled: boolean
   mode: string
-  source_type?: string
+  execution_mode: string
+  source_type: string
   default_image: string
-  allowed_image_prefix?: string
-  archive_url?: string
-  loaded_image?: string
+  repo_url: string
+  branch: string
+  repo_dir: string
   service_name: string
   compose_project_dir: string
   compose_file?: string
   docker_binary?: string
   compose_binary?: string
+  agent_url?: string
+  agent_token?: string
+  agent_timeout_seconds: number
+  agent_insecure_tls: boolean
 }
 
 export interface DeployState {

@@ -2245,62 +2245,91 @@
               </div>
 
               <div class="grid grid-cols-1 gap-4 border-t border-gray-100 pt-4 dark:border-dark-700 sm:grid-cols-2">
-                <div>
-                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {{ t('admin.settings.deploy.sourceType') }}
-                  </label>
-                  <Select
-                    v-model="deployConfig.source_type"
-                    :options="[
-                      { value: 'docker_image', label: t('admin.settings.deploy.sourceTypeImage') },
-                      { value: 'docker_archive_url', label: t('admin.settings.deploy.sourceTypeArchive') }
-                    ]"
-                  />
+                <div class="rounded-xl border border-primary-200 bg-primary-50/70 p-4 text-sm text-primary-900 dark:border-primary-500/30 dark:bg-primary-500/10 dark:text-primary-100 sm:col-span-2">
+                  <p class="font-medium">{{ t('admin.settings.deploy.agentHintTitle') }}</p>
+                  <p class="mt-1 opacity-80">
+                    {{ t('admin.settings.deploy.agentHintBody') }}
+                  </p>
                 </div>
-                <div></div>
-                <div>
+                <div class="sm:col-span-2">
                   <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {{ t('admin.settings.deploy.defaultImage') }}
+                    {{ t('admin.settings.deploy.repoUrl') }}
                   </label>
                   <input
-                    v-model="deployConfig.default_image"
-                    type="text"
-                    class="input font-mono text-sm"
-                    :placeholder="t('admin.settings.deploy.defaultImagePlaceholder')"
-                  />
-                </div>
-                <div>
-                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {{ t('admin.settings.deploy.allowedImagePrefix') }}
-                  </label>
-                  <input
-                    v-model="deployConfig.allowed_image_prefix"
-                    type="text"
-                    class="input font-mono text-sm"
-                    :placeholder="t('admin.settings.deploy.allowedImagePrefixPlaceholder')"
-                  />
-                </div>
-                <div class="sm:col-span-2" v-if="deployConfig.source_type === 'docker_archive_url'">
-                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {{ t('admin.settings.deploy.archiveUrl') }}
-                  </label>
-                  <input
-                    v-model="deployConfig.archive_url"
+                    v-model="deployConfig.repo_url"
                     type="url"
                     class="input font-mono text-sm"
-                    :placeholder="t('admin.settings.deploy.archiveUrlPlaceholder')"
+                    :placeholder="t('admin.settings.deploy.repoUrlPlaceholder')"
                   />
                 </div>
-                <div v-if="deployConfig.source_type === 'docker_archive_url'">
+                <div>
                   <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {{ t('admin.settings.deploy.loadedImage') }}
+                    {{ t('admin.settings.deploy.branch') }}
                   </label>
                   <input
-                    v-model="deployConfig.loaded_image"
+                    v-model="deployConfig.branch"
                     type="text"
                     class="input font-mono text-sm"
-                    :placeholder="t('admin.settings.deploy.loadedImagePlaceholder')"
+                    :placeholder="t('admin.settings.deploy.branchPlaceholder')"
                   />
+                </div>
+                <div>
+                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t('admin.settings.deploy.repoDir') }}
+                  </label>
+                  <input
+                    v-model="deployConfig.repo_dir"
+                    type="text"
+                    class="input font-mono text-sm"
+                    :placeholder="t('admin.settings.deploy.repoDirPlaceholder')"
+                  />
+                </div>
+                <div class="sm:col-span-2">
+                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t('admin.settings.deploy.agentUrl') }}
+                  </label>
+                  <input
+                    v-model="deployConfig.agent_url"
+                    type="url"
+                    class="input font-mono text-sm"
+                    :placeholder="t('admin.settings.deploy.agentUrlPlaceholder')"
+                  />
+                </div>
+                <div>
+                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t('admin.settings.deploy.agentToken') }}
+                  </label>
+                  <input
+                    v-model="deployConfig.agent_token"
+                    type="password"
+                    class="input font-mono text-sm"
+                    :placeholder="t('admin.settings.deploy.agentTokenPlaceholder')"
+                  />
+                </div>
+                <div>
+                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t('admin.settings.deploy.agentTimeout') }}
+                  </label>
+                  <input
+                    v-model.number="deployConfig.agent_timeout_seconds"
+                    type="number"
+                    min="10"
+                    max="3600"
+                    class="input"
+                  />
+                </div>
+                <div class="sm:col-span-2">
+                  <div class="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-dark-600 dark:bg-dark-800/60">
+                    <div>
+                      <label class="font-medium text-gray-900 dark:text-white">
+                        {{ t('admin.settings.deploy.agentInsecureTls') }}
+                      </label>
+                      <p class="text-xs text-gray-500 dark:text-gray-400">
+                        {{ t('admin.settings.deploy.agentInsecureTlsHint') }}
+                      </p>
+                    </div>
+                    <Toggle v-model="deployConfig.agent_insecure_tls" />
+                  </div>
                 </div>
                 <div>
                   <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -2322,26 +2351,6 @@
                     class="input font-mono text-sm"
                   />
                 </div>
-                <div>
-                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {{ t('admin.settings.deploy.composeBinary') }}
-                  </label>
-                  <input
-                    v-model="deployConfig.compose_binary"
-                    type="text"
-                    class="input font-mono text-sm"
-                  />
-                </div>
-                <div>
-                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {{ t('admin.settings.deploy.dockerBinary') }}
-                  </label>
-                  <input
-                    v-model="deployConfig.docker_binary"
-                    type="text"
-                    class="input font-mono text-sm"
-                  />
-                </div>
                 <div class="sm:col-span-2">
                   <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
                     {{ t('admin.settings.deploy.composeFile') }}
@@ -2352,6 +2361,17 @@
                     class="input font-mono text-sm"
                     :placeholder="t('admin.settings.deploy.composeFilePlaceholder')"
                   />
+                </div>
+                <div class="sm:col-span-2">
+                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t('admin.settings.deploy.manualCommand') }}
+                  </label>
+                  <div class="rounded-xl border border-gray-200 bg-gray-50 p-4 font-mono text-xs text-gray-700 dark:border-dark-600 dark:bg-dark-800/60 dark:text-gray-200">
+                    {{ deployManualCommand }}
+                  </div>
+                  <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                    {{ t('admin.settings.deploy.manualCommandHint') }}
+                  </p>
                 </div>
               </div>
 
@@ -3262,16 +3282,21 @@ const deployRefreshing = ref(false)
 const deployConfig = reactive<SystemDeployConfig>({
   enabled: false,
   mode: 'docker_compose',
-  source_type: 'docker_archive_url',
+  execution_mode: 'host_agent',
+  source_type: 'git_sync',
   default_image: 'weishaw/sub2api:latest',
-  allowed_image_prefix: '',
-  archive_url: 'https://github.com/YuHaiA/sub2api/releases/download/docker-deploy/sub2api-docker-image.tar',
-  loaded_image: 'sub2api-gha:docker-deploy',
+  repo_url: 'https://github.com/YuHaiA/sub2api.git',
+  branch: 'main',
+  repo_dir: '/home/ec2-user/sub2api-source',
   service_name: 'sub2api',
   compose_project_dir: '/home/ec2-user/sub2api-deploy',
   compose_file: '',
   docker_binary: 'docker',
-  compose_binary: 'docker-compose'
+  compose_binary: 'docker-compose',
+  agent_url: 'http://172.17.0.1:18080',
+  agent_token: '',
+  agent_timeout_seconds: 900,
+  agent_insecure_tls: false
 })
 const deployState = reactive<DeployState>({
   status: 'idle',
@@ -3405,17 +3430,36 @@ async function loadWebSearchConfig() {
 function applyDeployConfig(config: SystemDeployConfig) {
   deployConfig.enabled = config.enabled
   deployConfig.mode = config.mode || 'docker_compose'
-  deployConfig.source_type = config.source_type || 'docker_image'
+  deployConfig.execution_mode = config.execution_mode || 'host_agent'
+  deployConfig.source_type = config.source_type || 'git_sync'
   deployConfig.default_image = config.default_image || 'weishaw/sub2api:latest'
-  deployConfig.allowed_image_prefix = config.allowed_image_prefix || ''
-  deployConfig.archive_url = config.archive_url || ''
-  deployConfig.loaded_image = config.loaded_image || ''
+  deployConfig.repo_url = config.repo_url || 'https://github.com/YuHaiA/sub2api.git'
+  deployConfig.branch = config.branch || 'main'
+  deployConfig.repo_dir = config.repo_dir || '/home/ec2-user/sub2api-source'
   deployConfig.service_name = config.service_name || 'sub2api'
   deployConfig.compose_project_dir = config.compose_project_dir || '/home/ec2-user/sub2api-deploy'
   deployConfig.compose_file = config.compose_file || ''
   deployConfig.docker_binary = config.docker_binary || 'docker'
   deployConfig.compose_binary = config.compose_binary || 'docker-compose'
+  deployConfig.agent_url = config.agent_url || 'http://172.17.0.1:18080'
+  deployConfig.agent_token = config.agent_token || ''
+  deployConfig.agent_timeout_seconds = config.agent_timeout_seconds || 900
+  deployConfig.agent_insecure_tls = !!config.agent_insecure_tls
 }
+
+const deployManualCommand = computed(() => {
+  const envParts = [
+    `REPO_URL='${(deployConfig.repo_url || '').replace(/'/g, "'\"'\"'")}'`,
+    `BRANCH='${(deployConfig.branch || '').replace(/'/g, "'\"'\"'")}'`,
+    `REPO_DIR='${(deployConfig.repo_dir || '').replace(/'/g, "'\"'\"'")}'`,
+    `COMPOSE_PROJECT_DIR='${(deployConfig.compose_project_dir || '').replace(/'/g, "'\"'\"'")}'`,
+    `SERVICE_NAME='${(deployConfig.service_name || '').replace(/'/g, "'\"'\"'")}'`
+  ]
+  if (deployConfig.compose_file?.trim()) {
+    envParts.push(`COMPOSE_FILE='${deployConfig.compose_file.trim().replace(/'/g, "'\"'\"'")}'`)
+  }
+  return `${envParts.join(' ')} /home/ec2-user/sub2api-deploy/bin/deploy-from-git.sh`
+})
 
 function applyDeployState(state: DeployState) {
   deployState.status = state.status || 'idle'
@@ -3448,16 +3492,21 @@ async function saveDeployConfig() {
     const updated = await adminAPI.system.updateDeployConfig({
       enabled: deployConfig.enabled,
       mode: deployConfig.mode,
-      source_type: deployConfig.source_type || 'docker_image',
+      execution_mode: deployConfig.execution_mode || 'host_agent',
+      source_type: 'git_sync',
       default_image: deployConfig.default_image.trim(),
-      allowed_image_prefix: deployConfig.allowed_image_prefix?.trim() || '',
-      archive_url: deployConfig.archive_url?.trim() || '',
-      loaded_image: deployConfig.loaded_image?.trim() || '',
+      repo_url: deployConfig.repo_url.trim(),
+      branch: deployConfig.branch.trim(),
+      repo_dir: deployConfig.repo_dir.trim(),
       service_name: deployConfig.service_name.trim(),
       compose_project_dir: deployConfig.compose_project_dir.trim(),
       compose_file: deployConfig.compose_file?.trim() || '',
       docker_binary: deployConfig.docker_binary?.trim() || 'docker',
-      compose_binary: deployConfig.compose_binary?.trim() || 'docker-compose'
+      compose_binary: deployConfig.compose_binary?.trim() || 'docker-compose',
+      agent_url: deployConfig.agent_url?.trim() || '',
+      agent_token: deployConfig.agent_token?.trim() || '',
+      agent_timeout_seconds: Math.max(10, Number(deployConfig.agent_timeout_seconds) || 900),
+      agent_insecure_tls: !!deployConfig.agent_insecure_tls
     })
     applyDeployConfig(updated)
     appStore.showSuccess(t('admin.settings.deploy.saved'))
