@@ -33,8 +33,7 @@ const sOpts = computed(() => [{ value: '', label: t('admin.accounts.allStatus') 
 const healthOpts = computed(() => [
   { value: '', label: t('admin.accounts.healthStatus.all') },
   { value: 'healthy', label: t('admin.accounts.healthStatus.healthy') },
-  { value: 'rate_limited', label: t('admin.accounts.healthStatus.rateLimited') },
-  { value: 'banned_or_exhausted', label: t('admin.accounts.healthStatus.bannedOrExhausted') },
+  { value: 'constrained', label: t('admin.accounts.healthStatus.constrained') },
   { value: 'unavailable', label: t('admin.accounts.healthStatus.unavailable') },
   { value: 'unchecked', label: t('admin.accounts.healthStatus.unchecked') }
 ])

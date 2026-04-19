@@ -773,8 +773,7 @@ type TestAccountRequest struct {
 const (
 	accountHealthStatusUnchecked          = "unchecked"
 	accountHealthStatusHealthy            = "healthy"
-	accountHealthStatusRateLimited        = "rate_limited"
-	accountHealthStatusBannedOrExhausted  = "banned_or_exhausted"
+	accountHealthStatusConstrained        = "constrained"
 	accountHealthStatusUnavailable        = "unavailable"
 	accountHealthCheckExtraKey            = "health_check"
 	defaultAccountHealthCheckConcurrency  = 4
@@ -826,7 +825,7 @@ type AccountHealthAutoConfigRequest struct {
 type AccountHealthSummary struct {
 	TotalAccounts                   int    `json:"total_accounts"`
 	HealthyAccounts                 int    `json:"healthy_accounts"`
-	BannedOrExhaustedAccounts       int    `json:"banned_or_exhausted_accounts"`
+	ConstrainedAccounts             int    `json:"constrained_accounts"`
 	UnavailableAccounts             int    `json:"unavailable_accounts"`
 	UncheckedAccounts               int    `json:"unchecked_accounts"`
 	LastCheckedAt                   string `json:"last_checked_at,omitempty"`
@@ -1011,9 +1010,8 @@ func classifyAccountHealthStatus(result *service.ScheduledTestResult) string {
 		strings.Contains(lower, "rate-limited"),
 		strings.Contains(lower, "retry after"),
 		strings.Contains(lower, "api returned 429"),
-		strings.Contains(lower, "(429)"):
-		return accountHealthStatusRateLimited
-	case strings.Contains(lower, "quota exhausted"),
+		strings.Contains(lower, "(429)"),
+		strings.Contains(lower, "quota exhausted"),
 		strings.Contains(lower, "quota_exhausted"),
 		strings.Contains(lower, "insufficient quota"),
 		strings.Contains(lower, "insufficient balance"),
@@ -1023,13 +1021,37 @@ func classifyAccountHealthStatus(result *service.ScheduledTestResult) string {
 		strings.Contains(lower, "resource_exhausted"),
 		strings.Contains(lower, "payment required"),
 		strings.Contains(lower, "api returned 402"),
-		strings.Contains(lower, "(402)"),
-		strings.Contains(lower, "banned"),
+		strings.Contains(lower, "(402)"):
+		return accountHealthStatusConstrained
+	case strings.Contains(lower, "banned"),
 		strings.Contains(lower, "suspend"),
 		strings.Contains(lower, "violation"):
-		return accountHealthStatusBannedOrExhausted
+		return accountHealthStatusUnavailable
 	default:
 		return accountHealthStatusUnavailable
+	}
+}
+
+func normalizeStoredAccountHealthStatus(status string, message string) string {
+	normalizedStatus := strings.TrimSpace(strings.ToLower(status))
+	switch normalizedStatus {
+	case "", accountHealthStatusUnchecked:
+		return accountHealthStatusUnchecked
+	case accountHealthStatusHealthy:
+		return accountHealthStatusHealthy
+	case accountHealthStatusConstrained:
+		return accountHealthStatusConstrained
+	case accountHealthStatusUnavailable:
+		return accountHealthStatusUnavailable
+	case "rate_limited":
+		return accountHealthStatusConstrained
+	case "banned_or_exhausted":
+		return classifyAccountHealthStatus(&service.ScheduledTestResult{
+			Status:       "failed",
+			ErrorMessage: message,
+		})
+	default:
+		return normalizedStatus
 	}
 }
 
@@ -1037,8 +1059,7 @@ func normalizeAccountHealthStatusFilter(raw string) string {
 	switch strings.TrimSpace(strings.ToLower(raw)) {
 	case accountHealthStatusUnchecked,
 		accountHealthStatusHealthy,
-		accountHealthStatusRateLimited,
-		accountHealthStatusBannedOrExhausted,
+		accountHealthStatusConstrained,
 		accountHealthStatusUnavailable:
 		return strings.TrimSpace(strings.ToLower(raw))
 	default:
@@ -1086,11 +1107,9 @@ func parseStoredAccountHealth(account *service.Account) accountHealthSnapshot {
 	}
 
 	status, _ := data["status"].(string)
-	if status == "" {
-		status = accountHealthStatusUnchecked
-	}
 	resultStatus, _ := data["result_status"].(string)
 	message, _ := data["message"].(string)
+	status = normalizeStoredAccountHealthStatus(status, message)
 	lastCheckedAt, _ := data["last_checked_at"].(string)
 
 	var latencyMs int64
@@ -1119,10 +1138,8 @@ func summarizeAccountHealthSnapshots(snapshots []accountHealthSnapshot) AccountH
 		switch snapshot.Status {
 		case accountHealthStatusHealthy:
 			summary.HealthyAccounts++
-		case accountHealthStatusRateLimited:
-			summary.HealthyAccounts++
-		case accountHealthStatusBannedOrExhausted:
-			summary.BannedOrExhaustedAccounts++
+		case accountHealthStatusConstrained:
+			summary.ConstrainedAccounts++
 		case accountHealthStatusUnavailable:
 			summary.UnavailableAccounts++
 		default:

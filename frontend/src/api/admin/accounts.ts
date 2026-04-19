@@ -411,7 +411,7 @@ export interface BatchTodayStatsResponse {
 export interface AccountHealthSummary {
   total_accounts: number
   healthy_accounts: number
-  banned_or_exhausted_accounts: number
+  constrained_accounts: number
   unavailable_accounts: number
   unchecked_accounts: number
   last_checked_at?: string
@@ -429,7 +429,7 @@ export interface AccountHealthCheckItem {
   name: string
   platform: string
   type: string
-  health_status: 'healthy' | 'rate_limited' | 'banned_or_exhausted' | 'unavailable' | 'unchecked'
+  health_status: 'healthy' | 'constrained' | 'unavailable' | 'unchecked'
   result_status: string
   message?: string
   latency_ms: number

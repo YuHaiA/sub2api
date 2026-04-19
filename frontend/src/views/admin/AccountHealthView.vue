@@ -44,12 +44,14 @@
                     <p class="mt-2 text-xs text-emerald-600/80 dark:text-emerald-300/80">{{ t('admin.accounts.healthSummary.healthyHint') }}</p>
                   </div>
                   <div class="rounded-2xl border border-amber-200 bg-amber-50/90 p-4 dark:border-amber-900/40 dark:bg-amber-900/10">
-                    <p class="text-xs font-medium uppercase tracking-wide text-amber-700 dark:text-amber-300">{{ t('admin.accounts.healthSummary.bannedOrExhausted') }}</p>
-                    <p class="mt-3 text-3xl font-semibold text-amber-700 dark:text-amber-200">{{ healthSummary.banned_or_exhausted_accounts }}</p>
+                    <p class="text-xs font-medium uppercase tracking-wide text-amber-700 dark:text-amber-300">{{ t('admin.accounts.healthSummary.constrained') }}</p>
+                    <p class="mt-3 text-3xl font-semibold text-amber-700 dark:text-amber-200">{{ healthSummary.constrained_accounts }}</p>
+                    <p class="mt-2 text-xs text-amber-600/80 dark:text-amber-300/80">{{ t('admin.accounts.healthSummary.constrainedHint') }}</p>
                   </div>
                   <div class="rounded-2xl border border-rose-200 bg-rose-50/90 p-4 dark:border-rose-900/40 dark:bg-rose-900/10">
                     <p class="text-xs font-medium uppercase tracking-wide text-rose-700 dark:text-rose-300">{{ t('admin.accounts.healthSummary.unavailable') }}</p>
                     <p class="mt-3 text-3xl font-semibold text-rose-700 dark:text-rose-200">{{ healthSummary.unavailable_accounts }}</p>
+                    <p class="mt-2 text-xs text-rose-600/80 dark:text-rose-300/80">{{ t('admin.accounts.healthSummary.unavailableHint') }}</p>
                     <p class="mt-2 text-xs text-rose-600/80 dark:text-rose-300/80">
                       {{ t('admin.accounts.healthSummary.unchecked', { count: healthSummary.unchecked_accounts }) }}
                     </p>
@@ -169,7 +171,7 @@ const autoConfig = reactive<AccountHealthAutoCheckConfig>({
 const healthSummary = ref<AccountHealthSummary>({
   total_accounts: 0,
   healthy_accounts: 0,
-  banned_or_exhausted_accounts: 0,
+  constrained_accounts: 0,
   unavailable_accounts: 0,
   unchecked_accounts: 0,
   last_checked_at: ''

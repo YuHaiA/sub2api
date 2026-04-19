@@ -307,9 +307,7 @@ const healthBadgeClass = computed(() => {
   switch (props.account.health_status) {
     case 'healthy':
       return 'badge-success'
-    case 'rate_limited':
-      return 'badge-warning'
-    case 'banned_or_exhausted':
+    case 'constrained':
       return 'badge-warning'
     case 'unavailable':
       return 'badge-danger'
@@ -323,11 +321,8 @@ const healthBadgeClass = computed(() => {
 const healthBadgeText = computed(() => {
   const status = props.account.health_status
   if (!status) return ''
-  if (status === 'rate_limited') {
-    return t('admin.accounts.healthStatus.rateLimited')
-  }
-  if (status === 'banned_or_exhausted') {
-    return t('admin.accounts.healthStatus.bannedOrExhausted')
+  if (status === 'constrained') {
+    return t('admin.accounts.healthStatus.constrained')
   }
   return t(`admin.accounts.healthStatus.${status}`)
 })
