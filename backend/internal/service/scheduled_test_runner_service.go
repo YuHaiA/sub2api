@@ -260,7 +260,7 @@ func autoHealthStatusFromResult(result *ScheduledTestResult) string {
 		strings.Contains(lower, "retry after"),
 		strings.Contains(lower, "api returned 429"),
 		strings.Contains(lower, "(429)"):
-		return "rate_limited"
+		return "constrained"
 	case strings.Contains(lower, "quota exhausted"),
 		strings.Contains(lower, "quota_exhausted"),
 		strings.Contains(lower, "insufficient quota"),
@@ -271,11 +271,12 @@ func autoHealthStatusFromResult(result *ScheduledTestResult) string {
 		strings.Contains(lower, "resource_exhausted"),
 		strings.Contains(lower, "payment required"),
 		strings.Contains(lower, "api returned 402"),
-		strings.Contains(lower, "(402)"),
-		strings.Contains(lower, "banned"),
+		strings.Contains(lower, "(402)"):
+		return "constrained"
+	case strings.Contains(lower, "banned"),
 		strings.Contains(lower, "suspend"),
 		strings.Contains(lower, "violation"):
-		return "banned_or_exhausted"
+		return "unavailable"
 	default:
 		return "unavailable"
 	}
