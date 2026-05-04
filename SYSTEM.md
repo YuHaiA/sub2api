@@ -83,6 +83,9 @@
   - 部署完成後輸出 image/container 結果摘要
 - 部署腳本現在具備 no-op 短路：
   - 若當前容器已經運行與 `weishaw/sub2api:latest` 相同的 image digest，則直接判定已是最新版並跳過 `load/tag/compose`。
+- 部署成功或 no-op 後會執行 Docker 未使用鏡像清理：
+  - `docker image prune -a -f`
+  - 用於移除無用舊鏡像層，降低磁碟佔用
 - 管理後台系統設置頁的部署狀態現已補充最近部署輸出展示：
   - 後端 `DeployState.last_output`
   - 前端系統設置部署區塊可直接查看最近一輪部署輸出

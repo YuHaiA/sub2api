@@ -103,6 +103,11 @@ prune_old_backups() {
   done
 }
 
+prune_unused_images() {
+  log "prune unused docker images"
+  "$DOCKER_BINARY" image prune -a -f >/dev/null 2>&1 || log "warn: failed to prune unused images"
+}
+
 wait_for_health() {
   local deadline=$(( $(date +%s) + HEALTH_WAIT_SECONDS ))
   while (( $(date +%s) <= deadline )); do
@@ -139,6 +144,8 @@ main() {
 
   if already_up_to_date; then
     log "already up to date; skip deploy"
+    prune_old_backups
+    prune_unused_images
     show_result
     log "deploy completed successfully"
     return 0
@@ -159,6 +166,7 @@ main() {
 
   wait_for_health
   prune_old_backups
+  prune_unused_images
   show_result
   log "deploy completed successfully"
 }
