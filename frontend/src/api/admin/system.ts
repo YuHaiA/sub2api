@@ -69,6 +69,7 @@ export interface DeployState {
   requested_image?: string
   last_message?: string
   last_error?: string
+  last_output?: string
   started_at?: number
   finished_at?: number
 }

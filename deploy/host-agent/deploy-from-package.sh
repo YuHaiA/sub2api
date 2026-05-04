@@ -10,6 +10,9 @@ SERVICE_NAME="${SERVICE_NAME:-sub2api}"
 DOCKER_BINARY="${DOCKER_BINARY:-docker}"
 COMPOSE_BINARY="${COMPOSE_BINARY:-docker-compose}"
 ARCHIVE_PATH="${ARCHIVE_PATH:-$COMPOSE_PROJECT_DIR/deploy-update.tar}"
+KEEP_BACKUPS="${KEEP_BACKUPS:-2}"
+HEALTH_WAIT_SECONDS="${HEALTH_WAIT_SECONDS:-120}"
+HEALTH_POLL_INTERVAL="${HEALTH_POLL_INTERVAL:-5}"
 
 timestamp() {
   date '+%Y-%m-%d %H:%M:%S'
@@ -63,6 +66,53 @@ cleanup_archive() {
   fi
 }
 
+prune_old_backups() {
+  local repo="${IMAGE_TAG%:*}"
+  local keep="${KEEP_BACKUPS}"
+  mapfile -t backups < <("$DOCKER_BINARY" images --format '{{.Repository}}:{{.Tag}} {{.CreatedAt}}' | awk -v repo="$repo" '$1 ~ ("^" repo ":backup-") {print $0}')
+  local count=${#backups[@]}
+  if (( count <= keep )); then
+    log "backup images within keep limit: $count/$keep"
+    return
+  fi
+
+  mapfile -t backup_refs < <(printf '%s\n' "${backups[@]}" | sort -rk2 | awk '{print $1}')
+  local idx=0
+  for image_ref in "${backup_refs[@]}"; do
+    idx=$((idx + 1))
+    if (( idx <= keep )); then
+      continue
+    fi
+    log "remove old backup image: $image_ref"
+    "$DOCKER_BINARY" rmi "$image_ref" >/dev/null 2>&1 || log "warn: failed to remove $image_ref"
+  done
+}
+
+wait_for_health() {
+  local deadline=$(( $(date +%s) + HEALTH_WAIT_SECONDS ))
+  while (( $(date +%s) <= deadline )); do
+    local status
+    status=$("$DOCKER_BINARY" inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$SERVICE_NAME" 2>/dev/null || true)
+    if [[ "$status" == "healthy" || "$status" == "running" ]]; then
+      log "service status: $status"
+      return 0
+    fi
+    sleep "$HEALTH_POLL_INTERVAL"
+  done
+  log "health check timeout after ${HEALTH_WAIT_SECONDS}s"
+  "$DOCKER_BINARY" ps --filter "name=^/${SERVICE_NAME}$" || true
+  "$DOCKER_BINARY" logs --tail 100 "$SERVICE_NAME" || true
+  return 1
+}
+
+show_result() {
+  local image_id container_image started_at
+  image_id=$("$DOCKER_BINARY" image inspect "$IMAGE_TAG" --format '{{.Id}}' 2>/dev/null || true)
+  container_image=$("$DOCKER_BINARY" inspect --format '{{.Image}}' "$SERVICE_NAME" 2>/dev/null || true)
+  started_at=$("$DOCKER_BINARY" inspect --format '{{.State.StartedAt}}' "$SERVICE_NAME" 2>/dev/null || true)
+  log "result image_tag=$IMAGE_TAG image_id=$image_id container_image=$container_image started_at=$started_at"
+}
+
 main() {
   require_command curl
   require_command "$DOCKER_BINARY"
@@ -85,6 +135,9 @@ main() {
   log "docker compose restart target service: $SERVICE_NAME"
   compose_up
 
+  wait_for_health
+  prune_old_backups
+  show_result
   log "deploy completed successfully"
 }
 

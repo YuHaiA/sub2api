@@ -3302,6 +3302,7 @@ const deployState = reactive<DeployState>({
   requested_image: '',
   last_message: '',
   last_error: '',
+  last_output: '',
   started_at: undefined,
   finished_at: undefined
 })
@@ -3464,6 +3465,7 @@ function applyDeployState(state: DeployState) {
   deployState.requested_image = state.requested_image || ''
   deployState.last_message = state.last_message || ''
   deployState.last_error = state.last_error || ''
+  deployState.last_output = state.last_output || ''
   deployState.started_at = state.started_at
   deployState.finished_at = state.finished_at
 }
@@ -3535,6 +3537,7 @@ async function triggerDeployNow() {
     deployState.last_message = result.message
     deployState.last_error = ''
     deployState.requested_image = result.image
+    deployState.last_output = ''
     appStore.showSuccess(result.message)
     await refreshDeployStatus()
   } catch (err: unknown) {

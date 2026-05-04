@@ -53,6 +53,7 @@ type DeployState struct {
 	RequestedImage string `json:"requested_image,omitempty"`
 	LastMessage    string `json:"last_message,omitempty"`
 	LastError      string `json:"last_error,omitempty"`
+	LastOutput     string `json:"last_output,omitempty"`
 	StartedAt      *int64 `json:"started_at,omitempty"`
 	FinishedAt     *int64 `json:"finished_at,omitempty"`
 }
@@ -262,6 +263,26 @@ func parseDeployState(raw string) *DeployState {
 	return state
 }
 
+func trimDeployOutput(output string) string {
+	const maxLines = 120
+	const maxChars = 12000
+
+	normalized := strings.TrimSpace(output)
+	if normalized == "" {
+		return ""
+	}
+
+	lines := strings.Split(normalized, "\n")
+	if len(lines) > maxLines {
+		lines = lines[len(lines)-maxLines:]
+	}
+	normalized = strings.Join(lines, "\n")
+	if len(normalized) > maxChars {
+		normalized = normalized[len(normalized)-maxChars:]
+	}
+	return strings.TrimSpace(normalized)
+}
+
 func (s *UpdateService) GetDeployConfig(ctx context.Context) (*DeployConfig, error) {
 	if s.settingRepo == nil {
 		return defaultDeployConfig(), nil
@@ -341,6 +362,7 @@ func (s *UpdateService) TriggerDeploy(ctx context.Context, req *DeployTriggerReq
 		Status:         deployStatusPending,
 		RequestedImage: cfg.DefaultImage,
 		LastMessage:    result.Message,
+		LastOutput:     "",
 		StartedAt:      &now,
 	}
 	_ = s.saveDeployState(ctx, state)
@@ -356,8 +378,9 @@ func (s *UpdateService) TriggerDeploy(ctx context.Context, req *DeployTriggerReq
 	if err != nil {
 		state.Status = deployStatusFailed
 		state.LastError = err.Error()
+		state.LastOutput = trimDeployOutput(output)
 		if output != "" {
-			state.LastMessage = output
+			state.LastMessage = trimDeployOutput(output)
 		}
 		_ = s.saveDeployState(context.Background(), state)
 		return nil, infraerrors.InternalServer("DEPLOY_EXECUTION_FAILED", strings.TrimSpace(strings.Join([]string{err.Error(), output}, "\n")))
@@ -365,11 +388,12 @@ func (s *UpdateService) TriggerDeploy(ctx context.Context, req *DeployTriggerReq
 
 	successMessage := "Deploy completed successfully"
 	if strings.TrimSpace(output) != "" {
-		successMessage = strings.TrimSpace(output)
+		successMessage = trimDeployOutput(output)
 	}
 	state.Status = deployStatusSucceeded
 	state.LastMessage = successMessage
 	state.LastError = ""
+	state.LastOutput = trimDeployOutput(output)
 	_ = s.saveDeployState(context.Background(), state)
 
 	result.Status = deployStatusSucceeded
