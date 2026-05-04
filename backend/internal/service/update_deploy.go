@@ -493,32 +493,15 @@ func (s *UpdateService) executeDeployViaAgent(ctx context.Context, cfg *DeployCo
 	var agentResp deployAgentResponse
 	_ = json.Unmarshal(body, &agentResp)
 
-	messageParts := []string{}
-	if msg := strings.TrimSpace(agentResp.Message); msg != "" {
-		messageParts = append(messageParts, msg)
-	}
-	if out := strings.TrimSpace(agentResp.Output); out != "" {
-		messageParts = append(messageParts, out)
-	}
-	message := strings.TrimSpace(strings.Join(messageParts, "\n"))
-	if message == "" {
-		message = strings.TrimSpace(string(body))
-	}
-
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		errMsg := strings.TrimSpace(agentResp.Error)
 		if errMsg != "" {
-			if message != "" {
-				return "", fmt.Errorf("%s\n%s", errMsg, message)
-			}
 			return "", fmt.Errorf("%s", errMsg)
 		}
-		if message == "" {
-			message = fmt.Sprintf("deploy agent returned HTTP %d", resp.StatusCode)
-		}
-		return "", fmt.Errorf(message)
+		return "", fmt.Errorf("deploy agent returned HTTP %d", resp.StatusCode)
 	}
 
+	message := strings.TrimSpace(agentResp.Message)
 	if message == "" {
 		message = "Deploy completed successfully"
 	}
