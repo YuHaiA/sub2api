@@ -1,79 +1,68 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
-      <template #filters>
-        <div class="space-y-6">
-          <section class="relative overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_20px_70px_-45px_rgba(15,23,42,0.45)] dark:border-slate-700 dark:bg-slate-900">
-            <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.16),_transparent_36%),radial-gradient(circle_at_bottom_right,_rgba(59,130,246,0.14),_transparent_34%)]"></div>
-            <div class="relative space-y-6 p-6 xl:p-8">
-              <div class="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <p class="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-500">{{ t('admin.accountHealth.title') }}</p>
-                  <h2 class="mt-3 text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">{{ t('admin.accountHealth.description') }}</h2>
-                  <p class="mt-3 max-w-2xl text-sm leading-6 text-slate-500 dark:text-slate-400">{{ activeTab === 'health' ? healthStatusText : tokenStatusText }}</p>
-                </div>
-                <div v-if="activeTab === 'health'" class="flex flex-wrap items-center gap-2">
-                  <button class="btn btn-danger" :disabled="deletingUnhealthy || healthChecking" @click="deleteUnhealthyAccountsInScope">{{ deletingUnhealthy ? t('admin.accounts.deleteUnhealthyRunning') : t('admin.accounts.deleteUnhealthy') }}</button>
-                  <button class="btn btn-secondary" :disabled="healthChecking" @click="runGlobalHealthCheck">{{ healthChecking ? t('admin.accounts.healthCheckRunning') : t('admin.accounts.healthCheckAll') }}</button>
-                </div>
-              </div>
-              <div class="inline-flex rounded-2xl border border-slate-200 bg-slate-50/90 p-1 shadow-sm dark:border-slate-700 dark:bg-slate-800/80">
-                <button
-                  v-for="tab in tabs"
-                  :key="tab.key"
-                  type="button"
-                  class="rounded-xl px-4 py-2 text-sm font-medium transition"
-                  :class="activeTab === tab.key ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white'"
-                  @click="activeTab = tab.key"
-                >
-                  {{ tab.label }}
-                </button>
-              </div>
-              <AccountHealthAutoCheckPanel
-                v-if="activeTab === 'health'"
-                :health-summary="healthSummary"
-                :auto-config="autoConfig"
-                :manual-model-id="manualModelId"
-                :auto-interval-input="autoIntervalInput"
-                :auto-last-run-text="autoLastRunText"
-                :health-checking="healthChecking"
-                :saving-auto-config="savingAutoConfig"
-                :deleting-unhealthy="deletingUnhealthy"
-                @update:manual-model-id="manualModelId = $event"
-                @update:auto-interval-input="autoIntervalInput = $event"
-                @run-health-check="runGlobalHealthCheck"
-                @save-config="saveAutoConfig"
-                @delete-unhealthy="deleteUnhealthyAccountsInScope"
-              />
-              <AccountTokenAutoRefreshPanel
-                v-else
-                :token-config="tokenConfig"
-                :token-interval-value-input="tokenIntervalValueInput"
-                :token-batch-size-input="tokenBatchSizeInput"
-                :token-last-run-text="tokenLastRunText"
-                :saving-token-config="savingTokenConfig"
-                @update:token-interval-value-input="tokenIntervalValueInput = $event"
-                @update:token-batch-size-input="tokenBatchSizeInput = $event"
-                @save-config="saveTokenConfig"
-              />
+    <div class="space-y-6">
+      <section class="relative overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_20px_70px_-45px_rgba(15,23,42,0.45)] dark:border-slate-700 dark:bg-slate-900">
+        <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.16),_transparent_36%),radial-gradient(circle_at_bottom_right,_rgba(59,130,246,0.14),_transparent_34%)]"></div>
+        <div class="relative space-y-7 p-6 xl:p-8">
+          <div class="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-500">{{ t('admin.accountHealth.title') }}</p>
+              <h2 class="mt-3 text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">{{ t('admin.accountHealth.description') }}</h2>
+              <p class="mt-3 max-w-2xl text-sm leading-6 text-slate-500 dark:text-slate-400">{{ activeTab === 'health' ? healthStatusText : tokenStatusText }}</p>
             </div>
-          </section>
+            <div v-if="activeTab === 'health'" class="flex flex-wrap items-center gap-2">
+              <button class="btn btn-danger" :disabled="deletingUnhealthy || healthChecking" @click="deleteUnhealthyAccountsInScope">{{ deletingUnhealthy ? t('admin.accounts.deleteUnhealthyRunning') : t('admin.accounts.deleteUnhealthy') }}</button>
+              <button class="btn btn-secondary" :disabled="healthChecking" @click="runGlobalHealthCheck">{{ healthChecking ? t('admin.accounts.healthCheckRunning') : t('admin.accounts.healthCheckAll') }}</button>
+            </div>
+          </div>
+          <div class="inline-flex w-fit rounded-2xl border border-slate-200 bg-slate-50/90 p-1 shadow-sm dark:border-slate-700 dark:bg-slate-800/80">
+            <button
+              v-for="tab in tabs"
+              :key="tab.key"
+              type="button"
+              class="rounded-xl px-4 py-2 text-sm font-medium transition"
+              :class="activeTab === tab.key ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white'"
+              @click="activeTab = tab.key"
+            >
+              {{ tab.label }}
+            </button>
+          </div>
+          <AccountHealthAutoCheckPanel
+            v-if="activeTab === 'health'"
+            :health-summary="healthSummary"
+            :auto-config="autoConfig"
+            :manual-model-id="manualModelId"
+            :auto-interval-input="autoIntervalInput"
+            :auto-last-run-text="autoLastRunText"
+            :health-checking="healthChecking"
+            :saving-auto-config="savingAutoConfig"
+            :deleting-unhealthy="deletingUnhealthy"
+            @update:manual-model-id="manualModelId = $event"
+            @update:auto-interval-input="autoIntervalInput = $event"
+            @run-health-check="runGlobalHealthCheck"
+            @save-config="saveAutoConfig"
+            @delete-unhealthy="deleteUnhealthyAccountsInScope"
+          />
+          <AccountTokenAutoRefreshPanel
+            v-else
+            :token-config="tokenConfig"
+            :token-interval-value-input="tokenIntervalValueInput"
+            :token-batch-size-input="tokenBatchSizeInput"
+            :token-last-run-text="tokenLastRunText"
+            :saving-token-config="savingTokenConfig"
+            @update:token-interval-value-input="tokenIntervalValueInput = $event"
+            @update:token-batch-size-input="tokenBatchSizeInput = $event"
+            @save-config="saveTokenConfig"
+          />
         </div>
-      </template>
-
-      <template #table>
-        <div class="rounded-[28px] border border-dashed border-slate-300 bg-white/70 px-6 py-10 text-center text-sm text-slate-500 shadow-[0_20px_70px_-45px_rgba(15,23,42,0.45)] dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-400">
-          {{ activeTab === 'health' ? t('admin.accountHealth.description') : t('admin.accounts.tokenRefresh.tableHint') }}
-        </div>
-      </template>
-    </TablePageLayout>
+      </section>
+    </div>
   </AppLayout>
 </template>
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
-import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import AccountHealthAutoCheckPanel from '@/components/admin/account-health/AccountHealthAutoCheckPanel.vue'
 import AccountTokenAutoRefreshPanel from '@/components/admin/account-health/AccountTokenAutoRefreshPanel.vue'
 import { useAppStore } from '@/stores/app'

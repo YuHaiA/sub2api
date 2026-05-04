@@ -2053,7 +2053,7 @@ export default {
       tokenRefresh: {
         tab: 'Auto Token Refresh',
         title: 'Refresh-token-based automation',
-        hint: 'Only refreshable OAuth accounts are included. Refresh runs roll through accounts in batches to avoid large request spikes.',
+        hint: 'Only refreshable OAuth accounts are included. Refresh runs process accounts in batches, defaulting to 10 at a time, and continue until all eligible accounts in the current run are completed.',
         enabled: 'Enable automatic token refresh',
         disabledHint: 'Automatic token refresh is disabled',
         interval: 'Refresh interval',
@@ -2069,7 +2069,8 @@ export default {
         lastRunTotal: 'Last scanned',
         lastRunSuccess: 'Last succeeded',
         lastRunFailed: 'Last failed',
-        tableHint: 'Configure hour/day refresh cadence for refresh-token accounts. The system processes them in batches automatically.'
+        currentBatch: 'Batch size',
+        tableHint: 'Configure hour/day refresh cadence for refresh-token accounts. Each run processes accounts in batches and continues until all eligible accounts are finished.'
       },
       deleteUnhealthy: 'Delete Unhealthy Accounts',
       deleteUnhealthyRunning: 'Deleting...',

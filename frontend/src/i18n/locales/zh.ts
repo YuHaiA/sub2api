@@ -2131,7 +2131,7 @@ export default {
       tokenRefresh: {
         tab: '自动刷新 Token',
         title: '基于 Ref 的自动刷新',
-        hint: '仅针对可刷新的 OAuth 账号执行，系统会按批次滚动刷新，默认每批 10 个，避免瞬间大量请求。',
+        hint: '仅针对可刷新的 OAuth 账号执行，系统会按批次滚动刷新，默认每批 10 个，并持续处理直到本轮可刷新账号全部完成，避免瞬间大量请求。',
         enabled: '启用自动刷新 Token',
         disabledHint: '自动刷新 Token 未启用',
         interval: '刷新周期',
@@ -2147,7 +2147,8 @@ export default {
         lastRunTotal: '上次扫描',
         lastRunSuccess: '上次成功',
         lastRunFailed: '上次失败',
-        tableHint: '在这里配置按小时或天自动刷新 Ref Token 的策略，系统会分批执行。'
+        currentBatch: '当前批量',
+        tableHint: '在这里配置按小时或天自动刷新 Ref Token 的策略，系统会按批次执行，并在单轮中持续刷新到所有可处理账号完成。'
       },
       deleteUnhealthy: '删除未存活账号',
       deleteUnhealthyRunning: '删除中...',
