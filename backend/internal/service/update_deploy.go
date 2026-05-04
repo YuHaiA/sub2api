@@ -379,17 +379,12 @@ func (s *UpdateService) TriggerDeploy(ctx context.Context, req *DeployTriggerReq
 		state.Status = deployStatusFailed
 		state.LastError = err.Error()
 		state.LastOutput = trimDeployOutput(output)
-		if output != "" {
-			state.LastMessage = trimDeployOutput(output)
-		}
+		state.LastMessage = "Deploy failed"
 		_ = s.saveDeployState(context.Background(), state)
 		return nil, infraerrors.InternalServer("DEPLOY_EXECUTION_FAILED", strings.TrimSpace(strings.Join([]string{err.Error(), output}, "\n")))
 	}
 
 	successMessage := "Deploy completed successfully"
-	if strings.TrimSpace(output) != "" {
-		successMessage = trimDeployOutput(output)
-	}
 	state.Status = deployStatusSucceeded
 	state.LastMessage = successMessage
 	state.LastError = ""

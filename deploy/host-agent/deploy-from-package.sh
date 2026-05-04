@@ -66,6 +66,21 @@ cleanup_archive() {
   fi
 }
 
+get_running_image_id() {
+  "$DOCKER_BINARY" inspect --format '{{.Image}}' "$SERVICE_NAME" 2>/dev/null || true
+}
+
+get_latest_image_id() {
+  "$DOCKER_BINARY" image inspect "$IMAGE_TAG" --format '{{.Id}}' 2>/dev/null || true
+}
+
+already_up_to_date() {
+  local running_image_id latest_image_id
+  running_image_id="$(get_running_image_id)"
+  latest_image_id="$(get_latest_image_id)"
+  [[ -n "$running_image_id" && -n "$latest_image_id" && "$running_image_id" == "$latest_image_id" ]]
+}
+
 prune_old_backups() {
   local repo="${IMAGE_TAG%:*}"
   local keep="${KEEP_BACKUPS}"
@@ -121,6 +136,13 @@ main() {
   mkdir -p "$(dirname "$ARCHIVE_PATH")"
 
   trap cleanup_archive EXIT
+
+  if already_up_to_date; then
+    log "already up to date; skip deploy"
+    show_result
+    log "deploy completed successfully"
+    return 0
+  fi
 
   download_archive
   backup_current_image
