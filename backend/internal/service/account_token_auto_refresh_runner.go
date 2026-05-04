@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -79,17 +80,43 @@ func (s *TokenRefreshService) runConfiguredBatchRefresh(
 }
 
 func (s *TokenRefreshService) listAutoRefreshEligibleAccounts(ctx context.Context) ([]Account, error) {
-	accounts, err := s.listActiveAccounts(ctx)
+	accounts, err := s.listAllAccountsForAutoRefresh(ctx)
 	if err != nil {
 		return nil, err
 	}
 	filtered := make([]Account, 0, len(accounts))
 	for i := range accounts {
+		if accounts[i].Status == StatusDisabled {
+			continue
+		}
 		if _, _, ok := s.findRefreshExecutor(&accounts[i]); ok {
 			filtered = append(filtered, accounts[i])
 		}
 	}
 	return filtered, nil
+}
+
+func (s *TokenRefreshService) listAllAccountsForAutoRefresh(ctx context.Context) ([]Account, error) {
+	page := 1
+	pageSize := 200
+	out := make([]Account, 0)
+	for {
+		items, result, err := s.accountRepo.ListWithFilters(ctx, pagination.PaginationParams{
+			Page:      page,
+			PageSize:  pageSize,
+			SortBy:    "name",
+			SortOrder: "asc",
+		}, "", "", "", "", 0, "")
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, items...)
+		if result == nil || len(out) >= int(result.Total) || len(items) == 0 {
+			break
+		}
+		page++
+	}
+	return out, nil
 }
 
 func (s *TokenRefreshService) runAutoRefreshBatch(ctx context.Context, accounts []Account) accountTokenAutoRefreshRunStats {
