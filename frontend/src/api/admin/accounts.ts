@@ -424,6 +424,17 @@ export interface AccountHealthAutoCheckConfig {
   last_run_at?: number | null
 }
 
+export interface AccountTokenAutoRefreshConfig {
+  enabled: boolean
+  interval_value: number
+  interval_unit: 'hour' | 'day'
+  batch_size: number
+  last_run_at?: number | null
+  last_run_total?: number
+  last_run_success?: number
+  last_run_failed?: number
+}
+
 export interface AccountHealthCheckItem {
   account_id: number
   name: string
@@ -512,6 +523,21 @@ export async function updateAccountHealthAutoCheckConfig(payload: {
   model_id: string
 }): Promise<AccountHealthAutoCheckConfig> {
   const { data } = await apiClient.put<AccountHealthAutoCheckConfig>('/admin/settings/account-health-auto-check', payload)
+  return data
+}
+
+export async function getAccountTokenAutoRefreshConfig(): Promise<AccountTokenAutoRefreshConfig> {
+  const { data } = await apiClient.get<AccountTokenAutoRefreshConfig>('/admin/settings/account-token-auto-refresh')
+  return data
+}
+
+export async function updateAccountTokenAutoRefreshConfig(payload: {
+  enabled: boolean
+  interval_value: number
+  interval_unit: 'hour' | 'day'
+  batch_size: number
+}): Promise<AccountTokenAutoRefreshConfig> {
+  const { data } = await apiClient.put<AccountTokenAutoRefreshConfig>('/admin/settings/account-token-auto-refresh', payload)
   return data
 }
 
@@ -781,6 +807,8 @@ export const accountsAPI = {
   runHealthCheck,
   getAccountHealthAutoCheckConfig,
   updateAccountHealthAutoCheckConfig,
+  getAccountTokenAutoRefreshConfig,
+  updateAccountTokenAutoRefreshConfig,
   deduplicateAccounts,
   deleteUnhealthyAccounts,
   clearRateLimit,

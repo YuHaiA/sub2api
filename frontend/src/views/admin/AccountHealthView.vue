@@ -5,123 +5,57 @@
         <div class="space-y-6">
           <section class="relative overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_20px_70px_-45px_rgba(15,23,42,0.45)] dark:border-slate-700 dark:bg-slate-900">
             <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.16),_transparent_36%),radial-gradient(circle_at_bottom_right,_rgba(59,130,246,0.14),_transparent_34%)]"></div>
-            <div class="relative grid gap-6 p-6 xl:grid-cols-[1.25fr,0.95fr] xl:p-8">
-              <div class="space-y-6">
-                <div class="flex flex-wrap items-start justify-between gap-4">
-                  <div>
-                    <p class="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-500">
-                      {{ t('admin.accountHealth.title') }}
-                    </p>
-                    <h2 class="mt-3 text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">
-                      {{ t('admin.accountHealth.description') }}
-                    </h2>
-                    <p class="mt-3 max-w-2xl text-sm leading-6 text-slate-500 dark:text-slate-400">
-                      {{ autoConfig.enabled ? t('admin.accounts.autoCheckEnabled') : t('admin.accounts.healthSummary.neverChecked') }}
-                      <span v-if="autoConfig.last_run_at">
-                        · {{ t('admin.accounts.healthSummary.lastChecked', { time: autoLastRunText }) }}
-                      </span>
-                    </p>
-                  </div>
-
-                  <div class="flex flex-wrap items-center gap-2">
-                    <button class="btn btn-danger" :disabled="deletingUnhealthy || healthChecking" @click="deleteUnhealthyAccountsInScope">
-                      {{ deletingUnhealthy ? t('admin.accounts.deleteUnhealthyRunning') : t('admin.accounts.deleteUnhealthy') }}
-                    </button>
-                    <button class="btn btn-secondary" :disabled="healthChecking" @click="runGlobalHealthCheck">
-                      {{ healthChecking ? t('admin.accounts.healthCheckRunning') : t('admin.accounts.healthCheckAll') }}
-                    </button>
-                  </div>
+            <div class="relative space-y-6 p-6 xl:p-8">
+              <div class="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p class="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-500">{{ t('admin.accountHealth.title') }}</p>
+                  <h2 class="mt-3 text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">{{ t('admin.accountHealth.description') }}</h2>
+                  <p class="mt-3 max-w-2xl text-sm leading-6 text-slate-500 dark:text-slate-400">{{ activeTab === 'health' ? healthStatusText : tokenStatusText }}</p>
                 </div>
-
-                <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                  <div class="rounded-2xl border border-slate-200 bg-white/80 p-4 backdrop-blur dark:border-slate-700 dark:bg-slate-800/70">
-                    <p class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ t('admin.accounts.healthSummary.total') }}</p>
-                    <p class="mt-3 text-3xl font-semibold text-slate-900 dark:text-white">{{ healthSummary.total_accounts }}</p>
-                  </div>
-                  <div class="rounded-2xl border border-emerald-200 bg-emerald-50/90 p-4 dark:border-emerald-900/40 dark:bg-emerald-900/10">
-                    <p class="text-xs font-medium uppercase tracking-wide text-emerald-700 dark:text-emerald-300">{{ t('admin.accounts.healthSummary.healthy') }}</p>
-                    <p class="mt-3 text-3xl font-semibold text-emerald-700 dark:text-emerald-200">{{ healthSummary.healthy_accounts }}</p>
-                    <p class="mt-2 text-xs text-emerald-600/80 dark:text-emerald-300/80">{{ t('admin.accounts.healthSummary.healthyHint') }}</p>
-                  </div>
-                  <div class="rounded-2xl border border-amber-200 bg-amber-50/90 p-4 dark:border-amber-900/40 dark:bg-amber-900/10">
-                    <p class="text-xs font-medium uppercase tracking-wide text-amber-700 dark:text-amber-300">{{ t('admin.accounts.healthSummary.constrained') }}</p>
-                    <p class="mt-3 text-3xl font-semibold text-amber-700 dark:text-amber-200">{{ healthSummary.constrained_accounts }}</p>
-                    <p class="mt-2 text-xs text-amber-600/80 dark:text-amber-300/80">{{ t('admin.accounts.healthSummary.constrainedHint') }}</p>
-                  </div>
-                  <div class="rounded-2xl border border-rose-200 bg-rose-50/90 p-4 dark:border-rose-900/40 dark:bg-rose-900/10">
-                    <p class="text-xs font-medium uppercase tracking-wide text-rose-700 dark:text-rose-300">{{ t('admin.accounts.healthSummary.unavailable') }}</p>
-                    <p class="mt-3 text-3xl font-semibold text-rose-700 dark:text-rose-200">{{ healthSummary.unavailable_accounts }}</p>
-                    <p class="mt-2 text-xs text-rose-600/80 dark:text-rose-300/80">{{ t('admin.accounts.healthSummary.unavailableHint') }}</p>
-                    <p class="mt-2 text-xs text-rose-600/80 dark:text-rose-300/80">
-                      {{ t('admin.accounts.healthSummary.unchecked', { count: healthSummary.unchecked_accounts }) }}
-                    </p>
-                  </div>
+                <div v-if="activeTab === 'health'" class="flex flex-wrap items-center gap-2">
+                  <button class="btn btn-danger" :disabled="deletingUnhealthy || healthChecking" @click="deleteUnhealthyAccountsInScope">{{ deletingUnhealthy ? t('admin.accounts.deleteUnhealthyRunning') : t('admin.accounts.deleteUnhealthy') }}</button>
+                  <button class="btn btn-secondary" :disabled="healthChecking" @click="runGlobalHealthCheck">{{ healthChecking ? t('admin.accounts.healthCheckRunning') : t('admin.accounts.healthCheckAll') }}</button>
                 </div>
               </div>
-
-              <div class="space-y-4 rounded-[24px] border border-slate-200 bg-white/85 p-5 backdrop-blur dark:border-slate-700 dark:bg-slate-800/75">
-                <div>
-                  <h3 class="text-base font-semibold text-slate-900 dark:text-white">{{ t('admin.accounts.autoCheck') }}</h3>
-                  <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ t('admin.accounts.autoCheckIntervalHint') }}</p>
-                </div>
-
-                <label class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200">
-                  <input
-                    v-model="autoConfig.enabled"
-                    type="checkbox"
-                    class="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
-                  />
-                  {{ t('admin.accounts.autoCheckEnabled') }}
-                </label>
-
-                <div class="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <label class="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                      {{ t('admin.accounts.healthCheckModelPlaceholder') }}
-                    </label>
-                    <Input
-                      v-model="manualModelId"
-                      :disabled="healthChecking"
-                      :placeholder="t('admin.accounts.healthCheckModelPlaceholder')"
-                    />
-                  </div>
-                  <div>
-                    <label class="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                      {{ t('admin.accounts.autoCheckInterval') }}
-                    </label>
-                    <Input
-                      v-model="autoIntervalInput"
-                      type="number"
-                      :placeholder="'60'"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label class="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    {{ t('admin.accounts.autoCheckModel') }}
-                  </label>
-                  <Input
-                    v-model="autoConfig.model_id"
-                    :placeholder="t('admin.accounts.healthCheckModelPlaceholder')"
-                  />
-                </div>
-
-                <div class="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:bg-slate-900/70 dark:text-slate-300">
-                  <div class="flex flex-wrap items-center justify-between gap-2">
-                    <span>{{ t('admin.accounts.healthSummary.lastChecked', { time: autoLastRunText }) }}</span>
-                    <span class="badge text-xs" :class="autoConfig.enabled ? 'badge-success' : 'badge-gray'">
-                      {{ autoConfig.enabled ? t('common.enabled') : t('common.disabled') }}
-                    </span>
-                  </div>
-                </div>
-
-                <div class="flex justify-end">
-                  <button class="btn btn-primary" :disabled="savingAutoConfig" @click="saveAutoConfig">
-                    {{ savingAutoConfig ? t('common.saving') : t('admin.accounts.autoCheckSave') }}
-                  </button>
-                </div>
+              <div class="inline-flex rounded-2xl border border-slate-200 bg-slate-50/90 p-1 shadow-sm dark:border-slate-700 dark:bg-slate-800/80">
+                <button
+                  v-for="tab in tabs"
+                  :key="tab.key"
+                  type="button"
+                  class="rounded-xl px-4 py-2 text-sm font-medium transition"
+                  :class="activeTab === tab.key ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white'"
+                  @click="activeTab = tab.key"
+                >
+                  {{ tab.label }}
+                </button>
               </div>
+              <AccountHealthAutoCheckPanel
+                v-if="activeTab === 'health'"
+                :health-summary="healthSummary"
+                :auto-config="autoConfig"
+                :manual-model-id="manualModelId"
+                :auto-interval-input="autoIntervalInput"
+                :auto-last-run-text="autoLastRunText"
+                :health-checking="healthChecking"
+                :saving-auto-config="savingAutoConfig"
+                :deleting-unhealthy="deletingUnhealthy"
+                @update:manual-model-id="manualModelId = $event"
+                @update:auto-interval-input="autoIntervalInput = $event"
+                @run-health-check="runGlobalHealthCheck"
+                @save-config="saveAutoConfig"
+                @delete-unhealthy="deleteUnhealthyAccountsInScope"
+              />
+              <AccountTokenAutoRefreshPanel
+                v-else
+                :token-config="tokenConfig"
+                :token-interval-value-input="tokenIntervalValueInput"
+                :token-batch-size-input="tokenBatchSizeInput"
+                :token-last-run-text="tokenLastRunText"
+                :saving-token-config="savingTokenConfig"
+                @update:token-interval-value-input="tokenIntervalValueInput = $event"
+                @update:token-batch-size-input="tokenBatchSizeInput = $event"
+                @save-config="saveTokenConfig"
+              />
             </div>
           </section>
         </div>
@@ -129,64 +63,77 @@
 
       <template #table>
         <div class="rounded-[28px] border border-dashed border-slate-300 bg-white/70 px-6 py-10 text-center text-sm text-slate-500 shadow-[0_20px_70px_-45px_rgba(15,23,42,0.45)] dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-400">
-          {{ t('admin.accountHealth.description') }}
+          {{ activeTab === 'health' ? t('admin.accountHealth.description') : t('admin.accounts.tokenRefresh.tableHint') }}
         </div>
       </template>
     </TablePageLayout>
   </AppLayout>
 </template>
-
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
-import Input from '@/components/common/Input.vue'
+import AccountHealthAutoCheckPanel from '@/components/admin/account-health/AccountHealthAutoCheckPanel.vue'
+import AccountTokenAutoRefreshPanel from '@/components/admin/account-health/AccountTokenAutoRefreshPanel.vue'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
 import { formatRelativeTime } from '@/utils/format'
-import type { AccountHealthAutoCheckConfig, AccountHealthSummary } from '@/api/admin/accounts'
+import type { AccountHealthAutoCheckConfig, AccountHealthSummary, AccountTokenAutoRefreshConfig } from '@/api/admin/accounts'
 
 const { t } = useI18n()
 const appStore = useAppStore()
 
-const healthChecking = ref(false)
-const savingAutoConfig = ref(false)
-const deletingUnhealthy = ref(false)
-const autoHealthPolling = ref(false)
-
-const AUTO_HEALTH_POLL_MS = 15000
-const lastObservedAutoRunAt = ref<number | null>(null)
-
-const manualModelId = ref('')
-const autoIntervalInput = ref('60')
+const AUTO_POLL_MS = 15000
+const activeTab = ref<'health' | 'token'>('health')
+const healthChecking = ref(false), savingAutoConfig = ref(false), savingTokenConfig = ref(false), deletingUnhealthy = ref(false), polling = ref(false)
+const lastObservedAutoRunAt = ref<number | null>(null), lastObservedTokenRunAt = ref<number | null>(null)
+const manualModelId = ref(''), autoIntervalInput = ref('60'), tokenIntervalValueInput = ref('1'), tokenBatchSizeInput = ref('10')
 
 const autoConfig = reactive<AccountHealthAutoCheckConfig>({
   enabled: false,
   interval_minutes: 60,
   model_id: '',
   last_run_at: null
-})
-
-const healthSummary = ref<AccountHealthSummary>({
+}), tokenConfig = reactive<AccountTokenAutoRefreshConfig>({
+  enabled: false,
+  interval_value: 1,
+  interval_unit: 'day',
+  batch_size: 10,
+  last_run_at: null,
+  last_run_total: 0,
+  last_run_success: 0,
+  last_run_failed: 0
+}), healthSummary = ref<AccountHealthSummary>({
   total_accounts: 0,
   healthy_accounts: 0,
   constrained_accounts: 0,
   unavailable_accounts: 0,
   unchecked_accounts: 0,
   last_checked_at: ''
+}), tabs = computed(() => [
+  { key: 'health' as const, label: t('admin.accounts.autoCheck') },
+  { key: 'token' as const, label: t('admin.accounts.tokenRefresh.tab') }
+])
+
+const autoLastRunText = computed(() => formatLastRun(autoConfig.last_run_at))
+const tokenLastRunText = computed(() => formatLastRun(tokenConfig.last_run_at))
+const healthStatusText = computed(() => {
+  const base = autoConfig.enabled ? t('admin.accounts.autoCheckEnabled') : t('admin.accounts.healthSummary.neverChecked')
+  return autoConfig.last_run_at ? `${base} · ${t('admin.accounts.healthSummary.lastChecked', { time: autoLastRunText.value })}` : base
+})
+const tokenStatusText = computed(() => {
+  const base = tokenConfig.enabled ? t('admin.accounts.tokenRefresh.enabled') : t('admin.accounts.tokenRefresh.disabledHint')
+  return tokenConfig.last_run_at ? `${base} · ${t('admin.accounts.tokenRefresh.lastRunAt', { time: tokenLastRunText.value })}` : base
 })
 
-const autoLastRunText = computed(() => {
-  if (!autoConfig.last_run_at) return t('admin.accounts.healthSummary.neverChecked')
-  return formatRelativeTime(new Date(autoConfig.last_run_at * 1000).toISOString())
-})
-
-const loadHealthSummary = async () => {
-  healthSummary.value = await adminAPI.accounts.getHealthSummary()
+function formatLastRun(timestamp?: number | null) {
+  if (!timestamp) return t('admin.accounts.healthSummary.neverChecked')
+  return formatRelativeTime(new Date(timestamp * 1000).toISOString())
 }
+async function loadHealthSummary() { healthSummary.value = await adminAPI.accounts.getHealthSummary() }
 
-const loadAutoConfig = async () => {
+async function loadAutoConfig() {
   const cfg = await adminAPI.accounts.getAccountHealthAutoCheckConfig()
   autoConfig.enabled = cfg.enabled
   autoConfig.interval_minutes = cfg.interval_minutes || 60
@@ -196,21 +143,28 @@ const loadAutoConfig = async () => {
   lastObservedAutoRunAt.value = cfg.last_run_at ?? null
 }
 
-const reloadPage = async () => {
-  await Promise.all([
-    loadHealthSummary(),
-    loadAutoConfig()
-  ])
+async function loadTokenConfig() {
+  const cfg = await adminAPI.accounts.getAccountTokenAutoRefreshConfig()
+  tokenConfig.enabled = cfg.enabled
+  tokenConfig.interval_value = cfg.interval_value || 1
+  tokenConfig.interval_unit = cfg.interval_unit || 'day'
+  tokenConfig.batch_size = cfg.batch_size || 10
+  tokenConfig.last_run_at = cfg.last_run_at ?? null
+  tokenConfig.last_run_total = cfg.last_run_total ?? 0
+  tokenConfig.last_run_success = cfg.last_run_success ?? 0
+  tokenConfig.last_run_failed = cfg.last_run_failed ?? 0
+  tokenIntervalValueInput.value = String(tokenConfig.interval_value)
+  tokenBatchSizeInput.value = String(tokenConfig.batch_size)
+  lastObservedTokenRunAt.value = cfg.last_run_at ?? null
 }
+async function reloadPage() { await Promise.all([loadHealthSummary(), loadAutoConfig(), loadTokenConfig()]) }
 
-const runGlobalHealthCheck = async () => {
+async function runGlobalHealthCheck() {
   if (healthChecking.value) return
   healthChecking.value = true
   try {
     const modelID = manualModelId.value.trim() || autoConfig.model_id.trim()
-    await adminAPI.accounts.runHealthCheck({
-      model_id: modelID || undefined
-    })
+    await adminAPI.accounts.runHealthCheck({ model_id: modelID || undefined })
     await reloadPage()
     appStore.showSuccess(t('admin.accounts.healthCheckCompleted', { count: healthSummary.value.total_accounts }))
   } catch (error: any) {
@@ -220,7 +174,7 @@ const runGlobalHealthCheck = async () => {
   }
 }
 
-const saveAutoConfig = async () => {
+async function saveAutoConfig() {
   if (savingAutoConfig.value) return
   const interval = Number(autoIntervalInput.value)
   if (!Number.isFinite(interval) || interval < 1) {
@@ -248,7 +202,38 @@ const saveAutoConfig = async () => {
   }
 }
 
-const deleteUnhealthyAccountsInScope = async () => {
+async function saveTokenConfig() {
+  if (savingTokenConfig.value) return
+  const intervalValue = Number(tokenIntervalValueInput.value)
+  const batchSize = Number(tokenBatchSizeInput.value)
+  if (!Number.isFinite(intervalValue) || intervalValue < 1) {
+    appStore.showError(t('admin.accounts.tokenRefresh.intervalHint'))
+    return
+  }
+  if (!Number.isFinite(batchSize) || batchSize < 1 || batchSize > 50) {
+    appStore.showError(t('admin.accounts.tokenRefresh.batchHint'))
+    return
+  }
+  savingTokenConfig.value = true
+  try {
+    const updated = await adminAPI.accounts.updateAccountTokenAutoRefreshConfig({
+      enabled: tokenConfig.enabled,
+      interval_value: intervalValue,
+      interval_unit: tokenConfig.interval_unit,
+      batch_size: batchSize
+    })
+    Object.assign(tokenConfig, updated)
+    tokenIntervalValueInput.value = String(updated.interval_value)
+    tokenBatchSizeInput.value = String(updated.batch_size)
+    lastObservedTokenRunAt.value = updated.last_run_at ?? null
+    appStore.showSuccess(t('admin.accounts.tokenRefresh.saved'))
+  } catch (error: any) {
+    appStore.showError(error?.message || t('common.error'))
+  } finally {
+    savingTokenConfig.value = false
+  }
+}
+async function deleteUnhealthyAccountsInScope() {
   if (deletingUnhealthy.value) return
   if (!confirm(t('admin.accounts.deleteUnhealthyConfirm'))) return
   deletingUnhealthy.value = true
@@ -262,54 +247,65 @@ const deleteUnhealthyAccountsInScope = async () => {
     deletingUnhealthy.value = false
   }
 }
-
-const pollAutoHealthUpdates = async () => {
-  if (autoHealthPolling.value || healthChecking.value || deletingUnhealthy.value) return
+async function pollUpdates() {
+  if (polling.value || healthChecking.value || deletingUnhealthy.value) return
   if (typeof document !== 'undefined' && document.hidden) return
-  autoHealthPolling.value = true
+  polling.value = true
   try {
-    const cfg = await adminAPI.accounts.getAccountHealthAutoCheckConfig()
-    const nextLastRunAt = cfg.last_run_at ?? null
-    const hasNewAutoRun =
-      nextLastRunAt !== null &&
-      lastObservedAutoRunAt.value !== null &&
-      nextLastRunAt !== lastObservedAutoRunAt.value
+    const [healthCfg, refreshCfg] = await Promise.all([
+      adminAPI.accounts.getAccountHealthAutoCheckConfig(),
+      adminAPI.accounts.getAccountTokenAutoRefreshConfig()
+    ])
 
-    autoConfig.enabled = cfg.enabled
-    autoConfig.interval_minutes = cfg.interval_minutes || 60
-    autoConfig.model_id = cfg.model_id || ''
-    autoConfig.last_run_at = nextLastRunAt
+    const nextHealthRunAt = healthCfg.last_run_at ?? null
+    const nextTokenRunAt = refreshCfg.last_run_at ?? null
+    const hasNewHealthRun = nextHealthRunAt !== null && lastObservedAutoRunAt.value !== null && nextHealthRunAt !== lastObservedAutoRunAt.value
+
+    autoConfig.enabled = healthCfg.enabled
+    autoConfig.interval_minutes = healthCfg.interval_minutes || 60
+    autoConfig.model_id = healthCfg.model_id || ''
+    autoConfig.last_run_at = nextHealthRunAt
     autoIntervalInput.value = String(autoConfig.interval_minutes)
+    lastObservedAutoRunAt.value = nextHealthRunAt
 
-    if (hasNewAutoRun) {
+    tokenConfig.enabled = refreshCfg.enabled
+    tokenConfig.interval_value = refreshCfg.interval_value || 1
+    tokenConfig.interval_unit = refreshCfg.interval_unit || 'day'
+    tokenConfig.batch_size = refreshCfg.batch_size || 10
+    tokenConfig.last_run_at = nextTokenRunAt
+    tokenConfig.last_run_total = refreshCfg.last_run_total ?? 0
+    tokenConfig.last_run_success = refreshCfg.last_run_success ?? 0
+    tokenConfig.last_run_failed = refreshCfg.last_run_failed ?? 0
+    tokenIntervalValueInput.value = String(tokenConfig.interval_value)
+    tokenBatchSizeInput.value = String(tokenConfig.batch_size)
+    lastObservedTokenRunAt.value = nextTokenRunAt
+
+    if (hasNewHealthRun) {
       await loadHealthSummary()
     }
-
-    lastObservedAutoRunAt.value = nextLastRunAt
   } catch (error) {
-    console.error('Failed to poll account health auto-check state:', error)
+    console.error('Failed to poll account health page state:', error)
   } finally {
-    autoHealthPolling.value = false
+    polling.value = false
   }
 }
-
-let autoHealthPollTimer: ReturnType<typeof setInterval> | null = null
+let pollTimer: ReturnType<typeof setInterval> | null = null
 
 onMounted(async () => {
   try {
     await reloadPage()
-    autoHealthPollTimer = setInterval(() => {
-      void pollAutoHealthUpdates()
-    }, AUTO_HEALTH_POLL_MS)
+    pollTimer = setInterval(() => {
+      void pollUpdates()
+    }, AUTO_POLL_MS)
   } catch (error) {
     console.error('Failed to initialize account health page:', error)
   }
 })
 
 onUnmounted(() => {
-  if (autoHealthPollTimer) {
-    clearInterval(autoHealthPollTimer)
-    autoHealthPollTimer = null
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
   }
 })
 </script>

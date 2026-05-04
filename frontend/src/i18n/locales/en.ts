@@ -2050,6 +2050,27 @@ export default {
       autoCheckModel: 'Automatic check model',
       autoCheckSave: 'Save auto-check config',
       autoCheckSaved: 'Automatic health-check config saved',
+      tokenRefresh: {
+        tab: 'Auto Token Refresh',
+        title: 'Refresh-token-based automation',
+        hint: 'Only refreshable OAuth accounts are included. Refresh runs roll through accounts in batches to avoid large request spikes.',
+        enabled: 'Enable automatic token refresh',
+        disabledHint: 'Automatic token refresh is disabled',
+        interval: 'Refresh interval',
+        intervalHint: 'Interval must be at least 1 and can use hour/day units.',
+        unit: 'Time unit',
+        unitHour: 'Hour',
+        unitDay: 'Day',
+        batchSize: 'Accounts per batch',
+        batchHint: 'Batch size must be between 1 and 50. 10 is recommended.',
+        save: 'Save token refresh config',
+        saved: 'Automatic token refresh config saved',
+        lastRunAt: 'Last refresh: {time}',
+        lastRunTotal: 'Last scanned',
+        lastRunSuccess: 'Last succeeded',
+        lastRunFailed: 'Last failed',
+        tableHint: 'Configure hour/day refresh cadence for refresh-token accounts. The system processes them in batches automatically.'
+      },
       deleteUnhealthy: 'Delete Unhealthy Accounts',
       deleteUnhealthyRunning: 'Deleting...',
       deleteUnhealthyConfirm: 'Delete confirmed unavailable accounts within the current filters. Banned/exhausted, unchecked, and rate-limited accounts are kept.',
@@ -3045,7 +3066,7 @@ export default {
     },
     accountHealth: {
       title: 'Account Health',
-      description: 'Review account health results, run checks manually, and configure automatic health checks'
+      description: 'Manage account health checks and automatic token refresh in one place'
     },
 
     // Scheduled Tests

@@ -2128,6 +2128,27 @@ export default {
       autoCheckModel: '自动测活模型',
       autoCheckSave: '保存自动测活配置',
       autoCheckSaved: '自动测活配置已保存',
+      tokenRefresh: {
+        tab: '自动刷新 Token',
+        title: '基于 Ref 的自动刷新',
+        hint: '仅针对可刷新的 OAuth 账号执行，系统会按批次滚动刷新，默认每批 10 个，避免瞬间大量请求。',
+        enabled: '启用自动刷新 Token',
+        disabledHint: '自动刷新 Token 未启用',
+        interval: '刷新周期',
+        intervalHint: '周期至少为 1，单位支持小时或天',
+        unit: '时间单位',
+        unitHour: '小时',
+        unitDay: '天',
+        batchSize: '每批刷新数量',
+        batchHint: '每批数量需在 1 到 50 之间，建议 10',
+        save: '保存自动刷新配置',
+        saved: '自动刷新 Token 配置已保存',
+        lastRunAt: '最近刷新：{time}',
+        lastRunTotal: '上次扫描',
+        lastRunSuccess: '上次成功',
+        lastRunFailed: '上次失败',
+        tableHint: '在这里配置按小时或天自动刷新 Ref Token 的策略，系统会分批执行。'
+      },
       deleteUnhealthy: '删除未存活账号',
       deleteUnhealthyRunning: '删除中...',
       deleteUnhealthyConfirm: '按当前筛选范围删除已确认异常账号。不会删除“封禁或额度耗尽”、“未检测”或“限流中”的账号。',
@@ -3142,7 +3163,7 @@ export default {
     },
     accountHealth: {
       title: '账号测活',
-      description: '集中查看账号测活状态、手动执行检测并配置自动测活'
+      description: '集中管理账号测活与 Token 自动刷新策略'
     },
 
     // Scheduled Tests

@@ -2039,3 +2039,34 @@ func (h *SettingHandler) UpdateAccountHealthAutoCheckConfig(c *gin.Context) {
 	}
 	response.Success(c, updated)
 }
+
+// GetAccountTokenAutoRefreshConfig 获取自动刷新 token 配置
+// GET /api/v1/admin/settings/account-token-auto-refresh
+func (h *SettingHandler) GetAccountTokenAutoRefreshConfig(c *gin.Context) {
+	cfg, err := h.settingService.GetAccountTokenAutoRefreshConfig(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, cfg)
+}
+
+// UpdateAccountTokenAutoRefreshConfig 更新自动刷新 token 配置
+// PUT /api/v1/admin/settings/account-token-auto-refresh
+func (h *SettingHandler) UpdateAccountTokenAutoRefreshConfig(c *gin.Context) {
+	var req service.AccountTokenAutoRefreshConfig
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if err := h.settingService.SaveAccountTokenAutoRefreshConfig(c.Request.Context(), &req); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	updated, err := h.settingService.GetAccountTokenAutoRefreshConfig(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, updated)
+}

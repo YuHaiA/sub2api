@@ -418,6 +418,8 @@ func registerSettingsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		adminSettings.POST("/web-search-emulation/reset-usage", h.Admin.Setting.ResetWebSearchUsage)
 		adminSettings.GET("/account-health-auto-check", h.Admin.Setting.GetAccountHealthAutoCheckConfig)
 		adminSettings.PUT("/account-health-auto-check", h.Admin.Setting.UpdateAccountHealthAutoCheckConfig)
+		adminSettings.GET("/account-token-auto-refresh", h.Admin.Setting.GetAccountTokenAutoRefreshConfig)
+		adminSettings.PUT("/account-token-auto-refresh", h.Admin.Setting.UpdateAccountTokenAutoRefreshConfig)
 	}
 }
 

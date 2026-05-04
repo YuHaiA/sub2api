@@ -22,6 +22,7 @@ type ScheduledTestRunnerService struct {
 	rateLimitSvc   *RateLimitService
 	settingService *SettingService
 	accountRepo    AccountRepository
+	tokenRefreshSvc *TokenRefreshService
 	cfg            *config.Config
 
 	cron      *cron.Cron
@@ -37,6 +38,7 @@ func NewScheduledTestRunnerService(
 	rateLimitSvc *RateLimitService,
 	settingService *SettingService,
 	accountRepo AccountRepository,
+	tokenRefreshSvc *TokenRefreshService,
 	cfg *config.Config,
 ) *ScheduledTestRunnerService {
 	return &ScheduledTestRunnerService{
@@ -46,6 +48,7 @@ func NewScheduledTestRunnerService(
 		rateLimitSvc:   rateLimitSvc,
 		settingService: settingService,
 		accountRepo:    accountRepo,
+		tokenRefreshSvc: tokenRefreshSvc,
 		cfg:            cfg,
 	}
 }
@@ -101,6 +104,9 @@ func (s *ScheduledTestRunnerService) runScheduled() {
 
 	now := time.Now()
 	s.runAutoAccountHealthCheck(ctx, now)
+	if s.tokenRefreshSvc != nil {
+		s.tokenRefreshSvc.RunConfiguredBatchRefresh(ctx, now)
+	}
 	plans, err := s.planRepo.ListDue(ctx, now)
 	if err != nil {
 		logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] ListDue error: %v", err)
