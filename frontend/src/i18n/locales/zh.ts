@@ -4533,6 +4533,10 @@ export default {
           manualCommandHint: '将宿主机脚本复制到 /home/ec2-user/sub2api-deploy/bin/deploy-from-package.sh 后，可直接在服务器执行这条命令。',
           status: '部署状态',
           statusHint: '保存配置后即可直接点击“立即部署更新”。',
+          upToDate: '已是最新版',
+          succeeded: '更新成功',
+          failed: '更新失败',
+          pending: '等待部署中',
           refreshStatus: '刷新状态',
           deployNow: '立即部署更新',
           saved: '部署配置已保存'

@@ -2382,7 +2382,7 @@
                       {{ t('admin.settings.deploy.status') }}: {{ deployState.status || 'idle' }}
                     </p>
                     <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                      {{ deployState.last_message || t('admin.settings.deploy.statusHint') }}
+                      {{ deployStatusSummary }}
                     </p>
                     <p v-if="deployState.last_error" class="mt-1 text-xs text-red-500">
                       {{ deployState.last_error }}
@@ -3458,6 +3458,26 @@ const deployManualCommand = computed(() => {
     envParts.push(`COMPOSE_FILE='${deployConfig.compose_file.trim().replace(/'/g, "'\"'\"'")}'`)
   }
   return `${envParts.join(' ')} /home/ec2-user/sub2api-deploy/bin/deploy-from-package.sh`
+})
+
+const deployStatusSummary = computed(() => {
+  const message = (deployState.last_message || '').trim().toLowerCase()
+  if (message.includes('already up to date')) {
+    return t('admin.settings.deploy.upToDate')
+  }
+  if (deployState.status === 'succeeded') {
+    return t('admin.settings.deploy.succeeded')
+  }
+  if (deployState.status === 'failed') {
+    return t('admin.settings.deploy.failed')
+  }
+  if (deployState.status === 'running') {
+    return t('version.updating')
+  }
+  if (deployState.status === 'pending') {
+    return t('admin.settings.deploy.pending')
+  }
+  return deployState.last_message || t('admin.settings.deploy.statusHint')
 })
 
 function applyDeployState(state: DeployState) {

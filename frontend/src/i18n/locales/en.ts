@@ -4368,6 +4368,10 @@ export default {
           manualCommandHint: 'After copying the host script to /home/ec2-user/sub2api-deploy/bin/deploy-from-package.sh, you can run this command directly on the server.',
           status: 'Deploy status',
           statusHint: 'Save the configuration, then you can trigger deployment directly.',
+          upToDate: 'Already up to date',
+          succeeded: 'Deploy succeeded',
+          failed: 'Deploy failed',
+          pending: 'Deploy pending',
           refreshStatus: 'Refresh status',
           deployNow: 'Deploy update now',
           saved: 'Deployment configuration saved'
