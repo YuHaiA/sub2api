@@ -195,6 +195,8 @@ function applyAutoConfig(cfg: AccountHealthAutoCheckConfig) {
   autoConfig.current_total = cfg.current_total ?? 0
   autoConfig.current_success = cfg.current_success ?? 0
   autoConfig.current_failed = cfg.current_failed ?? 0
+  autoConfig.queue_running = cfg.queue_running ?? ''
+  autoConfig.queue_pending = cfg.queue_pending ?? ''
   autoConfig.last_run_at = cfg.last_run_at ?? null
   autoIntervalInput.value = String(autoConfig.interval_minutes)
   lastObservedAutoRunAt.value = autoConfig.last_run_at ?? null
@@ -211,6 +213,8 @@ function applyTokenConfig(cfg: AccountTokenAutoRefreshConfig) {
   tokenConfig.current_total = cfg.current_total ?? 0
   tokenConfig.current_success = cfg.current_success ?? 0
   tokenConfig.current_failed = cfg.current_failed ?? 0
+  tokenConfig.queue_running = cfg.queue_running ?? ''
+  tokenConfig.queue_pending = cfg.queue_pending ?? ''
   tokenConfig.last_run_at = cfg.last_run_at ?? null
   tokenConfig.last_run_total = cfg.last_run_total ?? 0
   tokenConfig.last_run_success = cfg.last_run_success ?? 0

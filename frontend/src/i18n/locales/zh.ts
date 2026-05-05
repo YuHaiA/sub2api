@@ -2122,6 +2122,15 @@ export default {
       healthCheckRunStarted: '已开始后台测活，进度稍后自动更新',
       healthCheckAlreadyRunning: '后台测活正在执行中，请稍后查看进度',
       healthCheckProgress: '后台测活进行中：已完成 {current}/{total}，执行异常 {failed}',
+      queueRunning: '当前任务：{task}',
+      queuePending: '排队任务：{task}',
+      queueTask: {
+        none: '无',
+        healthManual: '手动测活',
+        healthAuto: '自动测活',
+        refreshManual: '手动刷新 Token',
+        refreshAuto: '自动刷新 Token'
+      },
       healthCheckModelPlaceholder: '批量检测模型，如 gpt-5.4',
       healthCheckModelHint: '留空时按平台默认模型检测；OpenAI 账号建议填写你实际使用的模型',
       autoCheck: '自动测活',

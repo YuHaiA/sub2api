@@ -36,6 +36,8 @@ type AccountTokenAutoRefreshConfig struct {
 	CurrentTotal   int    `json:"current_total,omitempty"`
 	CurrentSuccess int    `json:"current_success,omitempty"`
 	CurrentFailed  int    `json:"current_failed,omitempty"`
+	QueueRunning   string `json:"queue_running,omitempty"`
+	QueuePending   string `json:"queue_pending,omitempty"`
 	LastRunAt      *int64 `json:"last_run_at,omitempty"`
 	LastRunTotal   int    `json:"last_run_total,omitempty"`
 	LastRunSuccess int    `json:"last_run_success,omitempty"`
@@ -183,6 +185,8 @@ func (s *SettingService) SaveAccountTokenAutoRefreshConfig(ctx context.Context, 
 		cfg.CurrentTotal = existing.CurrentTotal
 		cfg.CurrentSuccess = existing.CurrentSuccess
 		cfg.CurrentFailed = existing.CurrentFailed
+		cfg.QueueRunning = existing.QueueRunning
+		cfg.QueuePending = existing.QueuePending
 		cfg.LastRunAt = existing.LastRunAt
 		cfg.LastRunTotal = existing.LastRunTotal
 		cfg.LastRunSuccess = existing.LastRunSuccess
@@ -203,6 +207,9 @@ func (s *SettingService) MarkAccountTokenAutoRefreshRun(
 		cfg = defaultAccountTokenAutoRefreshConfig()
 	}
 	cfg = normalizeAccountTokenAutoRefreshConfig(cfg)
+	queue := GetBackgroundMaintenanceSnapshot()
+	cfg.QueueRunning = queue.Running
+	cfg.QueuePending = queue.Pending
 	ts := runAt.Unix()
 	cfg.Running = false
 	cfg.CurrentTotal = 0
@@ -226,6 +233,9 @@ func (s *SettingService) MarkAccountTokenAutoRefreshProgress(
 		cfg = defaultAccountTokenAutoRefreshConfig()
 	}
 	cfg = normalizeAccountTokenAutoRefreshConfig(cfg)
+	queue := GetBackgroundMaintenanceSnapshot()
+	cfg.QueueRunning = queue.Running
+	cfg.QueuePending = queue.Pending
 	cfg.Running = true
 	cfg.CurrentTotal = total
 	cfg.CurrentSuccess = success

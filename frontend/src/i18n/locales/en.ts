@@ -2044,6 +2044,15 @@ export default {
       healthCheckRunStarted: 'Background health check started. Progress will update shortly.',
       healthCheckAlreadyRunning: 'A background health check is already running.',
       healthCheckProgress: 'Background health check running: {current}/{total} completed, {failed} execution failures.',
+      queueRunning: 'Current task: {task}',
+      queuePending: 'Queued next: {task}',
+      queueTask: {
+        none: 'None',
+        healthManual: 'Manual health check',
+        healthAuto: 'Automatic health check',
+        refreshManual: 'Manual token refresh',
+        refreshAuto: 'Automatic token refresh'
+      },
       healthCheckModelPlaceholder: 'Batch test model, e.g. gpt-5.4',
       healthCheckModelHint: 'Leave empty to use each platform default. For OpenAI, use the model you actually run in production.',
       autoCheck: 'Automatic Health Check',

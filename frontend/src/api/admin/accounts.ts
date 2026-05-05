@@ -425,6 +425,8 @@ export interface AccountHealthAutoCheckConfig {
   current_total?: number
   current_success?: number
   current_failed?: number
+  queue_running?: string
+  queue_pending?: string
   last_run_at?: number | null
 }
 
@@ -447,6 +449,8 @@ export interface AccountTokenAutoRefreshConfig {
   current_total?: number
   current_success?: number
   current_failed?: number
+  queue_running?: string
+  queue_pending?: string
   last_run_at?: number | null
   last_run_total?: number
   last_run_success?: number

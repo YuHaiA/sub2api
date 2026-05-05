@@ -30,6 +30,8 @@ type AccountHealthAutoCheckConfig struct {
 	CurrentTotal    int    `json:"current_total,omitempty"`
 	CurrentSuccess  int    `json:"current_success,omitempty"`
 	CurrentFailed   int    `json:"current_failed,omitempty"`
+	QueueRunning    string `json:"queue_running,omitempty"`
+	QueuePending    string `json:"queue_pending,omitempty"`
 	LastRunAt       *int64 `json:"last_run_at,omitempty"`
 }
 
@@ -139,6 +141,8 @@ func (s *SettingService) SaveAccountHealthAutoCheckConfig(ctx context.Context, c
 		cfg.CurrentTotal = existing.CurrentTotal
 		cfg.CurrentSuccess = existing.CurrentSuccess
 		cfg.CurrentFailed = existing.CurrentFailed
+		cfg.QueueRunning = existing.QueueRunning
+		cfg.QueuePending = existing.QueuePending
 		cfg.LastRunAt = existing.LastRunAt
 	}
 	return s.storeAccountHealthAutoCheckConfig(ctx, cfg)
@@ -150,6 +154,9 @@ func (s *SettingService) MarkAccountHealthAutoCheckRun(ctx context.Context, runA
 		cfg = defaultAccountHealthAutoCheckConfig()
 	}
 	cfg = normalizeAccountHealthAutoCheckConfig(cfg)
+	queue := GetBackgroundMaintenanceSnapshot()
+	cfg.QueueRunning = queue.Running
+	cfg.QueuePending = queue.Pending
 	ts := runAt.Unix()
 	cfg.Running = false
 	cfg.CurrentTotal = 0
@@ -170,6 +177,9 @@ func (s *SettingService) MarkAccountHealthAutoCheckProgress(
 		cfg = defaultAccountHealthAutoCheckConfig()
 	}
 	cfg = normalizeAccountHealthAutoCheckConfig(cfg)
+	queue := GetBackgroundMaintenanceSnapshot()
+	cfg.QueueRunning = queue.Running
+	cfg.QueuePending = queue.Pending
 	cfg.Running = true
 	cfg.CurrentTotal = total
 	cfg.CurrentSuccess = success

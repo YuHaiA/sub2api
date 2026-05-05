@@ -82,6 +82,10 @@
             {{ autoConfig.running ? t('admin.accounts.healthCheckRunning') : (autoConfig.enabled ? t('common.enabled') : t('common.disabled')) }}
           </span>
         </div>
+        <div class="mt-2 space-y-1 text-xs text-slate-500 dark:text-slate-400">
+          <div>{{ t('admin.accounts.queueRunning', { task: queueRunningText }) }}</div>
+          <div>{{ t('admin.accounts.queuePending', { task: queuePendingText }) }}</div>
+        </div>
       </div>
 
       <div class="flex flex-wrap justify-end gap-3 border-t border-slate-200 pt-3 xl:mt-auto dark:border-slate-700">
@@ -161,4 +165,22 @@ const displayTotal = computed(() => {
 const progressHint = computed(() => {
   return props.autoConfig.running ? t('admin.accounts.healthSummary.progressLive') : t('admin.accounts.healthSummary.progressIdle')
 })
+
+const queueRunningText = computed(() => formatQueueTask(props.autoConfig.queue_running))
+const queuePendingText = computed(() => formatQueueTask(props.autoConfig.queue_pending))
+
+function formatQueueTask(task?: string) {
+  switch (task) {
+    case 'account_health_manual':
+      return t('admin.accounts.queueTask.healthManual')
+    case 'account_health_auto':
+      return t('admin.accounts.queueTask.healthAuto')
+    case 'token_refresh_manual':
+      return t('admin.accounts.queueTask.refreshManual')
+    case 'token_refresh_auto':
+      return t('admin.accounts.queueTask.refreshAuto')
+    default:
+      return t('admin.accounts.queueTask.none')
+  }
+}
 </script>

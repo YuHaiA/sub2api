@@ -20,6 +20,11 @@ type backgroundMaintenanceState struct {
 	pending *BackgroundMaintenanceTask
 }
 
+type BackgroundMaintenanceSnapshot struct {
+	Running string `json:"running,omitempty"`
+	Pending string `json:"pending,omitempty"`
+}
+
 var (
 	backgroundMaintenanceMu sync.Mutex
 	backgroundMaintenance   backgroundMaintenanceState
@@ -63,4 +68,17 @@ func runBackgroundMaintenanceTask(task BackgroundMaintenanceTask) {
 		go runBackgroundMaintenanceTask(*next)
 	}
 	backgroundMaintenanceMu.Unlock()
+}
+
+func GetBackgroundMaintenanceSnapshot() BackgroundMaintenanceSnapshot {
+	backgroundMaintenanceMu.Lock()
+	defer backgroundMaintenanceMu.Unlock()
+
+	snapshot := BackgroundMaintenanceSnapshot{
+		Running: backgroundMaintenance.running,
+	}
+	if backgroundMaintenance.pending != nil {
+		snapshot.Pending = backgroundMaintenance.pending.Name
+	}
+	return snapshot
 }
