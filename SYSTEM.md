@@ -82,7 +82,11 @@
   - 舊 backup image 自動保留最近 2 個
   - 部署完成後輸出 image/container 結果摘要
 - 部署腳本現在具備 no-op 短路：
-  - 若當前容器已經運行與 `weishaw/sub2api:latest` 相同的 image digest，則直接判定已是最新版並跳過 `load/tag/compose`。
+  - 先下載並 `docker load` 最新 release 包，再比較 `LOADED_IMAGE` 與當前容器 image digest。
+  - 若兩者一致，則判定已是最新版並跳過 `tag/compose`，避免把新 release 包錯誤擋掉。
+- 部署腳本已進一步加入 release asset `ETag` 緩存：
+  - 若當前容器 image digest 已匹配，且遠端 release 包 `ETag` 與本地緩存一致，則直接跳過下載與部署。
+  - 緩存文件位置：`/home/ec2-user/sub2api-deploy/.deploy-state/archive.etag`
 - 部署成功或 no-op 後會執行 Docker 未使用鏡像清理：
   - `docker image prune -a -f`
   - 用於移除無用舊鏡像層，降低磁碟佔用

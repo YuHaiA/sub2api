@@ -77,13 +77,18 @@ def handle_deploy(payload: Dict[str, Any]) -> Dict[str, Any]:
     if completed.returncode != 0:
         raise RuntimeError(output or "deploy script failed")
 
+    message = "Deploy completed successfully"
+    lowered = output.lower()
+    if "already up to date" in lowered:
+        message = "Already up to date"
+
     return {
         "status": "succeeded",
         "image": str(payload.get("default_image", "")).strip(),
         "service_name": str(payload.get("service_name", "")).strip(),
         "compose_project_dir": str(payload.get("compose_project_dir", "")).strip(),
         "commands": payload.get("commands") or [],
-        "message": "Deploy completed successfully",
+        "message": message,
         "output": output,
         "need_restart": False,
     }
