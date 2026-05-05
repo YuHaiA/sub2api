@@ -18,11 +18,11 @@ type accountTokenAutoRefreshRunStats struct {
 }
 
 type AccountTokenAutoRefreshRunResult struct {
-	Total     int   `json:"total"`
-	Success   int   `json:"success"`
-	Failed    int   `json:"failed"`
-	RunAt     int64 `json:"run_at"`
-	BatchSize int   `json:"batch_size"`
+	Started   bool   `json:"started"`
+	Running   bool   `json:"running"`
+	Message   string `json:"message"`
+	RunAt     int64  `json:"run_at"`
+	BatchSize int    `json:"batch_size"`
 }
 
 func (s *TokenRefreshService) SetSettingService(settingService *SettingService) {
@@ -66,17 +66,37 @@ func (s *TokenRefreshService) RunManualBatchRefresh(ctx context.Context) (*Accou
 	}
 	cfg = normalizeAccountTokenAutoRefreshConfig(cfg)
 	now := time.Now()
-	stats, err := s.runConfiguredBatchRefresh(ctx, cfg)
-	if err != nil {
-		return nil, err
+
+	if !s.manualRunInProgress.CompareAndSwap(false, true) {
+		return &AccountTokenAutoRefreshRunResult{
+			Started:   false,
+			Running:   true,
+			Message:   "Token refresh is already running",
+			RunAt:     now.Unix(),
+			BatchSize: cfg.BatchSize,
+		}, nil
 	}
-	if markErr := s.settingService.MarkAccountTokenAutoRefreshRun(ctx, now, stats.Total, stats.Success, stats.Failed); markErr != nil {
-		slog.Warn("token_refresh.manual_batch_mark_failed", "error", markErr)
-	}
+
+	go func(startedAt time.Time, runCfg *AccountTokenAutoRefreshConfig) {
+		defer s.manualRunInProgress.Store(false)
+
+		runCtx, cancel := context.WithTimeout(context.Background(), 6*time.Hour)
+		defer cancel()
+
+		stats, runErr := s.runConfiguredBatchRefresh(runCtx, runCfg)
+		if runErr != nil {
+			slog.Warn("token_refresh.manual_batch_failed", "error", runErr)
+			return
+		}
+		if markErr := s.settingService.MarkAccountTokenAutoRefreshRun(context.Background(), startedAt, stats.Total, stats.Success, stats.Failed); markErr != nil {
+			slog.Warn("token_refresh.manual_batch_mark_failed", "error", markErr)
+		}
+	}(now, cfg)
+
 	return &AccountTokenAutoRefreshRunResult{
-		Total:     stats.Total,
-		Success:   stats.Success,
-		Failed:    stats.Failed,
+		Started:   true,
+		Running:   true,
+		Message:   "Token refresh started in background",
 		RunAt:     now.Unix(),
 		BatchSize: cfg.BatchSize,
 	}, nil

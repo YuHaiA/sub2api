@@ -50,6 +50,15 @@
   - `伺服器部署目錄`
   - `容器運行狀態`
 
+## 刪除語義
+
+- `accounts` 以前使用 Ent 的 `SoftDeleteMixin`，列表默认只显示 `deleted_at is null` 的有效账号。
+- 服务器已执行一次恢复，将已软删除账号重新设为可见。
+- 自本次改动起，账号删除改为**物理删除**：
+  - 会先删 `account_groups`
+  - 再通过 `mixins.SkipSoftDelete(ctx)` 真正删除 `accounts` 行
+- 因此前端账号页看到的数量与数据库原始总行数不再因为历史软删除记录而长期背离。
+
 ## 本次變更
 
 ### 自動刷新 Token 功能
@@ -71,7 +80,13 @@
   - 批次間加入短暫間隔，避免瞬時大量請求
 - 補充手動觸發入口：
   - `POST /api/v1/admin/settings/account-token-auto-refresh/run`
-  - 前端 token tab 可直接手動执行一轮刷新，并回填最近刷新统计
+  - 前端 token tab 可直接手動执行一轮刷新
+  - 手动执行现改为后台异步任务，避免 HTTP 约 31 秒超时导致 `context canceled`
+  - 页面通过既有轮询在任务完成后自动更新最近刷新统计
+- 刷新范围说明：
+  - 数据库总账号数可包含软删除记录
+  - 后台账号列表默认展示 `deleted_at is null` 的有效账号
+  - token 刷新针对“支持 refresh token 的 OAuth 账号”，不等于数据库原始总行数
 - OAuth 刷新底層新增 `RefreshNow` 路徑，沿用既有分布式鎖與 DB 重讀保護，避免與其他刷新路徑競爭。
 
 ### 服務器部署腳本同步

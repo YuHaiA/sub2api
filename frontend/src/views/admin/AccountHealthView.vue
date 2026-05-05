@@ -230,14 +230,9 @@ async function runTokenRefreshNow() {
   runningTokenRefresh.value = true
   try {
     const result = await adminAPI.accounts.runAccountTokenAutoRefreshNow()
-    tokenConfig.last_run_at = result.run_at
-    tokenConfig.last_run_total = result.total
-    tokenConfig.last_run_success = result.success
-    tokenConfig.last_run_failed = result.failed
     tokenConfig.batch_size = result.batch_size
     tokenBatchSizeInput.value = String(result.batch_size)
-    lastObservedTokenRunAt.value = result.run_at
-    appStore.showSuccess(t('admin.accounts.tokenRefresh.runCompleted', { total: result.total, success: result.success, failed: result.failed }))
+    appStore.showSuccess(result.started ? t('admin.accounts.tokenRefresh.runStarted') : t('admin.accounts.tokenRefresh.runAlreadyRunning'))
   } catch (error: any) {
     appStore.showError(error?.message || t('common.error'))
   } finally {

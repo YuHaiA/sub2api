@@ -436,9 +436,9 @@ export interface AccountTokenAutoRefreshConfig {
 }
 
 export interface AccountTokenAutoRefreshRunResult {
-  total: number
-  success: number
-  failed: number
+  started: boolean
+  running: boolean
+  message: string
   run_at: number
   batch_size: number
 }

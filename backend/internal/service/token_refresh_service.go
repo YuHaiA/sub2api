@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
@@ -36,6 +37,8 @@ type TokenRefreshService struct {
 	stopCh   chan struct{}
 	stopOnce sync.Once
 	wg       sync.WaitGroup
+
+	manualRunInProgress atomic.Bool
 }
 
 // NewTokenRefreshService 创建token刷新服务
