@@ -1,10 +1,10 @@
 <template>
   <div class="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(380px,460px)] xl:items-stretch">
     <div class="xl:h-full">
-      <div class="grid gap-4 sm:grid-cols-2 xl:h-full xl:auto-rows-fr">
+      <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 xl:h-full xl:auto-rows-fr">
         <div class="flex min-h-[168px] flex-col rounded-2xl border border-slate-200 bg-white/80 p-5 backdrop-blur xl:h-full dark:border-slate-700 dark:bg-slate-800/70">
           <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{{ t('admin.accounts.healthSummary.total') }}</p>
-          <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-slate-900 dark:text-white">{{ healthSummary.total_accounts }}</p>
+          <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-slate-900 dark:text-white">{{ displayTotal }}</p>
           <div class="mt-auto pt-6"></div>
         </div>
         <div class="flex min-h-[168px] flex-col rounded-2xl border border-emerald-200 bg-emerald-50/90 p-5 xl:h-full dark:border-emerald-900/40 dark:bg-emerald-900/10">
@@ -26,6 +26,18 @@
             {{ t('admin.accounts.healthSummary.unchecked', { count: healthSummary.unchecked_accounts }) }}
             </p>
           </div>
+        </div>
+
+        <div class="flex min-h-[168px] flex-col rounded-2xl border border-violet-200 bg-violet-50/90 p-5 xl:h-full dark:border-violet-900/40 dark:bg-violet-900/10">
+          <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-violet-700 dark:text-violet-300">{{ t('admin.accounts.healthSummary.completedCount') }}</p>
+          <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-violet-700 dark:text-violet-200">{{ completedCount }}</p>
+          <div class="mt-auto pt-6 text-xs leading-5 text-violet-600/80 dark:text-violet-300/80">{{ progressHint }}</div>
+        </div>
+
+        <div class="flex min-h-[168px] flex-col rounded-2xl border border-amber-200 bg-amber-50/90 p-5 xl:h-full dark:border-amber-900/40 dark:bg-amber-900/10">
+          <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">{{ t('admin.accounts.healthSummary.pendingCount') }}</p>
+          <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-amber-700 dark:text-amber-200">{{ pendingCount }}</p>
+          <div class="mt-auto pt-6 text-xs leading-5 text-amber-600/80 dark:text-amber-300/80">{{ progressHint }}</div>
         </div>
       </div>
     </div>
@@ -123,5 +135,30 @@ const statusText = computed(() => {
     })
   }
   return t('admin.accounts.healthSummary.lastChecked', { time: props.autoLastRunText })
+})
+
+const completedCount = computed(() => {
+  if (!props.autoConfig.running) {
+    return 0
+  }
+  return (props.autoConfig.current_success ?? 0) + (props.autoConfig.current_failed ?? 0)
+})
+
+const pendingCount = computed(() => {
+  if (!props.autoConfig.running) {
+    return 0
+  }
+  return Math.max((props.autoConfig.current_total ?? 0) - completedCount.value, 0)
+})
+
+const displayTotal = computed(() => {
+  if (props.autoConfig.running) {
+    return props.autoConfig.current_total ?? 0
+  }
+  return props.healthSummary.total_accounts
+})
+
+const progressHint = computed(() => {
+  return props.autoConfig.running ? t('admin.accounts.healthSummary.progressLive') : t('admin.accounts.healthSummary.progressIdle')
 })
 </script>

@@ -2083,6 +2083,8 @@ export default {
         lastRunTotal: 'Last scanned',
         lastRunSuccess: 'Last succeeded',
         lastRunFailed: 'Last failed',
+        completedCount: 'Completed',
+        pendingCount: 'Pending',
         currentBatch: 'Batch size',
         tableHint: 'Configure hour/day refresh cadence for refresh-token accounts. Each run processes accounts in batches and continues until all eligible accounts are finished.'
       },
@@ -2106,6 +2108,10 @@ export default {
         unavailable: 'Abnormal Accounts',
         unavailableHint: 'Includes banned and error accounts',
         unchecked: '{count} unchecked',
+        completedCount: 'Completed',
+        pendingCount: 'Pending',
+        progressLive: 'Updates after each finished batch',
+        progressIdle: 'Progress will appear after the task starts',
         neverChecked: 'Not checked yet',
         lastChecked: 'Last checked: {time}',
         scopeHint: 'Counts reflect the current filters'

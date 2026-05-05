@@ -1,6 +1,6 @@
 <template>
   <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(380px,460px)] xl:items-stretch">
-    <div class="grid gap-4 sm:grid-cols-2 xl:h-full xl:auto-rows-fr">
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 xl:h-full xl:auto-rows-fr">
       <div class="flex min-h-[168px] flex-col rounded-2xl border border-slate-200 bg-white/80 p-5 backdrop-blur xl:h-full dark:border-slate-700 dark:bg-slate-800/70">
         <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{{ t('admin.accounts.tokenRefresh.lastRunTotal') }}</p>
         <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-slate-900 dark:text-white">{{ tokenConfig.running ? (tokenConfig.current_total ?? 0) : (tokenConfig.last_run_total ?? 0) }}</p>
@@ -16,6 +16,18 @@
       <div class="flex min-h-[168px] flex-col rounded-2xl border border-rose-200 bg-rose-50/90 p-5 xl:h-full dark:border-rose-900/40 dark:bg-rose-900/10">
         <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-rose-700 dark:text-rose-300">{{ t('admin.accounts.tokenRefresh.lastRunFailed') }}</p>
         <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-rose-700 dark:text-rose-200">{{ tokenConfig.running ? (tokenConfig.current_failed ?? 0) : (tokenConfig.last_run_failed ?? 0) }}</p>
+        <div class="mt-auto pt-6"></div>
+      </div>
+
+      <div class="flex min-h-[168px] flex-col rounded-2xl border border-violet-200 bg-violet-50/90 p-5 xl:h-full dark:border-violet-900/40 dark:bg-violet-900/10">
+        <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-violet-700 dark:text-violet-300">{{ t('admin.accounts.tokenRefresh.completedCount') }}</p>
+        <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-violet-700 dark:text-violet-200">{{ completedCount }}</p>
+        <div class="mt-auto pt-6"></div>
+      </div>
+
+      <div class="flex min-h-[168px] flex-col rounded-2xl border border-amber-200 bg-amber-50/90 p-5 xl:h-full dark:border-amber-900/40 dark:bg-amber-900/10">
+        <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">{{ t('admin.accounts.tokenRefresh.pendingCount') }}</p>
+        <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-amber-700 dark:text-amber-200">{{ pendingCount }}</p>
         <div class="mt-auto pt-6"></div>
       </div>
 
@@ -142,5 +154,19 @@ const scopeDescription = computed(() => {
     return selectedGroupName.value || t('admin.accounts.tokenRefresh.scopeGroup')
   }
   return t('admin.accounts.tokenRefresh.scopeAll')
+})
+
+const completedCount = computed(() => {
+  if (props.tokenConfig.running) {
+    return (props.tokenConfig.current_success ?? 0) + (props.tokenConfig.current_failed ?? 0)
+  }
+  return (props.tokenConfig.last_run_success ?? 0) + (props.tokenConfig.last_run_failed ?? 0)
+})
+
+const pendingCount = computed(() => {
+  if (!props.tokenConfig.running) {
+    return 0
+  }
+  return Math.max((props.tokenConfig.current_total ?? 0) - completedCount.value, 0)
 })
 </script>

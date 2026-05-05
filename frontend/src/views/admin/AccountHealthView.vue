@@ -88,7 +88,8 @@ import { formatRelativeTime } from '@/utils/format'
 const { t } = useI18n()
 const appStore = useAppStore()
 
-const AUTO_POLL_MS = 15000
+const IDLE_POLL_MS = 15000
+const ACTIVE_POLL_MS = 2000
 
 const activeTab = ref<'health' | 'token'>('health')
 const healthChecking = ref(false)
@@ -382,6 +383,7 @@ async function pollUpdates() {
     if (hasNewHealthRun || (!tokenConfig.running && !autoConfig.running)) {
       await loadHealthSummary()
     }
+    restartPollTimer()
   } catch (error) {
     console.error('Failed to poll account health page state:', error)
   } finally {
@@ -391,12 +393,23 @@ async function pollUpdates() {
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
+function currentPollInterval() {
+  return autoConfig.running || tokenConfig.running ? ACTIVE_POLL_MS : IDLE_POLL_MS
+}
+
+function restartPollTimer() {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+  }
+  pollTimer = setInterval(() => {
+    void pollUpdates()
+  }, currentPollInterval())
+}
+
 onMounted(async () => {
   try {
     await reloadPage()
-    pollTimer = setInterval(() => {
-      void pollUpdates()
-    }, AUTO_POLL_MS)
+    restartPollTimer()
   } catch (error) {
     console.error('Failed to initialize account health page:', error)
   }

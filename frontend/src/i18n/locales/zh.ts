@@ -2161,6 +2161,8 @@ export default {
         lastRunTotal: '上次扫描',
         lastRunSuccess: '上次成功',
         lastRunFailed: '上次失败',
+        completedCount: '已完成账号',
+        pendingCount: '未完成账号',
         currentBatch: '当前批量',
         tableHint: '在这里配置按小时或天自动刷新 Ref Token 的策略，系统会按批次执行，并在单轮中持续刷新到所有可处理账号完成。'
       },
@@ -2184,6 +2186,10 @@ export default {
         unavailable: '异常账号',
         unavailableHint: '包含封禁、错误等异常状态',
         unchecked: '未检测 {count} 个',
+        completedCount: '已完成账号',
+        pendingCount: '未完成账号',
+        progressLive: '每完成一批会自动更新',
+        progressIdle: '开始任务后这里会显示进度',
         neverChecked: '尚未检测',
         lastChecked: '最近检测：{time}',
         scopeHint: '按当前筛选范围统计'
