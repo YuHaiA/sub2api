@@ -378,25 +378,34 @@ func (s *UpdateService) TriggerDeploy(ctx context.Context, req *DeployTriggerReq
 		return result, nil
 	}
 
-	output, err := s.executeDeployCommands(ctx, cfg)
+	agentResp, err := s.executeDeployCommands(ctx, cfg)
 	finishedAt := time.Now().Unix()
 	state.FinishedAt = &finishedAt
 	if err != nil {
 		state.Status = deployStatusFailed
 		state.LastError = err.Error()
-		state.LastOutput = trimDeployOutput(output)
+		if agentResp != nil {
+			state.LastOutput = trimDeployOutput(agentResp.Output)
+			state.RequestedImageID = strings.TrimSpace(agentResp.ImageID)
+			state.RunningImageID = strings.TrimSpace(agentResp.RunningImageID)
+		}
 		state.LastMessage = "Deploy failed"
 		_ = s.saveDeployState(context.Background(), state)
-		return nil, infraerrors.InternalServer("DEPLOY_EXECUTION_FAILED", strings.TrimSpace(strings.Join([]string{err.Error(), output}, "\n")))
+		return nil, infraerrors.InternalServer("DEPLOY_EXECUTION_FAILED", err.Error())
 	}
 
 	successMessage := "Deploy completed successfully"
+	if agentResp != nil && strings.TrimSpace(agentResp.Message) != "" {
+		successMessage = strings.TrimSpace(agentResp.Message)
+	}
 	state.Status = deployStatusSucceeded
 	state.LastMessage = successMessage
 	state.LastError = ""
-	state.LastOutput = trimDeployOutput(output)
-	state.RequestedImageID = parseDeployImageID(output)
-	state.RunningImageID = parseDeployRunningImageID(output)
+	if agentResp != nil {
+		state.LastOutput = trimDeployOutput(agentResp.Output)
+		state.RequestedImageID = strings.TrimSpace(agentResp.ImageID)
+		state.RunningImageID = strings.TrimSpace(agentResp.RunningImageID)
+	}
 	_ = s.saveDeployState(context.Background(), state)
 
 	result.Status = deployStatusSucceeded
@@ -421,7 +430,7 @@ func buildComposeCommandPreview(cfg *DeployConfig) string {
 	return fmt.Sprintf("cd %s && %s up -d --no-deps %s", cfg.ComposeProjectDir, cfg.ComposeBinary, cfg.ServiceName)
 }
 
-func (s *UpdateService) executeDeployCommands(ctx context.Context, cfg *DeployConfig) (string, error) {
+func (s *UpdateService) executeDeployCommands(ctx context.Context, cfg *DeployConfig) (*deployAgentResponse, error) {
 	return s.executeDeployViaAgent(ctx, cfg)
 }
 
@@ -446,9 +455,9 @@ func validateDeployAgentURL(raw string) error {
 	return nil
 }
 
-func (s *UpdateService) executeDeployViaAgent(ctx context.Context, cfg *DeployConfig) (string, error) {
+func (s *UpdateService) executeDeployViaAgent(ctx context.Context, cfg *DeployConfig) (*deployAgentResponse, error) {
 	if err := validateDeployAgentURL(cfg.AgentURL); err != nil {
-		return "", err
+		return nil, err
 	}
 
 	agentReq := deployAgentRequest{
@@ -466,7 +475,7 @@ func (s *UpdateService) executeDeployViaAgent(ctx context.Context, cfg *DeployCo
 
 	payload, err := json.Marshal(agentReq)
 	if err != nil {
-		return "", fmt.Errorf("marshal deploy agent request: %w", err)
+		return nil, fmt.Errorf("marshal deploy agent request: %w", err)
 	}
 
 	reqCtx, cancel := context.WithTimeout(ctx, time.Duration(cfg.AgentTimeoutSecs)*time.Second)
@@ -474,7 +483,7 @@ func (s *UpdateService) executeDeployViaAgent(ctx context.Context, cfg *DeployCo
 
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, cfg.AgentURL+"/deploy", bytes.NewReader(payload))
 	if err != nil {
-		return "", fmt.Errorf("build deploy agent request: %w", err)
+		return nil, fmt.Errorf("build deploy agent request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	if cfg.AgentToken != "" {
@@ -489,31 +498,34 @@ func (s *UpdateService) executeDeployViaAgent(ctx context.Context, cfg *DeployCo
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("request deploy agent: %w", err)
+		return nil, fmt.Errorf("request deploy agent: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	body, readErr := io.ReadAll(io.LimitReader(resp.Body, 2*1024*1024))
 	if readErr != nil {
-		return "", fmt.Errorf("read deploy agent response: %w", readErr)
+		return nil, fmt.Errorf("read deploy agent response: %w", readErr)
 	}
 
 	var agentResp deployAgentResponse
-	_ = json.Unmarshal(body, &agentResp)
+	if err := json.Unmarshal(body, &agentResp); err != nil {
+		return nil, fmt.Errorf("decode deploy agent response: %w", err)
+	}
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		errMsg := strings.TrimSpace(agentResp.Error)
 		if errMsg != "" {
-			return "", fmt.Errorf("%s", errMsg)
+			return nil, fmt.Errorf("%s", errMsg)
 		}
-		return "", fmt.Errorf("deploy agent returned HTTP %d", resp.StatusCode)
+		return nil, fmt.Errorf("deploy agent returned HTTP %d", resp.StatusCode)
 	}
 
-	message := strings.TrimSpace(agentResp.Message)
-	if message == "" {
-		message = "Deploy completed successfully"
+	agentResp.Message = strings.TrimSpace(agentResp.Message)
+	if agentResp.Message == "" {
+		agentResp.Message = "Deploy completed successfully"
 	}
-	return message, nil
+	agentResp.Output = trimDeployOutput(agentResp.Output)
+	return &agentResp, nil
 }
 
 func parseDeployImageID(output string) string {
