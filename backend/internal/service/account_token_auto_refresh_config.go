@@ -30,6 +30,12 @@ type AccountTokenAutoRefreshConfig struct {
 	IntervalValue  int    `json:"interval_value"`
 	IntervalUnit   string `json:"interval_unit"`
 	BatchSize      int    `json:"batch_size"`
+	Scope          string `json:"scope,omitempty"`
+	GroupID        int64  `json:"group_id,omitempty"`
+	Running        bool   `json:"running,omitempty"`
+	CurrentTotal   int    `json:"current_total,omitempty"`
+	CurrentSuccess int    `json:"current_success,omitempty"`
+	CurrentFailed  int    `json:"current_failed,omitempty"`
 	LastRunAt      *int64 `json:"last_run_at,omitempty"`
 	LastRunTotal   int    `json:"last_run_total,omitempty"`
 	LastRunSuccess int    `json:"last_run_success,omitempty"`
@@ -50,6 +56,7 @@ func defaultAccountTokenAutoRefreshConfig() *AccountTokenAutoRefreshConfig {
 		IntervalValue: DefaultTokenRefreshIntervalValue,
 		IntervalUnit:  DefaultTokenRefreshIntervalUnit,
 		BatchSize:     DefaultTokenRefreshBatchSize,
+		Scope:         "all",
 	}
 }
 
@@ -68,6 +75,13 @@ func normalizeAccountTokenAutoRefreshConfig(cfg *AccountTokenAutoRefreshConfig) 
 	if out.BatchSize <= 0 {
 		out.BatchSize = DefaultTokenRefreshBatchSize
 	}
+	out.Scope = strings.ToLower(strings.TrimSpace(out.Scope))
+	if out.Scope != "all" && out.Scope != "group" {
+		out.Scope = "all"
+	}
+	if out.Scope != "group" {
+		out.GroupID = 0
+	}
 	return &out
 }
 
@@ -83,6 +97,12 @@ func validateAccountTokenAutoRefreshConfig(cfg *AccountTokenAutoRefreshConfig) e
 	}
 	if cfg.BatchSize < 1 || cfg.BatchSize > maxTokenRefreshBatchSize {
 		return fmt.Errorf("batch_size must be between 1 and %d", maxTokenRefreshBatchSize)
+	}
+	if cfg.Scope != "all" && cfg.Scope != "group" {
+		return errors.New("scope must be all or group")
+	}
+	if cfg.Scope == "group" && cfg.GroupID <= 0 {
+		return errors.New("group_id must be positive when scope is group")
 	}
 	return nil
 }
@@ -159,6 +179,10 @@ func (s *SettingService) SaveAccountTokenAutoRefreshConfig(ctx context.Context, 
 	}
 	existing, _ := s.GetAccountTokenAutoRefreshConfig(ctx)
 	if existing != nil {
+		cfg.Running = existing.Running
+		cfg.CurrentTotal = existing.CurrentTotal
+		cfg.CurrentSuccess = existing.CurrentSuccess
+		cfg.CurrentFailed = existing.CurrentFailed
 		cfg.LastRunAt = existing.LastRunAt
 		cfg.LastRunTotal = existing.LastRunTotal
 		cfg.LastRunSuccess = existing.LastRunSuccess
@@ -180,10 +204,32 @@ func (s *SettingService) MarkAccountTokenAutoRefreshRun(
 	}
 	cfg = normalizeAccountTokenAutoRefreshConfig(cfg)
 	ts := runAt.Unix()
+	cfg.Running = false
+	cfg.CurrentTotal = 0
+	cfg.CurrentSuccess = 0
+	cfg.CurrentFailed = 0
 	cfg.LastRunAt = &ts
 	cfg.LastRunTotal = total
 	cfg.LastRunSuccess = success
 	cfg.LastRunFailed = failed
+	return s.storeAccountTokenAutoRefreshConfig(ctx, cfg)
+}
+
+func (s *SettingService) MarkAccountTokenAutoRefreshProgress(
+	ctx context.Context,
+	total int,
+	success int,
+	failed int,
+) error {
+	cfg, err := s.GetAccountTokenAutoRefreshConfig(ctx)
+	if err != nil {
+		cfg = defaultAccountTokenAutoRefreshConfig()
+	}
+	cfg = normalizeAccountTokenAutoRefreshConfig(cfg)
+	cfg.Running = true
+	cfg.CurrentTotal = total
+	cfg.CurrentSuccess = success
+	cfg.CurrentFailed = failed
 	return s.storeAccountTokenAutoRefreshConfig(ctx, cfg)
 }
 

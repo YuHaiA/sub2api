@@ -777,6 +777,8 @@ const (
 	accountHealthStatusUnavailable        = "unavailable"
 	accountHealthCheckExtraKey            = "health_check"
 	defaultAccountHealthCheckConcurrency  = 4
+	defaultAccountHealthCheckBatchSize    = 10
+	accountHealthCheckBatchPause          = 2 * time.Second
 	defaultAccountHealthFetchPageSize     = 200
 )
 
@@ -1267,10 +1269,49 @@ func (h *AccountHandler) RunHealthCheck(c *gin.Context) {
 		return
 	}
 
-	var (
-		mu        sync.Mutex
-		snapshots = make([]accountHealthSnapshot, 0, len(accounts))
-	)
+	snapshots := make([]accountHealthSnapshot, 0, len(accounts))
+	for start := 0; start < len(accounts); start += defaultAccountHealthCheckBatchSize {
+		end := start + defaultAccountHealthCheckBatchSize
+		if end > len(accounts) {
+			end = len(accounts)
+		}
+
+		batchItems, batchSnapshots, err := h.runAccountHealthCheckBatch(ctx, accounts[start:end], modelID)
+		if err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+		items = append(items, batchItems...)
+		snapshots = append(snapshots, batchSnapshots...)
+
+		if end < len(accounts) {
+			select {
+			case <-ctx.Done():
+				response.ErrorFrom(c, ctx.Err())
+				return
+			case <-time.After(accountHealthCheckBatchPause):
+			}
+		}
+	}
+
+	response.Success(c, gin.H{
+		"summary": summarizeAccountHealthSnapshots(snapshots),
+		"items":   items,
+	})
+}
+
+func (h *AccountHandler) runAccountHealthCheckBatch(
+	ctx context.Context,
+	accounts []*service.Account,
+	modelID string,
+) ([]AccountHealthCheckItem, []accountHealthSnapshot, error) {
+	items := make([]AccountHealthCheckItem, 0, len(accounts))
+	snapshots := make([]accountHealthSnapshot, 0, len(accounts))
+	if len(accounts) == 0 {
+		return items, snapshots, nil
+	}
+
+	var mu sync.Mutex
 	group, gctx := errgroup.WithContext(ctx)
 	group.SetLimit(defaultAccountHealthCheckConcurrency)
 
@@ -1280,23 +1321,7 @@ func (h *AccountHandler) RunHealthCheck(c *gin.Context) {
 		}
 		accountRef := account
 		group.Go(func() error {
-			result, err := h.accountTestService.RunTestBackground(gctx, accountRef.ID, modelID)
-			if err != nil {
-				log.Printf("account health check failed for account=%d: %v", accountRef.ID, err)
-			}
-
-			snapshot := buildAccountHealthSnapshot(result)
-
-			if result != nil && strings.EqualFold(result.Status, "success") && h.rateLimitService != nil {
-				if _, recoverErr := h.rateLimitService.RecoverAccountAfterSuccessfulTest(gctx, accountRef.ID); recoverErr != nil {
-					log.Printf("account health check recover failed for account=%d: %v", accountRef.ID, recoverErr)
-				}
-			}
-
-			if persistErr := h.persistAccountHealthSnapshot(gctx, accountRef, snapshot); persistErr != nil {
-				log.Printf("account health check persist failed for account=%d: %v", accountRef.ID, persistErr)
-			}
-
+			snapshot := h.runSingleAccountHealthCheck(gctx, accountRef, modelID)
 			mu.Lock()
 			snapshots = append(snapshots, snapshot)
 			items = append(items, buildAccountHealthItem(accountRef, snapshot))
@@ -1306,14 +1331,31 @@ func (h *AccountHandler) RunHealthCheck(c *gin.Context) {
 	}
 
 	if err := group.Wait(); err != nil {
-		response.ErrorFrom(c, err)
-		return
+		return nil, nil, err
+	}
+	return items, snapshots, nil
+}
+
+func (h *AccountHandler) runSingleAccountHealthCheck(
+	ctx context.Context,
+	account *service.Account,
+	modelID string,
+) accountHealthSnapshot {
+	result, err := h.accountTestService.RunTestBackground(ctx, account.ID, modelID)
+	if err != nil {
+		log.Printf("account health check failed for account=%d: %v", account.ID, err)
 	}
 
-	response.Success(c, gin.H{
-		"summary": summarizeAccountHealthSnapshots(snapshots),
-		"items":   items,
-	})
+	snapshot := buildAccountHealthSnapshot(result)
+	if result != nil && strings.EqualFold(result.Status, "success") && h.rateLimitService != nil {
+		if _, recoverErr := h.rateLimitService.RecoverAccountAfterSuccessfulTest(ctx, account.ID); recoverErr != nil {
+			log.Printf("account health check recover failed for account=%d: %v", account.ID, recoverErr)
+		}
+	}
+	if persistErr := h.persistAccountHealthSnapshot(ctx, account, snapshot); persistErr != nil {
+		log.Printf("account health check persist failed for account=%d: %v", account.ID, persistErr)
+	}
+	return snapshot
 }
 
 // RecoverState handles unified recovery of recoverable account runtime state.

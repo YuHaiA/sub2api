@@ -83,11 +83,29 @@
   - 前端 token tab 可直接手動执行一轮刷新
   - 手动执行现改为后台异步任务，避免 HTTP 约 31 秒超时导致 `context canceled`
   - 页面通过既有轮询在任务完成后自动更新最近刷新统计
+- 刷新範圍現已支援：
+  - `全部账号`
+  - `指定分组`
+  - 設定會一併作用於定時刷新與手動刷新
+- 背景刷新進度會持續回寫到設定：
+  - `running`
+  - `current_total`
+  - `current_success`
+  - `current_failed`
+  - 前端會透過輪詢直接顯示目前進度
 - 刷新范围说明：
   - 数据库总账号数可包含软删除记录
   - 后台账号列表默认展示 `deleted_at is null` 的有效账号
   - token 刷新针对“支持 refresh token 的 OAuth 账号”，不等于数据库原始总行数
 - OAuth 刷新底層新增 `RefreshNow` 路徑，沿用既有分布式鎖與 DB 重讀保護，避免與其他刷新路徑競爭。
+
+### 測活分批執行
+
+- 手動測活與排程自動測活都改為分批執行：
+  - 每批 10 個帳號
+  - 批次間停 2 秒
+  - 批內保留有限並發，避免大量帳號時瞬間壓太多請求到上游
+- 此改動不改變測活篩選邏輯，只降低大批量測活的瞬時壓力。
 
 ### 服務器部署腳本同步
 
@@ -131,6 +149,7 @@
   - `backend/cmd/server/wire_gen.go`
 - 前端
   - `frontend/src/views/admin/AccountHealthView.vue`
+  - `frontend/src/components/admin/account-health/AccountTokenAutoRefreshPanel.vue`
   - `frontend/src/api/admin/accounts.ts`
   - `frontend/src/i18n/locales/zh.ts`
   - `frontend/src/i18n/locales/en.ts`

@@ -429,6 +429,12 @@ export interface AccountTokenAutoRefreshConfig {
   interval_value: number
   interval_unit: 'hour' | 'day'
   batch_size: number
+  scope?: 'all' | 'group'
+  group_id?: number
+  running?: boolean
+  current_total?: number
+  current_success?: number
+  current_failed?: number
   last_run_at?: number | null
   last_run_total?: number
   last_run_success?: number
@@ -544,6 +550,8 @@ export async function updateAccountTokenAutoRefreshConfig(payload: {
   interval_value: number
   interval_unit: 'hour' | 'day'
   batch_size: number
+  scope?: 'all' | 'group'
+  group_id?: number
 }): Promise<AccountTokenAutoRefreshConfig> {
   const { data } = await apiClient.put<AccountTokenAutoRefreshConfig>('/admin/settings/account-token-auto-refresh', payload)
   return data

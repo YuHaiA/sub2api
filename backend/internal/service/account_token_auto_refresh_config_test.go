@@ -10,6 +10,8 @@ func TestNormalizeAccountTokenAutoRefreshConfig(t *testing.T) {
 		IntervalValue: 0,
 		IntervalUnit:  "WEEK",
 		BatchSize:     0,
+		Scope:         "bad",
+		GroupID:       99,
 	})
 
 	if cfg.IntervalValue != DefaultTokenRefreshIntervalValue {
@@ -21,6 +23,12 @@ func TestNormalizeAccountTokenAutoRefreshConfig(t *testing.T) {
 	if cfg.BatchSize != DefaultTokenRefreshBatchSize {
 		t.Fatalf("expected default batch size, got %d", cfg.BatchSize)
 	}
+	if cfg.Scope != "all" {
+		t.Fatalf("expected default scope all, got %s", cfg.Scope)
+	}
+	if cfg.GroupID != 0 {
+		t.Fatalf("expected group id reset to 0, got %d", cfg.GroupID)
+	}
 }
 
 func TestValidateAccountTokenAutoRefreshConfig(t *testing.T) {
@@ -28,8 +36,19 @@ func TestValidateAccountTokenAutoRefreshConfig(t *testing.T) {
 		IntervalValue: 1,
 		IntervalUnit:  "hour",
 		BatchSize:     10,
+		Scope:         "all",
 	}); err != nil {
 		t.Fatalf("expected valid config, got %v", err)
+	}
+
+	if err := validateAccountTokenAutoRefreshConfig(&AccountTokenAutoRefreshConfig{
+		IntervalValue: 1,
+		IntervalUnit:  "day",
+		BatchSize:     10,
+		Scope:         "group",
+		GroupID:       8,
+	}); err != nil {
+		t.Fatalf("expected valid group config, got %v", err)
 	}
 
 	if err := validateAccountTokenAutoRefreshConfig(&AccountTokenAutoRefreshConfig{
@@ -38,6 +57,16 @@ func TestValidateAccountTokenAutoRefreshConfig(t *testing.T) {
 		BatchSize:     10,
 	}); err == nil {
 		t.Fatal("expected interval validation error")
+	}
+
+	if err := validateAccountTokenAutoRefreshConfig(&AccountTokenAutoRefreshConfig{
+		IntervalValue: 1,
+		IntervalUnit:  "hour",
+		BatchSize:     10,
+		Scope:         "group",
+		GroupID:       0,
+	}); err == nil {
+		t.Fatal("expected group validation error")
 	}
 }
 

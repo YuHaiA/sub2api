@@ -83,6 +83,8 @@ func (s *TokenRefreshService) RunManualBatchRefresh(ctx context.Context) (*Accou
 		runCtx, cancel := context.WithTimeout(context.Background(), 6*time.Hour)
 		defer cancel()
 
+		_ = s.settingService.MarkAccountTokenAutoRefreshProgress(context.Background(), 0, 0, 0)
+
 		stats, runErr := s.runConfiguredBatchRefresh(runCtx, runCfg)
 		if runErr != nil {
 			slog.Warn("token_refresh.manual_batch_failed", "error", runErr)
@@ -106,7 +108,7 @@ func (s *TokenRefreshService) runConfiguredBatchRefresh(
 	ctx context.Context,
 	cfg *AccountTokenAutoRefreshConfig,
 ) (accountTokenAutoRefreshRunStats, error) {
-	eligible, err := s.listAutoRefreshEligibleAccounts(ctx)
+	eligible, err := s.listAutoRefreshEligibleAccounts(ctx, cfg)
 	if err != nil {
 		return accountTokenAutoRefreshRunStats{}, err
 	}
@@ -114,6 +116,7 @@ func (s *TokenRefreshService) runConfiguredBatchRefresh(
 	if len(eligible) == 0 {
 		return stats, nil
 	}
+	_ = s.settingService.MarkAccountTokenAutoRefreshProgress(context.Background(), stats.Total, 0, 0)
 
 	batchSize := normalizeAccountTokenAutoRefreshConfig(cfg).BatchSize
 	for start := 0; start < len(eligible); start += batchSize {
@@ -124,6 +127,7 @@ func (s *TokenRefreshService) runConfiguredBatchRefresh(
 		batchStats := s.runAutoRefreshBatch(ctx, eligible[start:end])
 		stats.Success += batchStats.Success
 		stats.Failed += batchStats.Failed
+		_ = s.settingService.MarkAccountTokenAutoRefreshProgress(context.Background(), stats.Total, stats.Success, stats.Failed)
 
 		if end < len(eligible) {
 			select {
@@ -136,8 +140,8 @@ func (s *TokenRefreshService) runConfiguredBatchRefresh(
 	return stats, nil
 }
 
-func (s *TokenRefreshService) listAutoRefreshEligibleAccounts(ctx context.Context) ([]Account, error) {
-	accounts, err := s.listAllAccountsForAutoRefresh(ctx)
+func (s *TokenRefreshService) listAutoRefreshEligibleAccounts(ctx context.Context, cfg *AccountTokenAutoRefreshConfig) ([]Account, error) {
+	accounts, err := s.listAllAccountsForAutoRefresh(ctx, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -150,17 +154,21 @@ func (s *TokenRefreshService) listAutoRefreshEligibleAccounts(ctx context.Contex
 	return filtered, nil
 }
 
-func (s *TokenRefreshService) listAllAccountsForAutoRefresh(ctx context.Context) ([]Account, error) {
+func (s *TokenRefreshService) listAllAccountsForAutoRefresh(ctx context.Context, cfg *AccountTokenAutoRefreshConfig) ([]Account, error) {
 	page := 1
 	pageSize := 200
 	out := make([]Account, 0)
+	groupID := int64(0)
+	if cfg != nil && cfg.Scope == "group" {
+		groupID = cfg.GroupID
+	}
 	for {
 		items, result, err := s.accountRepo.ListWithFilters(ctx, pagination.PaginationParams{
 			Page:      page,
 			PageSize:  pageSize,
 			SortBy:    "name",
 			SortOrder: "asc",
-		}, "", "", "", "", 0, "")
+		}, "", "", "", "", groupID, "")
 		if err != nil {
 			return nil, err
 		}

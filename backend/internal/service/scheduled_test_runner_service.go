@@ -13,6 +13,8 @@ import (
 )
 
 const scheduledTestDefaultMaxWorkers = 10
+const autoHealthCheckBatchSize = 10
+const autoHealthCheckBatchPause = 2 * time.Second
 
 // ScheduledTestRunnerService periodically scans due test plans and executes them.
 type ScheduledTestRunnerService struct {
@@ -164,19 +166,35 @@ func (s *ScheduledTestRunnerService) runAutoAccountHealthCheck(ctx context.Conte
 	}
 
 	logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health check started (accounts=%d interval=%dmin)", len(accounts), cfg.IntervalMinutes)
-	sem := make(chan struct{}, scheduledTestDefaultMaxWorkers)
-	var wg sync.WaitGroup
-	for i := range accounts {
-		account := accounts[i]
-		sem <- struct{}{}
-		wg.Add(1)
-		go func(acc *Account) {
-			defer wg.Done()
-			defer func() { <-sem }()
-			s.runOneAutoHealthCheck(ctx, acc, strings.TrimSpace(cfg.ModelID), now)
-		}(&account)
+	for start := 0; start < len(accounts); start += autoHealthCheckBatchSize {
+		end := start + autoHealthCheckBatchSize
+		if end > len(accounts) {
+			end = len(accounts)
+		}
+
+		sem := make(chan struct{}, scheduledTestDefaultMaxWorkers)
+		var wg sync.WaitGroup
+		for i := start; i < end; i++ {
+			account := accounts[i]
+			sem <- struct{}{}
+			wg.Add(1)
+			go func(acc *Account) {
+				defer wg.Done()
+				defer func() { <-sem }()
+				s.runOneAutoHealthCheck(ctx, acc, strings.TrimSpace(cfg.ModelID), now)
+			}(&account)
+		}
+		wg.Wait()
+
+		if end < len(accounts) {
+			select {
+			case <-ctx.Done():
+				logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health check interrupted: %v", ctx.Err())
+				return
+			case <-time.After(autoHealthCheckBatchPause):
+			}
+		}
 	}
-	wg.Wait()
 	if err := s.settingService.MarkAccountHealthAutoCheckRun(ctx, now); err != nil {
 		logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health mark last run error: %v", err)
 	}
