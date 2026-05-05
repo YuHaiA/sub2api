@@ -4374,6 +4374,8 @@ export default {
           pending: 'Deploy pending',
           versionMatched: 'Running image matches the target version',
           versionDrift: 'Running image does not match the target version',
+          targetVersion: 'Target version',
+          runningVersion: 'Running image',
           refreshStatus: 'Refresh status',
           deployNow: 'Deploy update now',
           saved: 'Deployment configuration saved'

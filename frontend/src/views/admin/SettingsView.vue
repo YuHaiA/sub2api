@@ -2387,6 +2387,11 @@
                     <p v-if="deployVersionSummary" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                       {{ deployVersionSummary }}
                     </p>
+                    <div v-if="deployVersionIds.length > 0" class="mt-2 space-y-1 text-xs text-gray-500 dark:text-gray-400">
+                      <p v-for="item in deployVersionIds" :key="item.label">
+                        {{ item.label }}: <span class="font-mono text-gray-700 dark:text-gray-200">{{ item.value }}</span>
+                      </p>
+                    </div>
                     <p v-if="deployState.last_error" class="mt-1 text-xs text-red-500">
                       {{ deployState.last_error }}
                     </p>
@@ -3492,6 +3497,28 @@ const deployVersionSummary = computed(() => {
   }
   return t('admin.settings.deploy.versionDrift')
 })
+
+const deployVersionIds = computed(() => {
+  const items: Array<{ label: string; value: string }> = []
+  const requested = shortenImageId(deployState.requested_image_id)
+  const running = shortenImageId(deployState.running_image_id)
+  if (requested) {
+    items.push({ label: t('admin.settings.deploy.targetVersion'), value: requested })
+  }
+  if (running) {
+    items.push({ label: t('admin.settings.deploy.runningVersion'), value: running })
+  }
+  return items
+})
+
+function shortenImageId(value?: string): string {
+  const text = (value || '').trim()
+  if (!text) return ''
+  if (text.startsWith('sha256:')) {
+    return `...${text.slice(-8)}`
+  }
+  return text.length > 8 ? `...${text.slice(-8)}` : text
+}
 
 function applyDeployState(state: DeployState) {
   deployState.status = state.status || 'idle'

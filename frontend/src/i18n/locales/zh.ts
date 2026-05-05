@@ -4539,6 +4539,8 @@ export default {
           pending: '等待部署中',
           versionMatched: '当前运行镜像已切换到目标版本',
           versionDrift: '当前运行镜像与目标版本不一致',
+          targetVersion: '目标版本',
+          runningVersion: '当前运行',
           refreshStatus: '刷新状态',
           deployNow: '立即部署更新',
           saved: '部署配置已保存'
