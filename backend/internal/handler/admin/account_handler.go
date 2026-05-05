@@ -1285,71 +1285,80 @@ func (h *AccountHandler) RunHealthCheck(c *gin.Context) {
 		return
 	}
 
-	release, ok, currentTask := service.TryAcquireBackgroundMaintenance("account_health_manual")
-	if !ok {
+	startedAt := time.Now()
+	mode, relatedTask := service.EnqueueBackgroundMaintenance(service.BackgroundMaintenanceTask{
+		Name: "account_health_manual",
+		Run: func() {
+			defer accountHealthManualRunInProgress.Store(false)
+
+			runCtx, cancel := context.WithTimeout(context.Background(), 6*time.Hour)
+			defer cancel()
+
+			if len(accounts) == 0 {
+				_ = h.markAccountHealthCheckFinished(startedAt)
+				return
+			}
+
+			_ = h.settingService.MarkAccountHealthAutoCheckProgress(context.Background(), len(accounts), 0, 0)
+			success := 0
+			failed := 0
+			for start := 0; start < len(accounts); start += defaultAccountHealthCheckBatchSize {
+				end := start + defaultAccountHealthCheckBatchSize
+				if end > len(accounts) {
+					end = len(accounts)
+				}
+
+				_, _, batchFailed, err := h.runAccountHealthCheckBatch(runCtx, accounts[start:end], modelID)
+				if err != nil {
+					slog.Warn("account_health.manual_batch_failed", "error", err)
+					return
+				}
+				failed += batchFailed
+				success += (end - start) - batchFailed
+				_ = h.settingService.MarkAccountHealthAutoCheckProgress(context.Background(), len(accounts), success, failed)
+
+				if end < len(accounts) {
+					select {
+					case <-runCtx.Done():
+						slog.Warn("account_health.manual_batch_interrupted", "error", runCtx.Err())
+						return
+					case <-time.After(accountHealthCheckBatchPause):
+					}
+				}
+			}
+			if err := h.markAccountHealthCheckFinished(startedAt); err != nil {
+				slog.Warn("account_health.manual_batch_mark_failed", "error", err)
+			}
+		},
+	})
+
+	switch mode {
+	case service.BackgroundMaintenanceRunNow:
+		response.Success(c, &AccountHealthCheckRunResult{
+			Started: true,
+			Running: true,
+			Message: "Account health check started in background",
+			RunAt:   startedAt.Unix(),
+			Total:   len(accounts),
+		})
+	case service.BackgroundMaintenanceQueued:
+		response.Success(c, &AccountHealthCheckRunResult{
+			Started: true,
+			Running: true,
+			Message: "Account health check queued behind: " + relatedTask,
+			RunAt:   startedAt.Unix(),
+			Total:   len(accounts),
+		})
+	default:
 		accountHealthManualRunInProgress.Store(false)
 		response.Success(c, &AccountHealthCheckRunResult{
 			Started: false,
 			Running: true,
-			Message: "Another background maintenance task is already running: " + currentTask,
-			RunAt:   time.Now().Unix(),
+			Message: "Account health check is already running or queued",
+			RunAt:   startedAt.Unix(),
 			Total:   len(accounts),
 		})
-		return
 	}
-
-	startedAt := time.Now()
-	go func(runModelID string, runAccounts []*service.Account, runAt time.Time) {
-		defer accountHealthManualRunInProgress.Store(false)
-		defer release()
-
-		runCtx, cancel := context.WithTimeout(context.Background(), 6*time.Hour)
-		defer cancel()
-
-		if len(runAccounts) == 0 {
-			_ = h.markAccountHealthCheckFinished(runAt)
-			return
-		}
-
-		_ = h.settingService.MarkAccountHealthAutoCheckProgress(context.Background(), len(runAccounts), 0, 0)
-		success := 0
-		failed := 0
-		for start := 0; start < len(runAccounts); start += defaultAccountHealthCheckBatchSize {
-			end := start + defaultAccountHealthCheckBatchSize
-			if end > len(runAccounts) {
-				end = len(runAccounts)
-			}
-
-			_, _, batchFailed, err := h.runAccountHealthCheckBatch(runCtx, runAccounts[start:end], runModelID)
-			if err != nil {
-				slog.Warn("account_health.manual_batch_failed", "error", err)
-				return
-			}
-			failed += batchFailed
-			success += (end - start) - batchFailed
-			_ = h.settingService.MarkAccountHealthAutoCheckProgress(context.Background(), len(runAccounts), success, failed)
-
-			if end < len(runAccounts) {
-				select {
-				case <-runCtx.Done():
-					slog.Warn("account_health.manual_batch_interrupted", "error", runCtx.Err())
-					return
-				case <-time.After(accountHealthCheckBatchPause):
-				}
-			}
-		}
-		if err := h.markAccountHealthCheckFinished(runAt); err != nil {
-			slog.Warn("account_health.manual_batch_mark_failed", "error", err)
-		}
-	}(modelID, accounts, startedAt)
-
-	response.Success(c, &AccountHealthCheckRunResult{
-		Started: true,
-		Running: true,
-		Message: "Account health check started in background",
-		RunAt:   startedAt.Unix(),
-		Total:   len(accounts),
-	})
 }
 
 func (h *AccountHandler) runAccountHealthCheckBatch(

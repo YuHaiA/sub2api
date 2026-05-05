@@ -140,13 +140,6 @@ func (s *ScheduledTestRunnerService) runAutoAccountHealthCheck(ctx context.Conte
 	if s.settingService == nil || s.accountRepo == nil || s.accountTestSvc == nil {
 		return
 	}
-	release, ok, currentTask := TryAcquireBackgroundMaintenance("account_health_auto")
-	if !ok {
-		logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health skipped because %s is running", currentTask)
-		return
-	}
-	defer release()
-
 	cfg, err := s.settingService.GetAccountHealthAutoCheckConfig(ctx)
 	if err != nil || cfg == nil || !cfg.Enabled {
 		return
@@ -162,61 +155,72 @@ func (s *ScheduledTestRunnerService) runAutoAccountHealthCheck(ctx context.Conte
 		}
 	}
 
-	accounts, err := s.listAllAccountsForAutoHealthCheck(ctx)
-	if err != nil {
-		logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health list accounts error: %v", err)
-		return
-	}
-	if len(accounts) == 0 {
-		_ = s.settingService.MarkAccountHealthAutoCheckRun(ctx, now)
-		return
-	}
+	mode, relatedTask := EnqueueBackgroundMaintenance(BackgroundMaintenanceTask{
+		Name: "account_health_auto",
+		Run: func() {
+			runCtx, cancel := context.WithTimeout(context.Background(), 6*time.Hour)
+			defer cancel()
 
-	logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health check started (accounts=%d interval=%dmin)", len(accounts), cfg.IntervalMinutes)
-	_ = s.settingService.MarkAccountHealthAutoCheckProgress(context.Background(), len(accounts), 0, 0)
-	processedSuccess := 0
-	processedFailed := 0
-	var mu sync.Mutex
-	for start := 0; start < len(accounts); start += autoHealthCheckBatchSize {
-		end := start + autoHealthCheckBatchSize
-		if end > len(accounts) {
-			end = len(accounts)
-		}
-
-		sem := make(chan struct{}, scheduledTestDefaultMaxWorkers)
-		var wg sync.WaitGroup
-		for i := start; i < end; i++ {
-			account := accounts[i]
-			sem <- struct{}{}
-			wg.Add(1)
-			go func(acc *Account) {
-				defer wg.Done()
-				defer func() { <-sem }()
-				if s.runOneAutoHealthCheck(ctx, acc, strings.TrimSpace(cfg.ModelID), now) {
-					mu.Lock()
-					processedFailed++
-					mu.Unlock()
-					return
-				}
-				mu.Lock()
-				processedSuccess++
-				mu.Unlock()
-			}(&account)
-		}
-		wg.Wait()
-		_ = s.settingService.MarkAccountHealthAutoCheckProgress(context.Background(), len(accounts), processedSuccess, processedFailed)
-
-		if end < len(accounts) {
-			select {
-			case <-ctx.Done():
-				logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health check interrupted: %v", ctx.Err())
+			accounts, listErr := s.listAllAccountsForAutoHealthCheck(runCtx)
+			if listErr != nil {
+				logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health list accounts error: %v", listErr)
 				return
-			case <-time.After(autoHealthCheckBatchPause):
 			}
-		}
-	}
-	if err := s.settingService.MarkAccountHealthAutoCheckRun(ctx, now); err != nil {
-		logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health mark last run error: %v", err)
+			if len(accounts) == 0 {
+				_ = s.settingService.MarkAccountHealthAutoCheckRun(context.Background(), now)
+				return
+			}
+
+			logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health check started (accounts=%d interval=%dmin)", len(accounts), cfg.IntervalMinutes)
+			_ = s.settingService.MarkAccountHealthAutoCheckProgress(context.Background(), len(accounts), 0, 0)
+			processedSuccess := 0
+			processedFailed := 0
+			var mu sync.Mutex
+			for start := 0; start < len(accounts); start += autoHealthCheckBatchSize {
+				end := start + autoHealthCheckBatchSize
+				if end > len(accounts) {
+					end = len(accounts)
+				}
+
+				sem := make(chan struct{}, scheduledTestDefaultMaxWorkers)
+				var wg sync.WaitGroup
+				for i := start; i < end; i++ {
+					account := accounts[i]
+					sem <- struct{}{}
+					wg.Add(1)
+					go func(acc *Account) {
+						defer wg.Done()
+						defer func() { <-sem }()
+						if s.runOneAutoHealthCheck(runCtx, acc, strings.TrimSpace(cfg.ModelID), now) {
+							mu.Lock()
+							processedFailed++
+							mu.Unlock()
+							return
+						}
+						mu.Lock()
+						processedSuccess++
+						mu.Unlock()
+					}(&account)
+				}
+				wg.Wait()
+				_ = s.settingService.MarkAccountHealthAutoCheckProgress(context.Background(), len(accounts), processedSuccess, processedFailed)
+
+				if end < len(accounts) {
+					select {
+					case <-runCtx.Done():
+						logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health check interrupted: %v", runCtx.Err())
+						return
+					case <-time.After(autoHealthCheckBatchPause):
+					}
+				}
+			}
+			if err := s.settingService.MarkAccountHealthAutoCheckRun(context.Background(), now); err != nil {
+				logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health mark last run error: %v", err)
+			}
+		},
+	})
+	if mode != BackgroundMaintenanceRunNow {
+		logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health deferred mode=%s related_task=%s", mode, relatedTask)
 	}
 }
 

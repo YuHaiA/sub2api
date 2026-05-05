@@ -34,13 +34,6 @@ func (s *TokenRefreshService) RunConfiguredBatchRefresh(ctx context.Context, now
 	if s == nil || s.settingService == nil || s.accountRepo == nil {
 		return
 	}
-	release, ok, currentTask := TryAcquireBackgroundMaintenance("token_refresh_auto")
-	if !ok {
-		slog.Info("token_refresh.auto_batch_skipped_busy", "current_task", currentTask)
-		return
-	}
-	defer release()
-
 	cfg, err := s.settingService.GetAccountTokenAutoRefreshConfig(ctx)
 	if err != nil || cfg == nil || !cfg.Enabled {
 		return
@@ -52,12 +45,23 @@ func (s *TokenRefreshService) RunConfiguredBatchRefresh(ctx context.Context, now
 		}
 	}
 
-	stats, runErr := s.runConfiguredBatchRefresh(ctx, cfg)
-	if runErr != nil {
-		slog.Warn("token_refresh.auto_batch_failed", "error", runErr)
-	}
-	if err := s.settingService.MarkAccountTokenAutoRefreshRun(ctx, now, stats.Total, stats.Success, stats.Failed); err != nil {
-		slog.Warn("token_refresh.auto_batch_mark_failed", "error", err)
+	mode, relatedTask := EnqueueBackgroundMaintenance(BackgroundMaintenanceTask{
+		Name: "token_refresh_auto",
+		Run: func() {
+			runCtx, cancel := context.WithTimeout(context.Background(), 6*time.Hour)
+			defer cancel()
+
+			stats, runErr := s.runConfiguredBatchRefresh(runCtx, cfg)
+			if runErr != nil {
+				slog.Warn("token_refresh.auto_batch_failed", "error", runErr)
+			}
+			if err := s.settingService.MarkAccountTokenAutoRefreshRun(context.Background(), now, stats.Total, stats.Success, stats.Failed); err != nil {
+				slog.Warn("token_refresh.auto_batch_mark_failed", "error", err)
+			}
+		},
+	})
+	if mode != BackgroundMaintenanceRunNow {
+		slog.Info("token_refresh.auto_batch_deferred", "mode", mode, "related_task", relatedTask)
 	}
 }
 
@@ -85,44 +89,54 @@ func (s *TokenRefreshService) RunManualBatchRefresh(ctx context.Context) (*Accou
 		}, nil
 	}
 
-	release, ok, currentTask := TryAcquireBackgroundMaintenance("token_refresh_manual")
-	if !ok {
+	mode, relatedTask := EnqueueBackgroundMaintenance(BackgroundMaintenanceTask{
+		Name: "token_refresh_manual",
+		Run: func() {
+			defer s.manualRunInProgress.Store(false)
+
+			runCtx, cancel := context.WithTimeout(context.Background(), 6*time.Hour)
+			defer cancel()
+
+			_ = s.settingService.MarkAccountTokenAutoRefreshProgress(context.Background(), 0, 0, 0)
+
+			stats, runErr := s.runConfiguredBatchRefresh(runCtx, cfg)
+			if runErr != nil {
+				slog.Warn("token_refresh.manual_batch_failed", "error", runErr)
+				return
+			}
+			if markErr := s.settingService.MarkAccountTokenAutoRefreshRun(context.Background(), now, stats.Total, stats.Success, stats.Failed); markErr != nil {
+				slog.Warn("token_refresh.manual_batch_mark_failed", "error", markErr)
+			}
+		},
+	})
+
+	switch mode {
+	case BackgroundMaintenanceRunNow:
+		return &AccountTokenAutoRefreshRunResult{
+			Started:   true,
+			Running:   true,
+			Message:   "Token refresh started in background",
+			RunAt:     now.Unix(),
+			BatchSize: cfg.BatchSize,
+		}, nil
+	case BackgroundMaintenanceQueued:
+		return &AccountTokenAutoRefreshRunResult{
+			Started:   true,
+			Running:   true,
+			Message:   "Token refresh queued behind: " + relatedTask,
+			RunAt:     now.Unix(),
+			BatchSize: cfg.BatchSize,
+		}, nil
+	default:
 		s.manualRunInProgress.Store(false)
 		return &AccountTokenAutoRefreshRunResult{
 			Started:   false,
 			Running:   true,
-			Message:   "Another background maintenance task is already running: " + currentTask,
+			Message:   "Token refresh is already running or queued",
 			RunAt:     now.Unix(),
 			BatchSize: cfg.BatchSize,
 		}, nil
 	}
-
-	go func(startedAt time.Time, runCfg *AccountTokenAutoRefreshConfig) {
-		defer s.manualRunInProgress.Store(false)
-		defer release()
-
-		runCtx, cancel := context.WithTimeout(context.Background(), 6*time.Hour)
-		defer cancel()
-
-		_ = s.settingService.MarkAccountTokenAutoRefreshProgress(context.Background(), 0, 0, 0)
-
-		stats, runErr := s.runConfiguredBatchRefresh(runCtx, runCfg)
-		if runErr != nil {
-			slog.Warn("token_refresh.manual_batch_failed", "error", runErr)
-			return
-		}
-		if markErr := s.settingService.MarkAccountTokenAutoRefreshRun(context.Background(), startedAt, stats.Total, stats.Success, stats.Failed); markErr != nil {
-			slog.Warn("token_refresh.manual_batch_mark_failed", "error", markErr)
-		}
-	}(now, cfg)
-
-	return &AccountTokenAutoRefreshRunResult{
-		Started:   true,
-		Running:   true,
-		Message:   "Token refresh started in background",
-		RunAt:     now.Unix(),
-		BatchSize: cfg.BatchSize,
-	}, nil
 }
 
 func (s *TokenRefreshService) runConfiguredBatchRefresh(
