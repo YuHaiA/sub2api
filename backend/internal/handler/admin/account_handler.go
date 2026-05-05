@@ -54,6 +54,7 @@ type AccountHandler struct {
 	geminiOAuthService      *service.GeminiOAuthService
 	antigravityOAuthService *service.AntigravityOAuthService
 	rateLimitService        *service.RateLimitService
+	settingService          *service.SettingService
 	accountUsageService     *service.AccountUsageService
 	accountTestService      *service.AccountTestService
 	concurrencyService      *service.ConcurrencyService
@@ -71,6 +72,7 @@ func NewAccountHandler(
 	geminiOAuthService *service.GeminiOAuthService,
 	antigravityOAuthService *service.AntigravityOAuthService,
 	rateLimitService *service.RateLimitService,
+	settingService *service.SettingService,
 	accountUsageService *service.AccountUsageService,
 	accountTestService *service.AccountTestService,
 	concurrencyService *service.ConcurrencyService,
@@ -86,6 +88,7 @@ func NewAccountHandler(
 		geminiOAuthService:      geminiOAuthService,
 		antigravityOAuthService: antigravityOAuthService,
 		rateLimitService:        rateLimitService,
+		settingService:          settingService,
 		accountUsageService:     accountUsageService,
 		accountTestService:      accountTestService,
 		concurrencyService:      concurrencyService,
