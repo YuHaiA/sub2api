@@ -70,7 +70,10 @@
         </div>
       </div>
 
-      <div class="flex justify-end border-t border-slate-200 pt-3 xl:mt-auto dark:border-slate-700">
+      <div class="flex flex-wrap justify-end gap-3 border-t border-slate-200 pt-3 xl:mt-auto dark:border-slate-700">
+        <button class="btn btn-secondary" :disabled="runningTokenRefresh" @click="$emit('runNow')">
+          {{ runningTokenRefresh ? t('admin.accounts.tokenRefresh.running') : t('admin.accounts.tokenRefresh.runNow') }}
+        </button>
         <button class="btn btn-primary" :disabled="savingTokenConfig" @click="$emit('saveConfig')">
           {{ savingTokenConfig ? t('common.saving') : t('admin.accounts.tokenRefresh.save') }}
         </button>
@@ -90,12 +93,14 @@ defineProps<{
   tokenBatchSizeInput: string
   tokenLastRunText: string
   savingTokenConfig: boolean
+  runningTokenRefresh: boolean
 }>()
 
 defineEmits<{
   (e: 'update:tokenIntervalValueInput', value: string): void
   (e: 'update:tokenBatchSizeInput', value: string): void
   (e: 'saveConfig'): void
+  (e: 'runNow'): void
 }>()
 
 const { t } = useI18n()

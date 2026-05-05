@@ -420,6 +420,7 @@ func registerSettingsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		adminSettings.PUT("/account-health-auto-check", h.Admin.Setting.UpdateAccountHealthAutoCheckConfig)
 		adminSettings.GET("/account-token-auto-refresh", h.Admin.Setting.GetAccountTokenAutoRefreshConfig)
 		adminSettings.PUT("/account-token-auto-refresh", h.Admin.Setting.UpdateAccountTokenAutoRefreshConfig)
+		adminSettings.POST("/account-token-auto-refresh/run", h.Admin.Setting.RunAccountTokenAutoRefreshNow)
 	}
 }
 

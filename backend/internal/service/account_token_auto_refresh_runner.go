@@ -17,6 +17,14 @@ type accountTokenAutoRefreshRunStats struct {
 	Failed  int
 }
 
+type AccountTokenAutoRefreshRunResult struct {
+	Total     int   `json:"total"`
+	Success   int   `json:"success"`
+	Failed    int   `json:"failed"`
+	RunAt     int64 `json:"run_at"`
+	BatchSize int   `json:"batch_size"`
+}
+
 func (s *TokenRefreshService) SetSettingService(settingService *SettingService) {
 	s.settingService = settingService
 }
@@ -43,6 +51,35 @@ func (s *TokenRefreshService) RunConfiguredBatchRefresh(ctx context.Context, now
 	if err := s.settingService.MarkAccountTokenAutoRefreshRun(ctx, now, stats.Total, stats.Success, stats.Failed); err != nil {
 		slog.Warn("token_refresh.auto_batch_mark_failed", "error", err)
 	}
+}
+
+func (s *TokenRefreshService) RunManualBatchRefresh(ctx context.Context) (*AccountTokenAutoRefreshRunResult, error) {
+	if s == nil || s.settingService == nil || s.accountRepo == nil {
+		return nil, nil
+	}
+	cfg, err := s.settingService.GetAccountTokenAutoRefreshConfig(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if cfg == nil {
+		cfg = defaultAccountTokenAutoRefreshConfig()
+	}
+	cfg = normalizeAccountTokenAutoRefreshConfig(cfg)
+	now := time.Now()
+	stats, err := s.runConfiguredBatchRefresh(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+	if markErr := s.settingService.MarkAccountTokenAutoRefreshRun(ctx, now, stats.Total, stats.Success, stats.Failed); markErr != nil {
+		slog.Warn("token_refresh.manual_batch_mark_failed", "error", markErr)
+	}
+	return &AccountTokenAutoRefreshRunResult{
+		Total:     stats.Total,
+		Success:   stats.Success,
+		Failed:    stats.Failed,
+		RunAt:     now.Unix(),
+		BatchSize: cfg.BatchSize,
+	}, nil
 }
 
 func (s *TokenRefreshService) runConfiguredBatchRefresh(

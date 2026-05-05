@@ -51,10 +51,11 @@ type SettingHandler struct {
 	opsService           *service.OpsService
 	paymentConfigService *service.PaymentConfigService
 	paymentService       *service.PaymentService
+	tokenRefreshService  *service.TokenRefreshService
 }
 
 // NewSettingHandler 创建系统设置处理器
-func NewSettingHandler(settingService *service.SettingService, emailService *service.EmailService, turnstileService *service.TurnstileService, opsService *service.OpsService, paymentConfigService *service.PaymentConfigService, paymentService *service.PaymentService) *SettingHandler {
+func NewSettingHandler(settingService *service.SettingService, emailService *service.EmailService, turnstileService *service.TurnstileService, opsService *service.OpsService, paymentConfigService *service.PaymentConfigService, paymentService *service.PaymentService, tokenRefreshService *service.TokenRefreshService) *SettingHandler {
 	return &SettingHandler{
 		settingService:       settingService,
 		emailService:         emailService,
@@ -62,6 +63,7 @@ func NewSettingHandler(settingService *service.SettingService, emailService *ser
 		opsService:           opsService,
 		paymentConfigService: paymentConfigService,
 		paymentService:       paymentService,
+		tokenRefreshService:  tokenRefreshService,
 	}
 }
 
@@ -2069,4 +2071,19 @@ func (h *SettingHandler) UpdateAccountTokenAutoRefreshConfig(c *gin.Context) {
 		return
 	}
 	response.Success(c, updated)
+}
+
+// RunAccountTokenAutoRefreshNow 手动触发一次 token 自动刷新
+// POST /api/v1/admin/settings/account-token-auto-refresh/run
+func (h *SettingHandler) RunAccountTokenAutoRefreshNow(c *gin.Context) {
+	if h.tokenRefreshService == nil {
+		response.Error(c, http.StatusInternalServerError, "token refresh service unavailable")
+		return
+	}
+	result, err := h.tokenRefreshService.RunManualBatchRefresh(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, result)
 }

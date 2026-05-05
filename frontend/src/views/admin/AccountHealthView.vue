@@ -43,17 +43,19 @@
             @save-config="saveAutoConfig"
             @delete-unhealthy="deleteUnhealthyAccountsInScope"
           />
-          <AccountTokenAutoRefreshPanel
-            v-else
-            :token-config="tokenConfig"
-            :token-interval-value-input="tokenIntervalValueInput"
-            :token-batch-size-input="tokenBatchSizeInput"
-            :token-last-run-text="tokenLastRunText"
-            :saving-token-config="savingTokenConfig"
-            @update:token-interval-value-input="tokenIntervalValueInput = $event"
-            @update:token-batch-size-input="tokenBatchSizeInput = $event"
-            @save-config="saveTokenConfig"
-          />
+              <AccountTokenAutoRefreshPanel
+                v-else
+                :token-config="tokenConfig"
+                :token-interval-value-input="tokenIntervalValueInput"
+                :token-batch-size-input="tokenBatchSizeInput"
+                :token-last-run-text="tokenLastRunText"
+                :saving-token-config="savingTokenConfig"
+                :running-token-refresh="runningTokenRefresh"
+                @update:token-interval-value-input="tokenIntervalValueInput = $event"
+                @update:token-batch-size-input="tokenBatchSizeInput = $event"
+                @save-config="saveTokenConfig"
+                @run-now="runTokenRefreshNow"
+              />
         </div>
       </section>
     </div>
@@ -75,7 +77,7 @@ const appStore = useAppStore()
 
 const AUTO_POLL_MS = 15000
 const activeTab = ref<'health' | 'token'>('health')
-const healthChecking = ref(false), savingAutoConfig = ref(false), savingTokenConfig = ref(false), deletingUnhealthy = ref(false), polling = ref(false)
+const healthChecking = ref(false), savingAutoConfig = ref(false), savingTokenConfig = ref(false), runningTokenRefresh = ref(false), deletingUnhealthy = ref(false), polling = ref(false)
 const lastObservedAutoRunAt = ref<number | null>(null), lastObservedTokenRunAt = ref<number | null>(null)
 const manualModelId = ref(''), autoIntervalInput = ref('60'), tokenIntervalValueInput = ref('1'), tokenBatchSizeInput = ref('10')
 
@@ -220,6 +222,26 @@ async function saveTokenConfig() {
     appStore.showError(error?.message || t('common.error'))
   } finally {
     savingTokenConfig.value = false
+  }
+}
+
+async function runTokenRefreshNow() {
+  if (runningTokenRefresh.value) return
+  runningTokenRefresh.value = true
+  try {
+    const result = await adminAPI.accounts.runAccountTokenAutoRefreshNow()
+    tokenConfig.last_run_at = result.run_at
+    tokenConfig.last_run_total = result.total
+    tokenConfig.last_run_success = result.success
+    tokenConfig.last_run_failed = result.failed
+    tokenConfig.batch_size = result.batch_size
+    tokenBatchSizeInput.value = String(result.batch_size)
+    lastObservedTokenRunAt.value = result.run_at
+    appStore.showSuccess(t('admin.accounts.tokenRefresh.runCompleted', { total: result.total, success: result.success, failed: result.failed }))
+  } catch (error: any) {
+    appStore.showError(error?.message || t('common.error'))
+  } finally {
+    runningTokenRefresh.value = false
   }
 }
 async function deleteUnhealthyAccountsInScope() {

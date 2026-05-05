@@ -435,6 +435,14 @@ export interface AccountTokenAutoRefreshConfig {
   last_run_failed?: number
 }
 
+export interface AccountTokenAutoRefreshRunResult {
+  total: number
+  success: number
+  failed: number
+  run_at: number
+  batch_size: number
+}
+
 export interface AccountHealthCheckItem {
   account_id: number
   name: string
@@ -538,6 +546,11 @@ export async function updateAccountTokenAutoRefreshConfig(payload: {
   batch_size: number
 }): Promise<AccountTokenAutoRefreshConfig> {
   const { data } = await apiClient.put<AccountTokenAutoRefreshConfig>('/admin/settings/account-token-auto-refresh', payload)
+  return data
+}
+
+export async function runAccountTokenAutoRefreshNow(): Promise<AccountTokenAutoRefreshRunResult> {
+  const { data } = await apiClient.post<AccountTokenAutoRefreshRunResult>('/admin/settings/account-token-auto-refresh/run')
   return data
 }
 
@@ -809,6 +822,7 @@ export const accountsAPI = {
   updateAccountHealthAutoCheckConfig,
   getAccountTokenAutoRefreshConfig,
   updateAccountTokenAutoRefreshConfig,
+  runAccountTokenAutoRefreshNow,
   deduplicateAccounts,
   deleteUnhealthyAccounts,
   clearRateLimit,

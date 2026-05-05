@@ -67,8 +67,11 @@
 - 定時執行整合到既有 `ScheduledTestRunnerService`：
   - 每分鐘巡檢一次是否到達刷新時機
   - 處理所有可刷新的 OAuth 帳號，不因異常狀態自動排除；僅跳過明確停用帳號
-- 依設定的 batch size 分批刷新
-- 批次間加入短暫間隔，避免瞬時大量請求
+  - 依設定的 batch size 分批刷新
+  - 批次間加入短暫間隔，避免瞬時大量請求
+- 補充手動觸發入口：
+  - `POST /api/v1/admin/settings/account-token-auto-refresh/run`
+  - 前端 token tab 可直接手動执行一轮刷新，并回填最近刷新统计
 - OAuth 刷新底層新增 `RefreshNow` 路徑，沿用既有分布式鎖與 DB 重讀保護，避免與其他刷新路徑競爭。
 
 ### 服務器部署腳本同步
