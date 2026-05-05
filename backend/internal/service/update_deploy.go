@@ -51,6 +51,8 @@ type DeployConfig struct {
 type DeployState struct {
 	Status         string `json:"status"`
 	RequestedImage string `json:"requested_image,omitempty"`
+	RequestedImageID string `json:"requested_image_id,omitempty"`
+	RunningImageID string `json:"running_image_id,omitempty"`
 	LastMessage    string `json:"last_message,omitempty"`
 	LastError      string `json:"last_error,omitempty"`
 	LastOutput     string `json:"last_output,omitempty"`
@@ -89,6 +91,8 @@ type deployAgentRequest struct {
 type deployAgentResponse struct {
 	Status            string   `json:"status"`
 	Image             string   `json:"image,omitempty"`
+	ImageID           string   `json:"image_id,omitempty"`
+	RunningImageID    string   `json:"running_image_id,omitempty"`
 	ServiceName       string   `json:"service_name,omitempty"`
 	ComposeProjectDir string   `json:"compose_project_dir,omitempty"`
 	Message           string   `json:"message,omitempty"`
@@ -359,11 +363,13 @@ func (s *UpdateService) TriggerDeploy(ctx context.Context, req *DeployTriggerReq
 
 	now := time.Now().Unix()
 	state := &DeployState{
-		Status:         deployStatusPending,
-		RequestedImage: cfg.DefaultImage,
-		LastMessage:    result.Message,
-		LastOutput:     "",
-		StartedAt:      &now,
+		Status:           deployStatusPending,
+		RequestedImage:   cfg.DefaultImage,
+		RequestedImageID: "",
+		RunningImageID:   "",
+		LastMessage:      result.Message,
+		LastOutput:       "",
+		StartedAt:        &now,
 	}
 	_ = s.saveDeployState(ctx, state)
 
@@ -389,6 +395,8 @@ func (s *UpdateService) TriggerDeploy(ctx context.Context, req *DeployTriggerReq
 	state.LastMessage = successMessage
 	state.LastError = ""
 	state.LastOutput = trimDeployOutput(output)
+	state.RequestedImageID = parseDeployImageID(output)
+	state.RunningImageID = parseDeployRunningImageID(output)
 	_ = s.saveDeployState(context.Background(), state)
 
 	result.Status = deployStatusSucceeded
@@ -506,4 +514,31 @@ func (s *UpdateService) executeDeployViaAgent(ctx context.Context, cfg *DeployCo
 		message = "Deploy completed successfully"
 	}
 	return message, nil
+}
+
+func parseDeployImageID(output string) string {
+	return parseDeployResultField(output, "image_id=")
+}
+
+func parseDeployRunningImageID(output string) string {
+	return parseDeployResultField(output, "container_image=")
+}
+
+func parseDeployResultField(output, prefix string) string {
+	for _, line := range strings.Split(output, "\n") {
+		idx := strings.Index(line, prefix)
+		if idx < 0 {
+			continue
+		}
+		field := line[idx+len(prefix):]
+		field = strings.TrimSpace(field)
+		if field == "" {
+			return ""
+		}
+		if cut := strings.IndexAny(field, " \t"); cut >= 0 {
+			field = field[:cut]
+		}
+		return strings.TrimSpace(field)
+	}
+	return ""
 }

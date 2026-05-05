@@ -82,9 +82,21 @@ def handle_deploy(payload: Dict[str, Any]) -> Dict[str, Any]:
     if "already up to date" in lowered:
         message = "Already up to date"
 
+    image_id = ""
+    running_image_id = ""
+    for line in output.splitlines():
+        if "image_id=" in line:
+            fragment = line.split("image_id=", 1)[1].strip()
+            image_id = fragment.split()[0]
+        if "container_image=" in line:
+            fragment = line.split("container_image=", 1)[1].strip()
+            running_image_id = fragment.split()[0]
+
     return {
         "status": "succeeded",
         "image": str(payload.get("default_image", "")).strip(),
+        "image_id": image_id,
+        "running_image_id": running_image_id,
         "service_name": str(payload.get("service_name", "")).strip(),
         "compose_project_dir": str(payload.get("compose_project_dir", "")).strip(),
         "commands": payload.get("commands") or [],

@@ -67,6 +67,8 @@ export interface DeployConfig {
 export interface DeployState {
   status: string
   requested_image?: string
+  requested_image_id?: string
+  running_image_id?: string
   last_message?: string
   last_error?: string
   last_output?: string

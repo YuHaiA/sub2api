@@ -2384,6 +2384,9 @@
                     <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                       {{ deployStatusSummary }}
                     </p>
+                    <p v-if="deployVersionSummary" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      {{ deployVersionSummary }}
+                    </p>
                     <p v-if="deployState.last_error" class="mt-1 text-xs text-red-500">
                       {{ deployState.last_error }}
                     </p>
@@ -3480,9 +3483,21 @@ const deployStatusSummary = computed(() => {
   return deployState.last_message || t('admin.settings.deploy.statusHint')
 })
 
+const deployVersionSummary = computed(() => {
+  const requested = (deployState.requested_image_id || '').trim()
+  const running = (deployState.running_image_id || '').trim()
+  if (!requested || !running) return ''
+  if (requested === running) {
+    return t('admin.settings.deploy.versionMatched')
+  }
+  return t('admin.settings.deploy.versionDrift')
+})
+
 function applyDeployState(state: DeployState) {
   deployState.status = state.status || 'idle'
   deployState.requested_image = state.requested_image || ''
+  deployState.requested_image_id = state.requested_image_id || ''
+  deployState.running_image_id = state.running_image_id || ''
   deployState.last_message = state.last_message || ''
   deployState.last_error = state.last_error || ''
   deployState.last_output = state.last_output || ''
@@ -3557,6 +3572,8 @@ async function triggerDeployNow() {
     deployState.last_message = result.message
     deployState.last_error = ''
     deployState.requested_image = result.image
+    deployState.requested_image_id = ''
+    deployState.running_image_id = ''
     deployState.last_output = ''
     appStore.showSuccess(result.message)
     await refreshDeployStatus()
