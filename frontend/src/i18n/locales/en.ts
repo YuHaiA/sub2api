@@ -2053,7 +2053,7 @@ export default {
       tokenRefresh: {
         tab: 'Auto Token Refresh',
         title: 'Refresh-token-based automation',
-        hint: 'All refreshable OAuth accounts are included, including accounts currently marked abnormal. Refresh runs process accounts in batches, defaulting to 10 at a time, and continue until all eligible accounts in the current run are completed.',
+        hint: 'All refreshable OAuth accounts are included, including accounts currently marked abnormal or disabled. Refresh runs process accounts in batches, defaulting to 10 at a time, and continue until all eligible accounts in the current run are completed.',
         enabled: 'Enable automatic token refresh',
         disabledHint: 'Automatic token refresh is disabled',
         interval: 'Refresh interval',

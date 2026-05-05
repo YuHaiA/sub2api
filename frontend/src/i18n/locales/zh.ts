@@ -2131,7 +2131,7 @@ export default {
       tokenRefresh: {
         tab: '自动刷新 Token',
         title: '基于 Ref 的自动刷新',
-        hint: '针对所有可刷新的 OAuth 账号执行，包含异常账号；系统会按批次滚动刷新，默认每批 10 个，并持续处理直到本轮可刷新账号全部完成，避免瞬间大量请求。',
+        hint: '针对所有可刷新的 OAuth 账号执行，包含异常与禁用账号；系统会按批次滚动刷新，默认每批 10 个，并持续处理直到本轮可刷新账号全部完成，避免瞬间大量请求。',
         enabled: '启用自动刷新 Token',
         disabledHint: '自动刷新 Token 未启用',
         interval: '刷新周期',

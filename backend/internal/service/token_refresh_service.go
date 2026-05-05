@@ -345,6 +345,30 @@ func (s *TokenRefreshService) refreshWithRetry(ctx context.Context, account *Acc
 
 // postRefreshActions 刷新成功后的后续动作（清除错误状态、缓存失效、调度器同步等）
 func (s *TokenRefreshService) postRefreshActions(ctx context.Context, account *Account) {
+	if account.Status == StatusError {
+		if clearErr := s.accountRepo.ClearError(ctx, account.ID); clearErr != nil {
+			slog.Warn("token_refresh.clear_error_failed",
+				"account_id", account.ID,
+				"error", clearErr,
+			)
+		} else {
+			account.Status = StatusActive
+			account.ErrorMessage = ""
+			slog.Info("token_refresh.account_reactivated_from_error", "account_id", account.ID)
+		}
+	}
+	if account.Status == StatusDisabled {
+		account.Status = StatusActive
+		account.ErrorMessage = ""
+		if updateErr := s.accountRepo.Update(ctx, account); updateErr != nil {
+			slog.Warn("token_refresh.reactivate_disabled_account_failed",
+				"account_id", account.ID,
+				"error", updateErr,
+			)
+		} else {
+			slog.Info("token_refresh.account_reactivated_from_disabled", "account_id", account.ID)
+		}
+	}
 	// Antigravity 账户：如果之前是因为缺少 project_id 而标记为 error，现在成功获取到了，清除错误状态
 	if account.Platform == PlatformAntigravity &&
 		account.Status == StatusError &&

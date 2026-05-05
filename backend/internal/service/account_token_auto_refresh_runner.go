@@ -123,9 +123,6 @@ func (s *TokenRefreshService) listAutoRefreshEligibleAccounts(ctx context.Contex
 	}
 	filtered := make([]Account, 0, len(accounts))
 	for i := range accounts {
-		if accounts[i].Status == StatusDisabled {
-			continue
-		}
 		if _, _, ok := s.findRefreshExecutor(&accounts[i]); ok {
 			filtered = append(filtered, accounts[i])
 		}
