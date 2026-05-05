@@ -140,6 +140,13 @@ func (s *ScheduledTestRunnerService) runAutoAccountHealthCheck(ctx context.Conte
 	if s.settingService == nil || s.accountRepo == nil || s.accountTestSvc == nil {
 		return
 	}
+	release, ok, currentTask := TryAcquireBackgroundMaintenance("account_health_auto")
+	if !ok {
+		logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health skipped because %s is running", currentTask)
+		return
+	}
+	defer release()
+
 	cfg, err := s.settingService.GetAccountHealthAutoCheckConfig(ctx)
 	if err != nil || cfg == nil || !cfg.Enabled {
 		return

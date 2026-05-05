@@ -34,6 +34,13 @@ func (s *TokenRefreshService) RunConfiguredBatchRefresh(ctx context.Context, now
 	if s == nil || s.settingService == nil || s.accountRepo == nil {
 		return
 	}
+	release, ok, currentTask := TryAcquireBackgroundMaintenance("token_refresh_auto")
+	if !ok {
+		slog.Info("token_refresh.auto_batch_skipped_busy", "current_task", currentTask)
+		return
+	}
+	defer release()
+
 	cfg, err := s.settingService.GetAccountTokenAutoRefreshConfig(ctx)
 	if err != nil || cfg == nil || !cfg.Enabled {
 		return
@@ -78,8 +85,21 @@ func (s *TokenRefreshService) RunManualBatchRefresh(ctx context.Context) (*Accou
 		}, nil
 	}
 
+	release, ok, currentTask := TryAcquireBackgroundMaintenance("token_refresh_manual")
+	if !ok {
+		s.manualRunInProgress.Store(false)
+		return &AccountTokenAutoRefreshRunResult{
+			Started:   false,
+			Running:   true,
+			Message:   "Another background maintenance task is already running: " + currentTask,
+			RunAt:     now.Unix(),
+			BatchSize: cfg.BatchSize,
+		}, nil
+	}
+
 	go func(startedAt time.Time, runCfg *AccountTokenAutoRefreshConfig) {
 		defer s.manualRunInProgress.Store(false)
+		defer release()
 
 		runCtx, cancel := context.WithTimeout(context.Background(), 6*time.Hour)
 		defer cancel()

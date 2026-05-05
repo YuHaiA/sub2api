@@ -1285,9 +1285,23 @@ func (h *AccountHandler) RunHealthCheck(c *gin.Context) {
 		return
 	}
 
+	release, ok, currentTask := service.TryAcquireBackgroundMaintenance("account_health_manual")
+	if !ok {
+		accountHealthManualRunInProgress.Store(false)
+		response.Success(c, &AccountHealthCheckRunResult{
+			Started: false,
+			Running: true,
+			Message: "Another background maintenance task is already running: " + currentTask,
+			RunAt:   time.Now().Unix(),
+			Total:   len(accounts),
+		})
+		return
+	}
+
 	startedAt := time.Now()
 	go func(runModelID string, runAccounts []*service.Account, runAt time.Time) {
 		defer accountHealthManualRunInProgress.Store(false)
+		defer release()
 
 		runCtx, cancel := context.WithTimeout(context.Background(), 6*time.Hour)
 		defer cancel()
