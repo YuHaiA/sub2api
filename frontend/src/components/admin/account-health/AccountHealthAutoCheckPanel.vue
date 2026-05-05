@@ -65,9 +65,9 @@
 
       <div class="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:bg-slate-900/70 dark:text-slate-300">
         <div class="flex flex-wrap items-center justify-between gap-2">
-          <span>{{ t('admin.accounts.healthSummary.lastChecked', { time: autoLastRunText }) }}</span>
+          <span>{{ statusText }}</span>
           <span class="badge text-xs" :class="autoConfig.enabled ? 'badge-success' : 'badge-gray'">
-            {{ autoConfig.enabled ? t('common.enabled') : t('common.disabled') }}
+            {{ autoConfig.running ? t('admin.accounts.healthCheckRunning') : (autoConfig.enabled ? t('common.enabled') : t('common.disabled')) }}
           </span>
         </div>
       </div>
@@ -88,11 +88,12 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Input from '@/components/common/Input.vue'
 import type { AccountHealthAutoCheckConfig, AccountHealthSummary } from '@/api/admin/accounts'
 
-defineProps<{
+const props = defineProps<{
   healthSummary: AccountHealthSummary
   autoConfig: AccountHealthAutoCheckConfig
   manualModelId: string
@@ -112,4 +113,15 @@ defineEmits<{
 }>()
 
 const { t } = useI18n()
+
+const statusText = computed(() => {
+  if (props.autoConfig.running) {
+    return t('admin.accounts.healthCheckProgress', {
+      current: props.autoConfig.current_success ?? 0,
+      total: props.autoConfig.current_total ?? 0,
+      failed: props.autoConfig.current_failed ?? 0
+    })
+  }
+  return t('admin.accounts.healthSummary.lastChecked', { time: props.autoLastRunText })
+})
 </script>

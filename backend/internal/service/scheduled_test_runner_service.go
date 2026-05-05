@@ -166,6 +166,9 @@ func (s *ScheduledTestRunnerService) runAutoAccountHealthCheck(ctx context.Conte
 	}
 
 	logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health check started (accounts=%d interval=%dmin)", len(accounts), cfg.IntervalMinutes)
+	_ = s.settingService.MarkAccountHealthAutoCheckProgress(context.Background(), len(accounts), 0, 0)
+	processedSuccess := 0
+	processedFailed := 0
 	for start := 0; start < len(accounts); start += autoHealthCheckBatchSize {
 		end := start + autoHealthCheckBatchSize
 		if end > len(accounts) {
@@ -181,10 +184,19 @@ func (s *ScheduledTestRunnerService) runAutoAccountHealthCheck(ctx context.Conte
 			go func(acc *Account) {
 				defer wg.Done()
 				defer func() { <-sem }()
-				s.runOneAutoHealthCheck(ctx, acc, strings.TrimSpace(cfg.ModelID), now)
+				if s.runOneAutoHealthCheck(ctx, acc, strings.TrimSpace(cfg.ModelID), now) {
+					mu.Lock()
+					processedFailed++
+					mu.Unlock()
+					return
+				}
+				mu.Lock()
+				processedSuccess++
+				mu.Unlock()
 			}(&account)
 		}
 		wg.Wait()
+		_ = s.settingService.MarkAccountHealthAutoCheckProgress(context.Background(), len(accounts), processedSuccess, processedFailed)
 
 		if end < len(accounts) {
 			select {
@@ -223,13 +235,15 @@ func (s *ScheduledTestRunnerService) listAllAccountsForAutoHealthCheck(ctx conte
 	return out, nil
 }
 
-func (s *ScheduledTestRunnerService) runOneAutoHealthCheck(ctx context.Context, account *Account, modelID string, checkedAt time.Time) {
+func (s *ScheduledTestRunnerService) runOneAutoHealthCheck(ctx context.Context, account *Account, modelID string, checkedAt time.Time) bool {
 	if account == nil {
-		return
+		return true
 	}
+	failed := false
 	result, err := s.accountTestSvc.RunTestBackground(ctx, account.ID, modelID)
 	if err != nil {
 		logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health account=%d test error: %v", account.ID, err)
+		failed = true
 	}
 	snapshot := map[string]any{
 		"status":          autoHealthStatusFromResult(result),
@@ -247,12 +261,15 @@ func (s *ScheduledTestRunnerService) runOneAutoHealthCheck(ctx context.Context, 
 	extra["health_check"] = snapshot
 	if err := s.accountRepo.UpdateExtra(ctx, account.ID, extra); err != nil {
 		logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health account=%d persist error: %v", account.ID, err)
+		failed = true
 	}
 	if result != nil && strings.EqualFold(result.Status, "success") && s.rateLimitSvc != nil {
 		if _, recoverErr := s.rateLimitSvc.RecoverAccountAfterSuccessfulTest(ctx, account.ID); recoverErr != nil {
 			logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health account=%d recover error: %v", account.ID, recoverErr)
+			failed = true
 		}
 	}
+	return failed
 }
 
 func cloneAutoHealthExtra(src map[string]any) map[string]any {

@@ -421,7 +421,19 @@ export interface AccountHealthAutoCheckConfig {
   enabled: boolean
   interval_minutes: number
   model_id: string
+  running?: boolean
+  current_total?: number
+  current_success?: number
+  current_failed?: number
   last_run_at?: number | null
+}
+
+export interface AccountHealthCheckRunResult {
+  started: boolean
+  running: boolean
+  message: string
+  run_at: number
+  total: number
 }
 
 export interface AccountTokenAutoRefreshConfig {
@@ -519,8 +531,8 @@ export async function runHealthCheck(payload?: {
     sort_by?: string
     sort_order?: 'asc' | 'desc'
   }
-}): Promise<AccountHealthCheckResponse> {
-  const { data } = await apiClient.post<AccountHealthCheckResponse>('/admin/accounts/health-check', payload ?? {}, {
+}): Promise<AccountHealthCheckRunResult> {
+  const { data } = await apiClient.post<AccountHealthCheckRunResult>('/admin/accounts/health-check', payload ?? {}, {
     timeout: 300000
   })
   return data

@@ -109,6 +109,10 @@ const autoConfig = reactive<AccountHealthAutoCheckConfig>({
   enabled: false,
   interval_minutes: 60,
   model_id: '',
+  running: false,
+  current_total: 0,
+  current_success: 0,
+  current_failed: 0,
   last_run_at: null
 })
 
@@ -151,6 +155,13 @@ const tokenGroupName = computed(() => {
 })
 
 const healthStatusText = computed(() => {
+  if (autoConfig.running) {
+    return t('admin.accounts.healthCheckProgress', {
+      current: autoConfig.current_success ?? 0,
+      total: autoConfig.current_total ?? 0,
+      failed: autoConfig.current_failed ?? 0
+    })
+  }
   const base = autoConfig.enabled ? t('admin.accounts.autoCheckEnabled') : t('admin.accounts.healthSummary.neverChecked')
   return autoConfig.last_run_at
     ? `${base} · ${t('admin.accounts.healthSummary.lastChecked', { time: autoLastRunText.value })}`
@@ -179,6 +190,10 @@ function applyAutoConfig(cfg: AccountHealthAutoCheckConfig) {
   autoConfig.enabled = cfg.enabled
   autoConfig.interval_minutes = cfg.interval_minutes || 60
   autoConfig.model_id = cfg.model_id || ''
+  autoConfig.running = cfg.running ?? false
+  autoConfig.current_total = cfg.current_total ?? 0
+  autoConfig.current_success = cfg.current_success ?? 0
+  autoConfig.current_failed = cfg.current_failed ?? 0
   autoConfig.last_run_at = cfg.last_run_at ?? null
   autoIntervalInput.value = String(autoConfig.interval_minutes)
   lastObservedAutoRunAt.value = autoConfig.last_run_at ?? null
@@ -229,9 +244,16 @@ async function runGlobalHealthCheck() {
   healthChecking.value = true
   try {
     const modelID = manualModelId.value.trim() || autoConfig.model_id.trim()
-    await adminAPI.accounts.runHealthCheck({ model_id: modelID || undefined })
-    await reloadPage()
-    appStore.showSuccess(t('admin.accounts.healthCheckCompleted', { count: healthSummary.value.total_accounts }))
+    const result = await adminAPI.accounts.runHealthCheck({ model_id: modelID || undefined })
+    autoConfig.running = true
+    autoConfig.current_total = result.total
+    autoConfig.current_success = 0
+    autoConfig.current_failed = 0
+    appStore.showSuccess(
+      result.started
+        ? t('admin.accounts.healthCheckRunStarted')
+        : t('admin.accounts.healthCheckAlreadyRunning')
+    )
   } catch (error: any) {
     appStore.showError(error?.message || t('admin.accounts.healthCheckFailed'))
   } finally {
@@ -357,7 +379,7 @@ async function pollUpdates() {
     applyAutoConfig(healthCfg)
     applyTokenConfig(refreshCfg)
 
-    if (hasNewHealthRun || !tokenConfig.running) {
+    if (hasNewHealthRun || (!tokenConfig.running && !autoConfig.running)) {
       await loadHealthSummary()
     }
   } catch (error) {

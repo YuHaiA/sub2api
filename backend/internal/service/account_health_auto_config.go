@@ -26,6 +26,10 @@ type AccountHealthAutoCheckConfig struct {
 	Enabled         bool   `json:"enabled"`
 	IntervalMinutes int    `json:"interval_minutes"`
 	ModelID         string `json:"model_id"`
+	Running         bool   `json:"running,omitempty"`
+	CurrentTotal    int    `json:"current_total,omitempty"`
+	CurrentSuccess  int    `json:"current_success,omitempty"`
+	CurrentFailed   int    `json:"current_failed,omitempty"`
 	LastRunAt       *int64 `json:"last_run_at,omitempty"`
 }
 
@@ -131,6 +135,10 @@ func (s *SettingService) SaveAccountHealthAutoCheckConfig(ctx context.Context, c
 	}
 	existing, _ := s.GetAccountHealthAutoCheckConfig(ctx)
 	if existing != nil {
+		cfg.Running = existing.Running
+		cfg.CurrentTotal = existing.CurrentTotal
+		cfg.CurrentSuccess = existing.CurrentSuccess
+		cfg.CurrentFailed = existing.CurrentFailed
 		cfg.LastRunAt = existing.LastRunAt
 	}
 	return s.storeAccountHealthAutoCheckConfig(ctx, cfg)
@@ -143,7 +151,29 @@ func (s *SettingService) MarkAccountHealthAutoCheckRun(ctx context.Context, runA
 	}
 	cfg = normalizeAccountHealthAutoCheckConfig(cfg)
 	ts := runAt.Unix()
+	cfg.Running = false
+	cfg.CurrentTotal = 0
+	cfg.CurrentSuccess = 0
+	cfg.CurrentFailed = 0
 	cfg.LastRunAt = &ts
+	return s.storeAccountHealthAutoCheckConfig(ctx, cfg)
+}
+
+func (s *SettingService) MarkAccountHealthAutoCheckProgress(
+	ctx context.Context,
+	total int,
+	success int,
+	failed int,
+) error {
+	cfg, err := s.GetAccountHealthAutoCheckConfig(ctx)
+	if err != nil {
+		cfg = defaultAccountHealthAutoCheckConfig()
+	}
+	cfg = normalizeAccountHealthAutoCheckConfig(cfg)
+	cfg.Running = true
+	cfg.CurrentTotal = total
+	cfg.CurrentSuccess = success
+	cfg.CurrentFailed = failed
 	return s.storeAccountHealthAutoCheckConfig(ctx, cfg)
 }
 

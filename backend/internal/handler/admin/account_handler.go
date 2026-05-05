@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/domain"
@@ -845,6 +846,16 @@ type AccountHealthCheckItem struct {
 	LastCheckedAt  string `json:"last_checked_at"`
 }
 
+type AccountHealthCheckRunResult struct {
+	Started bool   `json:"started"`
+	Running bool   `json:"running"`
+	Message string `json:"message"`
+	RunAt   int64  `json:"run_at"`
+	Total   int    `json:"total"`
+}
+
+var accountHealthManualRunInProgress atomic.Bool
+
 type accountHealthSnapshot struct {
 	Status        string
 	ResultStatus  string
@@ -1260,43 +1271,67 @@ func (h *AccountHandler) RunHealthCheck(c *gin.Context) {
 		}
 	}
 
-	items := make([]AccountHealthCheckItem, 0, len(accounts))
-	if len(accounts) == 0 {
-		response.Success(c, gin.H{
-			"summary": summarizeAccountHealthSnapshots(nil),
-			"items":   items,
+	if !accountHealthManualRunInProgress.CompareAndSwap(false, true) {
+		response.Success(c, &AccountHealthCheckRunResult{
+			Started: false,
+			Running: true,
+			Message: "Account health check is already running",
+			RunAt:   time.Now().Unix(),
+			Total:   len(accounts),
 		})
 		return
 	}
 
-	snapshots := make([]accountHealthSnapshot, 0, len(accounts))
-	for start := 0; start < len(accounts); start += defaultAccountHealthCheckBatchSize {
-		end := start + defaultAccountHealthCheckBatchSize
-		if end > len(accounts) {
-			end = len(accounts)
-		}
+	startedAt := time.Now()
+	go func(runModelID string, runAccounts []*service.Account, runAt time.Time) {
+		defer accountHealthManualRunInProgress.Store(false)
 
-		batchItems, batchSnapshots, err := h.runAccountHealthCheckBatch(ctx, accounts[start:end], modelID)
-		if err != nil {
-			response.ErrorFrom(c, err)
+		runCtx, cancel := context.WithTimeout(context.Background(), 6*time.Hour)
+		defer cancel()
+
+		if len(runAccounts) == 0 {
+			_ = h.markAccountHealthCheckFinished(runAt)
 			return
 		}
-		items = append(items, batchItems...)
-		snapshots = append(snapshots, batchSnapshots...)
 
-		if end < len(accounts) {
-			select {
-			case <-ctx.Done():
-				response.ErrorFrom(c, ctx.Err())
+		_ = h.settingService.MarkAccountHealthAutoCheckProgress(context.Background(), len(runAccounts), 0, 0)
+		success := 0
+		failed := 0
+		for start := 0; start < len(runAccounts); start += defaultAccountHealthCheckBatchSize {
+			end := start + defaultAccountHealthCheckBatchSize
+			if end > len(runAccounts) {
+				end = len(runAccounts)
+			}
+
+			_, _, batchFailed, err := h.runAccountHealthCheckBatch(runCtx, runAccounts[start:end], runModelID)
+			if err != nil {
+				slog.Warn("account_health.manual_batch_failed", "error", err)
 				return
-			case <-time.After(accountHealthCheckBatchPause):
+			}
+			failed += batchFailed
+			success += (end - start) - batchFailed
+			_ = h.settingService.MarkAccountHealthAutoCheckProgress(context.Background(), len(runAccounts), success, failed)
+
+			if end < len(runAccounts) {
+				select {
+				case <-runCtx.Done():
+					slog.Warn("account_health.manual_batch_interrupted", "error", runCtx.Err())
+					return
+				case <-time.After(accountHealthCheckBatchPause):
+				}
 			}
 		}
-	}
+		if err := h.markAccountHealthCheckFinished(runAt); err != nil {
+			slog.Warn("account_health.manual_batch_mark_failed", "error", err)
+		}
+	}(modelID, accounts, startedAt)
 
-	response.Success(c, gin.H{
-		"summary": summarizeAccountHealthSnapshots(snapshots),
-		"items":   items,
+	response.Success(c, &AccountHealthCheckRunResult{
+		Started: true,
+		Running: true,
+		Message: "Account health check started in background",
+		RunAt:   startedAt.Unix(),
+		Total:   len(accounts),
 	})
 }
 
@@ -1304,14 +1339,15 @@ func (h *AccountHandler) runAccountHealthCheckBatch(
 	ctx context.Context,
 	accounts []*service.Account,
 	modelID string,
-) ([]AccountHealthCheckItem, []accountHealthSnapshot, error) {
+) ([]AccountHealthCheckItem, []accountHealthSnapshot, int, error) {
 	items := make([]AccountHealthCheckItem, 0, len(accounts))
 	snapshots := make([]accountHealthSnapshot, 0, len(accounts))
 	if len(accounts) == 0 {
-		return items, snapshots, nil
+		return items, snapshots, 0, nil
 	}
 
 	var mu sync.Mutex
+	failedCount := 0
 	group, gctx := errgroup.WithContext(ctx)
 	group.SetLimit(defaultAccountHealthCheckConcurrency)
 
@@ -1321,41 +1357,55 @@ func (h *AccountHandler) runAccountHealthCheckBatch(
 		}
 		accountRef := account
 		group.Go(func() error {
-			snapshot := h.runSingleAccountHealthCheck(gctx, accountRef, modelID)
+			snapshot, failed := h.runSingleAccountHealthCheck(gctx, accountRef, modelID)
 			mu.Lock()
 			snapshots = append(snapshots, snapshot)
 			items = append(items, buildAccountHealthItem(accountRef, snapshot))
+			if failed {
+				failedCount++
+			}
 			mu.Unlock()
 			return nil
 		})
 	}
 
 	if err := group.Wait(); err != nil {
-		return nil, nil, err
+		return nil, nil, failedCount, err
 	}
-	return items, snapshots, nil
+	return items, snapshots, failedCount, nil
 }
 
 func (h *AccountHandler) runSingleAccountHealthCheck(
 	ctx context.Context,
 	account *service.Account,
 	modelID string,
-) accountHealthSnapshot {
+) (accountHealthSnapshot, bool) {
 	result, err := h.accountTestService.RunTestBackground(ctx, account.ID, modelID)
+	failed := false
 	if err != nil {
 		log.Printf("account health check failed for account=%d: %v", account.ID, err)
+		failed = true
 	}
 
 	snapshot := buildAccountHealthSnapshot(result)
 	if result != nil && strings.EqualFold(result.Status, "success") && h.rateLimitService != nil {
 		if _, recoverErr := h.rateLimitService.RecoverAccountAfterSuccessfulTest(ctx, account.ID); recoverErr != nil {
 			log.Printf("account health check recover failed for account=%d: %v", account.ID, recoverErr)
+			failed = true
 		}
 	}
 	if persistErr := h.persistAccountHealthSnapshot(ctx, account, snapshot); persistErr != nil {
 		log.Printf("account health check persist failed for account=%d: %v", account.ID, persistErr)
+		failed = true
 	}
-	return snapshot
+	return snapshot, failed
+}
+
+func (h *AccountHandler) markAccountHealthCheckFinished(runAt time.Time) error {
+	if h.settingService == nil {
+		return nil
+	}
+	return h.settingService.MarkAccountHealthAutoCheckRun(context.Background(), runAt)
 }
 
 // RecoverState handles unified recovery of recoverable account runtime state.
