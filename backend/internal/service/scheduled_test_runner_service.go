@@ -240,6 +240,13 @@ func (s *ScheduledTestRunnerService) runOneAutoHealthCheck(ctx context.Context, 
 	if account == nil {
 		return true
 	}
+	release, err := AcquireBackgroundTaskSlot(ctx)
+	if err != nil {
+		logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health account=%d slot error: %v", account.ID, err)
+		return true
+	}
+	defer release()
+
 	failed := false
 	result, err := s.accountTestSvc.RunTestBackground(ctx, account.ID, modelID)
 	if err != nil {

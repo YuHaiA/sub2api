@@ -1383,6 +1383,18 @@ func (h *AccountHandler) runSingleAccountHealthCheck(
 	account *service.Account,
 	modelID string,
 ) (accountHealthSnapshot, bool) {
+	release, slotErr := service.AcquireBackgroundTaskSlot(ctx)
+	if slotErr != nil {
+		log.Printf("account health check slot failed for account=%d: %v", account.ID, slotErr)
+		return accountHealthSnapshot{
+			Status:        accountHealthStatusUnavailable,
+			ResultStatus:  "failed",
+			Message:       slotErr.Error(),
+			LastCheckedAt: time.Now().UTC().Format(time.RFC3339),
+		}, true
+	}
+	defer release()
+
 	result, err := h.accountTestService.RunTestBackground(ctx, account.ID, modelID)
 	failed := false
 	if err != nil {

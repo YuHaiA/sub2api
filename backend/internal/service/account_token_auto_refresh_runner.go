@@ -3,13 +3,14 @@ package service
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
-	"golang.org/x/sync/errgroup"
 )
 
 const tokenAutoRefreshBatchPause = 2 * time.Second
+const tokenAutoRefreshMaxWorkers = 4
 
 type accountTokenAutoRefreshRunStats struct {
 	Total   int
@@ -187,30 +188,32 @@ func (s *TokenRefreshService) runAutoRefreshBatch(ctx context.Context, accounts 
 		return stats
 	}
 
-	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(len(accounts))
-	results := make(chan bool, len(accounts))
-
-	for i := range accounts {
-		account := accounts[i]
-		g.Go(func() error {
-			refresher, executor, ok := s.findRefreshExecutor(&account)
-			if !ok {
-				results <- false
-				return nil
-			}
-			if err := s.refreshNowWithRetry(gctx, &account, refresher, executor); err != nil {
-				slog.Warn("token_refresh.auto_batch_account_failed", "account_id", account.ID, "error", err)
-				results <- false
-				return nil
-			}
-			results <- true
-			return nil
-		})
+	workerCount := tokenAutoRefreshMaxWorkers
+	if len(accounts) < workerCount {
+		workerCount = len(accounts)
 	}
 
-	_ = g.Wait()
+	jobs := make(chan Account, len(accounts))
+	results := make(chan bool, len(accounts))
+	var wg sync.WaitGroup
+
+	for i := 0; i < workerCount; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for account := range jobs {
+				results <- s.runAutoRefreshAccount(ctx, account)
+			}
+		}()
+	}
+
+	for i := range accounts {
+		jobs <- accounts[i]
+	}
+	close(jobs)
+	wg.Wait()
 	close(results)
+
 	for ok := range results {
 		if ok {
 			stats.Success++
@@ -219,6 +222,25 @@ func (s *TokenRefreshService) runAutoRefreshBatch(ctx context.Context, accounts 
 		}
 	}
 	return stats
+}
+
+func (s *TokenRefreshService) runAutoRefreshAccount(ctx context.Context, account Account) bool {
+	release, err := AcquireBackgroundTaskSlot(ctx)
+	if err != nil {
+		slog.Warn("token_refresh.auto_batch_slot_failed", "account_id", account.ID, "error", err)
+		return false
+	}
+	defer release()
+
+	refresher, executor, ok := s.findRefreshExecutor(&account)
+	if !ok {
+		return false
+	}
+	if err := s.refreshNowWithRetry(ctx, &account, refresher, executor); err != nil {
+		slog.Warn("token_refresh.auto_batch_account_failed", "account_id", account.ID, "error", err)
+		return false
+	}
+	return true
 }
 
 func (s *TokenRefreshService) findRefreshExecutor(account *Account) (TokenRefresher, OAuthRefreshExecutor, bool) {
