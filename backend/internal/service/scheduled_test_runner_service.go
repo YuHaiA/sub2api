@@ -169,6 +169,7 @@ func (s *ScheduledTestRunnerService) runAutoAccountHealthCheck(ctx context.Conte
 	_ = s.settingService.MarkAccountHealthAutoCheckProgress(context.Background(), len(accounts), 0, 0)
 	processedSuccess := 0
 	processedFailed := 0
+	var mu sync.Mutex
 	for start := 0; start < len(accounts); start += autoHealthCheckBatchSize {
 		end := start + autoHealthCheckBatchSize
 		if end > len(accounts) {
