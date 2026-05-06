@@ -427,10 +427,45 @@ func (s *TokenRefreshService) postRefreshActions(ctx context.Context, account *A
 			slog.Debug("token_refresh.scheduler_cache_synced", "account_id", account.ID)
 		}
 	}
+	s.restoreAccountHealthSnapshot(ctx, account)
 	// OpenAI OAuth: 刷新成功后，检查是否已设置 privacy_mode，未设置则尝试关闭训练数据共享
 	s.ensureOpenAIPrivacy(ctx, account)
 	// Antigravity OAuth: 刷新成功后，检查是否已设置 privacy_mode，未设置则调用 setUserSettings
 	s.ensureAntigravityPrivacy(ctx, account)
+}
+
+func (s *TokenRefreshService) restoreAccountHealthSnapshot(ctx context.Context, account *Account) {
+	if s == nil || s.accountRepo == nil || account == nil {
+		return
+	}
+
+	extra := cloneJSONMap(account.Extra)
+	extra["health_check"] = map[string]any{
+		"status":          "healthy",
+		"result_status":   "success",
+		"message":         "Recovered after token refresh",
+		"latency_ms":      int64(0),
+		"last_checked_at": time.Now().UTC().Format(time.RFC3339),
+	}
+	if err := s.accountRepo.UpdateExtra(ctx, account.ID, extra); err != nil {
+		slog.Warn("token_refresh.restore_health_snapshot_failed",
+			"account_id", account.ID,
+			"error", err,
+		)
+		return
+	}
+	account.Extra = extra
+}
+
+func cloneJSONMap(src map[string]any) map[string]any {
+	if len(src) == 0 {
+		return map[string]any{}
+	}
+	dst := make(map[string]any, len(src))
+	for key, value := range src {
+		dst[key] = value
+	}
+	return dst
 }
 
 // errRefreshSkipped 表示刷新被跳过（锁竞争或已被其他路径刷新），不计入 failed 或 refreshed
