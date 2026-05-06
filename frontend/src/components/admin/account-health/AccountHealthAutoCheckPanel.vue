@@ -88,14 +88,14 @@
         </div>
       </div>
 
-      <div class="flex flex-wrap justify-end gap-3 border-t border-slate-200 pt-3 xl:mt-auto dark:border-slate-700">
-        <button class="btn btn-danger" :disabled="deletingUnhealthy || healthChecking" @click="$emit('deleteUnhealthy')">
+      <div class="grid gap-3 border-t border-slate-200 pt-3 sm:grid-cols-3 xl:mt-auto dark:border-slate-700">
+        <button class="btn btn-danger w-full" :disabled="deletingUnhealthy || healthChecking" @click="$emit('deleteUnhealthy')">
           {{ deletingUnhealthy ? t('admin.accounts.deleteUnhealthyRunning') : t('admin.accounts.deleteUnhealthy') }}
         </button>
-        <button class="btn btn-secondary" :disabled="healthChecking" @click="$emit('runHealthCheck')">
+        <button class="btn btn-secondary w-full" :disabled="healthChecking" @click="$emit('runHealthCheck')">
           {{ healthChecking ? t('admin.accounts.healthCheckRunning') : t('admin.accounts.healthCheckAll') }}
         </button>
-        <button class="btn btn-primary" :disabled="savingAutoConfig" @click="$emit('saveConfig')">
+        <button class="btn btn-primary w-full" :disabled="savingAutoConfig" @click="$emit('saveConfig')">
           {{ savingAutoConfig ? t('common.saving') : t('admin.accounts.autoCheckSave') }}
         </button>
       </div>
