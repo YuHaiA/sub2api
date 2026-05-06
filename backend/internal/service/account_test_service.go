@@ -1067,10 +1067,17 @@ func (s *AccountTestService) RunTestBackground(ctx context.Context, accountID in
 
 	finishedAt := time.Now()
 	body := w.Body.String()
-	responseText, errMsg := parseTestSSEOutput(body)
+	responseText, errMsg, completedSuccessfully := parseTestSSEOutput(body)
 
 	status := "success"
-	if testErr != nil || errMsg != "" {
+	switch {
+	case completedSuccessfully:
+		status = "success"
+		errMsg = ""
+	case responseText != "":
+		status = "success"
+		errMsg = ""
+	case testErr != nil || errMsg != "":
 		status = "failed"
 		if errMsg == "" && testErr != nil {
 			errMsg = testErr.Error()
@@ -1088,8 +1095,9 @@ func (s *AccountTestService) RunTestBackground(ctx context.Context, accountID in
 }
 
 // parseTestSSEOutput extracts response text and error message from captured SSE output.
-func parseTestSSEOutput(body string) (responseText, errMsg string) {
+func parseTestSSEOutput(body string) (responseText, errMsg string, completedSuccessfully bool) {
 	var texts []string
+	var sawImage bool
 	for _, line := range strings.Split(body, "\n") {
 		line = strings.TrimSpace(line)
 		if !strings.HasPrefix(line, "data: ") {
@@ -1105,10 +1113,19 @@ func parseTestSSEOutput(body string) (responseText, errMsg string) {
 			if event.Text != "" {
 				texts = append(texts, event.Text)
 			}
+		case "image":
+			sawImage = true
+		case "test_complete":
+			if event.Success {
+				completedSuccessfully = true
+			}
 		case "error":
 			errMsg = event.Error
 		}
 	}
 	responseText = strings.Join(texts, "")
+	if sawImage {
+		completedSuccessfully = true
+	}
 	return
 }
