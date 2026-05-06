@@ -33,6 +33,7 @@ var sseDataPrefix = regexp.MustCompile(`^data:\s*`)
 const (
 	testClaudeAPIURL   = "https://api.anthropic.com/v1/messages?beta=true"
 	chatgptCodexAPIURL = "https://chatgpt.com/backend-api/codex/responses"
+	defaultOpenAIBatchHealthCheckModel = "gpt-5.4"
 )
 
 // TestEvent represents a SSE event for account testing
@@ -416,7 +417,7 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 	// Default to openai.DefaultTestModel for OpenAI testing
 	testModelID := modelID
 	if testModelID == "" {
-		testModelID = openai.DefaultTestModel
+		testModelID = defaultOpenAIBatchHealthCheckModel
 	}
 
 	// For API Key accounts with model mapping, map the model
