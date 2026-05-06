@@ -32,6 +32,7 @@ type RateLimitService struct {
 // SuccessfulTestRecoveryResult 表示测试成功后恢复了哪些运行时状态。
 type SuccessfulTestRecoveryResult struct {
 	ClearedError     bool
+	ClearedDisabled  bool
 	ClearedRateLimit bool
 }
 
@@ -1237,6 +1238,15 @@ func (s *RateLimitService) RecoverAccountState(ctx context.Context, accountID in
 				slog.Warn("recover_account_state_invalidate_token_failed", "account_id", accountID, "error", invalidateErr)
 			}
 		}
+	}
+
+	if account.Status == StatusDisabled {
+		account.Status = StatusActive
+		account.ErrorMessage = ""
+		if err := s.accountRepo.Update(ctx, account); err != nil {
+			return nil, err
+		}
+		result.ClearedDisabled = true
 	}
 
 	if hasRecoverableRuntimeState(account) {
