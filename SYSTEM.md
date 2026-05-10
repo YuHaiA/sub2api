@@ -233,3 +233,19 @@
   - 修改後：頂部控制區改為上下兩行，第一行只放操作按鈕，第二行放搜尋與篩選；按鈕增加 `shrink-0` 與 `whitespace-nowrap`，保證文字不被壓縮換行。
 - 影響範圍：
   - 僅調整前端布局與樣式，不改動 API、資料結構、帳號操作流程或權限邏輯。
+
+## 本次前端刷新白屏修正
+
+- 已定位線上管理頁刷新偶發白屏的後端原因：
+  - `index.html` 會注入帶 CSP nonce 的公開配置腳本。
+  - 舊邏輯在 `If-None-Match` 命中時返回 `304 Not Modified`，瀏覽器會復用本地舊 HTML body，但套用本次回應的新 CSP header。
+  - 這會導致 HTML 裡的舊 nonce 與新 CSP nonce 不一致，內聯配置腳本可能被瀏覽器阻擋，刷新時出現白屏或初始化異常。
+- 修改內容：
+  - `backend/internal/web/embed_on.go`
+  - `backend/internal/web/embed_test.go`
+- 修改前後差異：
+  - 修改前：HTML 命中 ETag 時可能返回 `304`。
+  - 修改後：HTML 即使帶 `If-None-Match` 也會返回 `200` 並重新替換本次 nonce，同時 `Cache-Control` 改為 `no-store`，避免 nonce HTML 被瀏覽器重用。
+- 影響範圍：
+  - 僅影響嵌入式前端 `index.html` 的快取策略。
+  - 靜態 JS/CSS 資源、API 行為、資料結構與權限邏輯不變。
