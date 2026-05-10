@@ -17,7 +17,7 @@
                     showAutoRefreshDropdown = !showAutoRefreshDropdown;
                     showColumnDropdown = false
                   "
-                  class="account-page-toolbar-btn account-page-toolbar-icon-btn md:w-auto md:px-2.5"
+                  class="account-page-toolbar-btn account-page-toolbar-responsive-btn"
                   :title="t('admin.accounts.autoRefresh')"
                 >
                   <Icon name="refresh" size="sm" :class="[autoRefreshEnabled ? 'animate-spin' : '']" />
@@ -82,7 +82,7 @@
                     showColumnDropdown = !showColumnDropdown;
                     showAutoRefreshDropdown = false
                   "
-                  class="account-page-toolbar-btn account-page-toolbar-icon-btn md:w-auto md:px-2.5"
+                  class="account-page-toolbar-btn account-page-toolbar-responsive-btn"
                   :title="t('admin.users.columnSettings')"
                 >
                   <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
@@ -1532,5 +1532,19 @@ onUnmounted(() => {
 
 .account-page-toolbar-icon-btn {
   @apply w-8 px-0;
+}
+
+.account-page-toolbar-responsive-btn {
+  width: 2rem;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+@media (min-width: 768px) {
+  .account-page-toolbar-responsive-btn {
+    width: auto;
+    padding-left: 0.625rem;
+    padding-right: 0.625rem;
+  }
 }
 </style>
