@@ -6,6 +6,7 @@ import (
 )
 
 var codexModelMap = map[string]string{
+	"gpt-5.5":                    "gpt-5.5",
 	"gpt-5.4":                    "gpt-5.4",
 	"gpt-5.4-mini":               "gpt-5.4-mini",
 	"gpt-5.4-nano":               "gpt-5.4-nano",
@@ -22,11 +23,11 @@ var codexModelMap = map[string]string{
 	"gpt-5.3-high":               "gpt-5.3-codex",
 	"gpt-5.3-xhigh":              "gpt-5.3-codex",
 	"gpt-5.3-codex":              "gpt-5.3-codex",
-	"gpt-5.3-codex-spark":        "gpt-5.3-codex",
-	"gpt-5.3-codex-spark-low":    "gpt-5.3-codex",
-	"gpt-5.3-codex-spark-medium": "gpt-5.3-codex",
-	"gpt-5.3-codex-spark-high":   "gpt-5.3-codex",
-	"gpt-5.3-codex-spark-xhigh":  "gpt-5.3-codex",
+	"gpt-5.3-codex-spark":        "gpt-5.3-codex-spark",
+	"gpt-5.3-codex-spark-low":    "gpt-5.3-codex-spark",
+	"gpt-5.3-codex-spark-medium": "gpt-5.3-codex-spark",
+	"gpt-5.3-codex-spark-high":   "gpt-5.3-codex-spark",
+	"gpt-5.3-codex-spark-xhigh":  "gpt-5.3-codex-spark",
 	"gpt-5.3-codex-low":          "gpt-5.3-codex",
 	"gpt-5.3-codex-medium":       "gpt-5.3-codex",
 	"gpt-5.3-codex-high":         "gpt-5.3-codex",
@@ -75,6 +76,11 @@ type codexTransformResult struct {
 	NormalizedModel string
 	PromptCacheKey  string
 }
+
+const (
+	codexSparkImageUnsupportedMarker = "<sub2api-codex-spark-image-unsupported>"
+	codexSparkImageUnsupportedText   = codexSparkImageUnsupportedMarker + "\nThe current model is gpt-5.3-codex-spark, which does not support image generation, image editing, image input, or image-based Codex workflows. If the user asks for image generation or image editing, clearly explain this model limitation and ask them to switch to a non-Spark Codex model such as gpt-5.3-codex or gpt-5.4.\n</sub2api-codex-spark-image-unsupported>"
+)
 
 func applyCodexOAuthTransform(reqBody map[string]any, isCodexCLI bool, isCompact bool) codexTransformResult {
 	result := codexTransformResult{}
@@ -191,6 +197,9 @@ func applyCodexOAuthTransform(reqBody map[string]any, isCodexCLI bool, isCompact
 	if applyInstructions(reqBody, isCodexCLI) {
 		result.Modified = true
 	}
+	if isCodexSparkModel(normalizedModel) && applyCodexSparkImageUnsupportedInstructions(reqBody) {
+		result.Modified = true
+	}
 
 	// 续链场景保留 item_reference 与 id，避免 call_id 上下文丢失。
 	if input, ok := reqBody["input"].([]any); ok {
@@ -235,6 +244,9 @@ func normalizeCodexModel(model string) string {
 
 	normalized := strings.ToLower(modelID)
 
+	if strings.Contains(normalized, "gpt-5.5") || strings.Contains(normalized, "gpt 5.5") {
+		return "gpt-5.5"
+	}
 	if strings.Contains(normalized, "gpt-5.4-mini") || strings.Contains(normalized, "gpt 5.4 mini") {
 		return "gpt-5.4-mini"
 	}
@@ -283,6 +295,10 @@ func normalizeCodexModel(model string) string {
 	return "gpt-5.1"
 }
 
+func isCodexSparkModel(model string) bool {
+	return normalizeCodexModel(model) == "gpt-5.3-codex-spark"
+}
+
 func normalizeOpenAIModelForUpstream(account *Account, model string) string {
 	if account == nil || account.Type == AccountTypeOAuth {
 		return normalizeCodexModel(model)
@@ -327,6 +343,62 @@ func getNormalizedCodexModel(modelID string) string {
 		}
 	}
 	return ""
+}
+
+func hasOpenAIInputImage(reqBody map[string]any) bool {
+	if reqBody == nil {
+		return false
+	}
+	return hasOpenAIInputImageValue(reqBody["input"]) || hasOpenAIInputImageValue(reqBody["messages"])
+}
+
+func hasOpenAIInputImageValue(value any) bool {
+	switch v := value.(type) {
+	case []any:
+		for _, item := range v {
+			if hasOpenAIInputImageValue(item) {
+				return true
+			}
+		}
+	case map[string]any:
+		if strings.TrimSpace(stringValue(v["type"])) == "input_image" {
+			return true
+		}
+		if _, ok := v["image_url"]; ok {
+			return true
+		}
+		return hasOpenAIInputImageValue(v["content"])
+	}
+	return false
+}
+
+func validateCodexSparkInput(reqBody map[string]any, model string) error {
+	if !isCodexSparkModel(model) || !hasOpenAIInputImage(reqBody) {
+		return nil
+	}
+	return fmt.Errorf("model %q does not support image input", strings.TrimSpace(model))
+}
+
+func applyCodexSparkImageUnsupportedInstructions(reqBody map[string]any) bool {
+	if len(reqBody) == 0 {
+		return false
+	}
+	existing := stringValue(reqBody["instructions"])
+	if strings.Contains(existing, codexSparkImageUnsupportedMarker) {
+		return false
+	}
+	existing = strings.TrimRight(existing, " \t\r\n")
+	if strings.TrimSpace(existing) == "" {
+		reqBody["instructions"] = codexSparkImageUnsupportedText
+		return true
+	}
+	reqBody["instructions"] = existing + "\n\n" + codexSparkImageUnsupportedText
+	return true
+}
+
+func stringValue(value any) string {
+	str, _ := value.(string)
+	return str
 }
 
 // extractTextFromContent extracts plain text from a content value that is either

@@ -183,3 +183,31 @@
 
 - 前端 `pnpm typecheck` 已通過。
 - 目前工作環境缺少 `go` 指令，因此尚未在本機執行後端 `go test` / `go build`。
+
+## 本次吸收上游更新
+
+- 已安全吸收上游 `Wei-Shaw/sub2api` 的 `gpt-5.5` 支援更新。
+- 修改內容：
+  - `backend/internal/pkg/openai/constants.go`
+  - `backend/internal/service/billing_service.go`
+  - `backend/internal/service/openai_codex_transform.go`
+  - `backend/internal/service/pricing_service.go`
+  - `frontend/src/composables/useModelWhitelist.ts`
+  - `frontend/src/components/keys/UseKeyModal.vue`
+- 修改前後差異：
+  - 修改前：本倉庫未內建 `gpt-5.5`，預設模型列表、Codex 正規化、白名單與 OpenCode 配置均無此型號。
+  - 修改後：新增 `gpt-5.5` 顯示與識別，並讓定價回退沿用 `gpt-5.4`，降低新模型接入時的失敗風險。
+- 影響範圍：
+  - 只擴充模型支援與計費回退邏輯，不涉及資料庫、部署流程或權限模型。
+
+## 本次續吸收上游修補
+
+- 已追加吸收上游 `codex-spark` / `compact` 相關的低風險修補。
+- 修改內容：
+  - 顯式 `gpt-5.3-codex-spark` 不再被組級默認映射覆蓋
+  - Spark 模型保留自身歸一化結果，不再直接降為普通 `gpt-5.3-codex`
+  - 對 Spark 圖片輸入新增後端請求校驗，直接返回 `400 invalid_request_error`
+  - Codex OAuth transform 會補充 Spark 不支援圖片能力的說明文案
+  - Spark 計費回退沿用既有 `gpt-5.3-codex` fallback
+- 影響範圍：
+  - 只收斂模型映射與輸入驗證行為，避免 Spark 在圖片場景被錯誤透傳到上游。
