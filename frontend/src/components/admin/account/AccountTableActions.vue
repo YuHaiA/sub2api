@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-wrap items-center gap-2">
+  <div class="account-toolbar">
     <slot name="before"></slot>
     <button @click="$emit('refresh')" :disabled="loading" class="account-toolbar-btn account-toolbar-icon-btn">
       <Icon name="refresh" size="sm" :class="[loading ? 'animate-spin' : '']" />
@@ -23,8 +23,12 @@ const { t } = useI18n()
 </script>
 
 <style scoped>
+.account-toolbar {
+  @apply flex min-w-0 flex-wrap items-center gap-2;
+}
+
 .account-toolbar-btn {
-  @apply inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition;
+  @apply inline-flex h-9 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition;
   @apply hover:border-slate-300 hover:bg-slate-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60;
   @apply dark:border-dark-600 dark:bg-dark-800 dark:text-dark-200 dark:hover:bg-dark-700;
 }
