@@ -1006,7 +1006,7 @@ function getAntigravityTierClass(row: any): string {
 const allColumns = computed(() => {
   const c = [
     { key: 'select', label: '', sortable: false, class: 'w-[52px] min-w-[52px]' },
-    { key: 'name', label: t('admin.accounts.columns.name'), sortable: true, class: 'w-[360px] min-w-[360px] max-w-[360px]' },
+    { key: 'name', label: t('admin.accounts.columns.name'), sortable: true, class: 'w-[120px] min-w-[120px] max-w-[120px]' },
     { key: 'platform_type', label: t('admin.accounts.columns.platformType'), sortable: false, class: 'w-[224px] min-w-[224px]' },
     { key: 'capacity', label: t('admin.accounts.columns.capacity'), sortable: false, class: 'w-[108px] min-w-[108px]' },
     { key: 'status', label: t('admin.accounts.columns.status'), sortable: true, class: 'w-[156px] min-w-[156px]' },
