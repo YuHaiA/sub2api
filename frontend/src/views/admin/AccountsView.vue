@@ -15,7 +15,8 @@
                 <button
                   @click="
                     showAutoRefreshDropdown = !showAutoRefreshDropdown;
-                    showColumnDropdown = false
+                    showColumnDropdown = false;
+                    showMoreActionsDropdown = false
                   "
                   class="account-page-toolbar-btn account-page-toolbar-icon-btn md:w-auto md:px-2.5"
                   :title="t('admin.accounts.autoRefresh')"
@@ -55,32 +56,13 @@
                 </div>
               </div>
 
-              <!-- Error Passthrough Rules -->
-              <button
-                @click="showErrorPassthrough = true"
-                class="account-page-toolbar-btn"
-                :title="t('admin.errorPassthrough.title')"
-              >
-                <Icon name="shield" size="sm" />
-                <span class="hidden md:inline">{{ t('admin.errorPassthrough.title') }}</span>
-              </button>
-
-              <!-- TLS Fingerprint Profiles -->
-              <button
-                @click="showTLSFingerprintProfiles = true"
-                class="account-page-toolbar-btn"
-                :title="t('admin.tlsFingerprintProfiles.title')"
-              >
-                <Icon name="lock" size="sm" />
-                <span class="hidden md:inline">{{ t('admin.tlsFingerprintProfiles.title') }}</span>
-              </button>
-
               <!-- Column Settings Dropdown -->
               <div class="relative" ref="columnDropdownRef">
                 <button
                   @click="
                     showColumnDropdown = !showColumnDropdown;
-                    showAutoRefreshDropdown = false
+                    showAutoRefreshDropdown = false;
+                    showMoreActionsDropdown = false
                   "
                   class="account-page-toolbar-btn account-page-toolbar-icon-btn md:w-auto md:px-2.5"
                   :title="t('admin.users.columnSettings')"
@@ -109,16 +91,55 @@
                 </div>
               </div>
             </template>
-            <template #beforeCreate>
-              <button @click="showImportData = true" class="account-page-toolbar-btn">
-                {{ t('admin.accounts.dataImport') }}
-              </button>
-              <button @click="openExportDataDialog" class="account-page-toolbar-btn">
-                {{ selIds.length ? t('admin.accounts.dataExportSelected') : t('admin.accounts.dataExport') }}
-              </button>
-              <button @click="showDeduplicateDialog = true" class="account-page-toolbar-btn" :disabled="deduplicatingAccounts">
-                {{ deduplicatingAccounts ? t('admin.accounts.deduplicateRunning') : t('admin.accounts.deduplicateAction') }}
-              </button>
+            <template #afterCreate>
+              <div class="relative" ref="moreActionsDropdownRef">
+                <button
+                  @click="
+                    showMoreActionsDropdown = !showMoreActionsDropdown;
+                    showAutoRefreshDropdown = false;
+                    showColumnDropdown = false
+                  "
+                  class="account-page-toolbar-btn account-page-toolbar-icon-btn md:w-auto md:px-2.5"
+                  :title="t('common.more')"
+                >
+                  <Icon name="more" size="sm" />
+                  <span class="hidden md:inline">{{ t('common.more') }}</span>
+                </button>
+                <div
+                  v-if="showMoreActionsDropdown"
+                  class="account-page-action-menu absolute right-0 z-50 mt-2 w-56 origin-top-right rounded-xl border border-slate-200 bg-white/95 p-1.5 shadow-lg shadow-slate-900/10 backdrop-blur dark:border-dark-700 dark:bg-dark-800/95"
+                >
+                  <button @click="openSyncDialog" class="account-page-action-menu-item">
+                    <Icon name="refresh" size="sm" />
+                    <span>{{ t('admin.accounts.syncFromCrs') }}</span>
+                  </button>
+                  <button @click="openImportDataDialog" class="account-page-action-menu-item">
+                    <Icon name="upload" size="sm" />
+                    <span>{{ t('admin.accounts.dataImport') }}</span>
+                  </button>
+                  <button @click="openExportDataMenuAction" class="account-page-action-menu-item">
+                    <Icon name="download" size="sm" />
+                    <span>{{ selIds.length ? t('admin.accounts.dataExportSelected') : t('admin.accounts.dataExport') }}</span>
+                  </button>
+                  <button
+                    @click="openDeduplicateDialog"
+                    class="account-page-action-menu-item"
+                    :disabled="deduplicatingAccounts"
+                  >
+                    <Icon name="trash" size="sm" />
+                    <span>{{ deduplicatingAccounts ? t('admin.accounts.deduplicateRunning') : t('admin.accounts.deduplicateAction') }}</span>
+                  </button>
+                  <div class="my-1 h-px bg-slate-100 dark:bg-dark-700"></div>
+                  <button @click="openErrorPassthroughRules" class="account-page-action-menu-item">
+                    <Icon name="shield" size="sm" />
+                    <span>{{ t('admin.errorPassthrough.title') }}</span>
+                  </button>
+                  <button @click="openTLSFingerprintProfiles" class="account-page-action-menu-item">
+                    <Icon name="lock" size="sm" />
+                    <span>{{ t('admin.tlsFingerprintProfiles.title') }}</span>
+                  </button>
+                </div>
+              </div>
             </template>
           </AccountTableActions>
           <AccountTableFilters
@@ -430,6 +451,8 @@ const menu = reactive<{show:boolean, acc:Account|null, pos:{top:number, left:num
 const exportingData = ref(false)
 const showDeduplicateDialog = ref(false)
 const deduplicatingAccounts = ref(false)
+const showMoreActionsDropdown = ref(false)
+const moreActionsDropdownRef = ref<HTMLElement | null>(null)
 
 // Column settings
 const showColumnDropdown = ref(false)
@@ -1346,6 +1369,33 @@ const openExportDataDialog = () => {
   includeProxyOnExport.value = true
   showExportDataDialog.value = true
 }
+const closeMoreActionsDropdown = () => {
+  showMoreActionsDropdown.value = false
+}
+const openSyncDialog = () => {
+  closeMoreActionsDropdown()
+  showSync.value = true
+}
+const openImportDataDialog = () => {
+  closeMoreActionsDropdown()
+  showImportData.value = true
+}
+const openExportDataMenuAction = () => {
+  closeMoreActionsDropdown()
+  openExportDataDialog()
+}
+const openDeduplicateDialog = () => {
+  closeMoreActionsDropdown()
+  showDeduplicateDialog.value = true
+}
+const openErrorPassthroughRules = () => {
+  closeMoreActionsDropdown()
+  showErrorPassthrough.value = true
+}
+const openTLSFingerprintProfiles = () => {
+  closeMoreActionsDropdown()
+  showTLSFingerprintProfiles.value = true
+}
 const handleExportData = async () => {
   if (exportingData.value) return
   exportingData.value = true
@@ -1491,6 +1541,9 @@ const handleClickOutside = (event: MouseEvent) => {
   if (autoRefreshDropdownRef.value && !autoRefreshDropdownRef.value.contains(target)) {
     showAutoRefreshDropdown.value = false
   }
+  if (moreActionsDropdownRef.value && !moreActionsDropdownRef.value.contains(target)) {
+    showMoreActionsDropdown.value = false
+  }
 }
 
 onMounted(async () => {
@@ -1525,12 +1578,18 @@ onUnmounted(() => {
 }
 
 .account-page-toolbar-btn {
-  @apply inline-flex h-7 shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-slate-200 bg-white/95 px-2.5 text-xs font-medium leading-none text-slate-700 shadow-sm transition;
-  @apply hover:border-slate-300 hover:bg-white active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60;
-  @apply dark:border-dark-600 dark:bg-dark-800 dark:text-dark-200 dark:hover:bg-dark-700;
+  @apply inline-flex h-[30px] shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-slate-200/90 bg-white/90 px-2.5 text-xs font-medium leading-none text-slate-700 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition;
+  @apply hover:border-slate-300 hover:bg-white hover:text-slate-900 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60;
+  @apply dark:border-dark-600 dark:bg-dark-800/90 dark:text-dark-200 dark:hover:bg-dark-700 dark:hover:text-white;
 }
 
 .account-page-toolbar-icon-btn {
-  @apply w-7 px-0;
+  @apply w-[30px] px-0;
+}
+
+.account-page-action-menu-item {
+  @apply flex h-8 w-full items-center gap-2 rounded-lg px-2.5 text-left text-xs font-medium text-slate-700 transition;
+  @apply hover:bg-slate-50 hover:text-slate-950 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60;
+  @apply dark:text-dark-200 dark:hover:bg-dark-700 dark:hover:text-white;
 }
 </style>
