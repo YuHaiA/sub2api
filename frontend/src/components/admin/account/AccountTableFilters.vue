@@ -1,19 +1,19 @@
 <template>
-  <div class="flex flex-wrap items-center gap-2">
+  <div class="account-filterbar">
     <SearchInput
       :model-value="searchQuery"
       :placeholder="t('admin.accounts.searchAccounts')"
-      class="w-full sm:w-60"
+      class="account-filter-search"
       size="sm"
       @update:model-value="$emit('update:searchQuery', $event)"
       @search="$emit('change')"
     />
-    <Select :model-value="filters.platform" class="w-36" size="sm" :options="pOpts" @update:model-value="updatePlatform" @change="$emit('change')" />
-    <Select :model-value="filters.type" class="w-36" size="sm" :options="tOpts" @update:model-value="updateType" @change="$emit('change')" />
-    <Select :model-value="filters.status" class="w-36" size="sm" :options="sOpts" @update:model-value="updateStatus" @change="$emit('change')" />
-    <Select :model-value="filters.health_status" class="w-40" size="sm" :options="healthOpts" @update:model-value="updateHealthStatus" @change="$emit('change')" />
-    <Select :model-value="filters.privacy_mode" class="w-36" size="sm" :options="privacyOpts" @update:model-value="updatePrivacyMode" @change="$emit('change')" />
-    <Select :model-value="filters.group" class="w-36" size="sm" :options="gOpts" @update:model-value="updateGroup" @change="$emit('change')" />
+    <Select :model-value="filters.platform" class="account-filter-select" size="sm" :options="pOpts" @update:model-value="updatePlatform" @change="$emit('change')" />
+    <Select :model-value="filters.type" class="account-filter-select" size="sm" :options="tOpts" @update:model-value="updateType" @change="$emit('change')" />
+    <Select :model-value="filters.status" class="account-filter-select" size="sm" :options="sOpts" @update:model-value="updateStatus" @change="$emit('change')" />
+    <Select :model-value="filters.health_status" class="account-filter-select-wide" size="sm" :options="healthOpts" @update:model-value="updateHealthStatus" @change="$emit('change')" />
+    <Select :model-value="filters.privacy_mode" class="account-filter-select" size="sm" :options="privacyOpts" @update:model-value="updatePrivacyMode" @change="$emit('change')" />
+    <Select :model-value="filters.group" class="account-filter-select" size="sm" :options="gOpts" @update:model-value="updateGroup" @change="$emit('change')" />
   </div>
 </template>
 
@@ -51,3 +51,29 @@ const gOpts = computed(() => [
   ...(props.groups || []).map(g => ({ value: String(g.id), label: g.name }))
 ])
 </script>
+
+<style scoped>
+.account-filterbar {
+  @apply flex min-w-0 flex-wrap items-center gap-2;
+}
+
+.account-filter-search {
+  @apply w-full sm:w-52;
+}
+
+.account-filter-select {
+  @apply w-32;
+}
+
+.account-filter-select-wide {
+  @apply w-36;
+}
+
+:deep(.input) {
+  @apply h-8 rounded-lg text-xs;
+}
+
+:deep(.select-trigger-sm) {
+  @apply h-8 rounded-lg px-2.5 text-xs;
+}
+</style>

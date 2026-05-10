@@ -234,6 +234,19 @@
 - 影響範圍：
   - 僅調整前端布局與樣式，不改動 API、資料結構、帳號操作流程或權限邏輯。
 
+## 本次前端工具列二次收斂
+
+- 已進一步優化管理端账号頁頂部控制區的視覺密度。
+- 修改內容：
+  - `frontend/src/views/admin/AccountsView.vue`
+  - `frontend/src/components/admin/account/AccountTableActions.vue`
+  - `frontend/src/components/admin/account/AccountTableFilters.vue`
+- 修改前後差異：
+  - 修改前：操作按鈕雖不再直排，但高度、圓角、字級與左右 padding 仍偏大，第一行看起來擁擠。
+  - 修改後：账号頁工具按鈕局部收斂為 `h-8`、小字級、較小圓角與緊湊間距；篩選器局部縮小高度與固定寬度，形成更穩定的兩行工具區。
+- 影響範圍：
+  - 僅影響账号管理頁的局部展示樣式，不改全站通用控件預設尺寸，也不改業務流程。
+
 ## 本次前端刷新白屏修正
 
 - 已定位線上管理頁刷新偶發白屏的後端原因：
