@@ -1,18 +1,19 @@
 <template>
-  <div class="flex flex-wrap items-center gap-3">
+  <div class="flex flex-wrap items-center gap-2">
     <SearchInput
       :model-value="searchQuery"
       :placeholder="t('admin.accounts.searchAccounts')"
-      class="w-full sm:w-64"
+      class="w-full sm:w-60"
+      size="sm"
       @update:model-value="$emit('update:searchQuery', $event)"
       @search="$emit('change')"
     />
-    <Select :model-value="filters.platform" class="w-40" :options="pOpts" @update:model-value="updatePlatform" @change="$emit('change')" />
-    <Select :model-value="filters.type" class="w-40" :options="tOpts" @update:model-value="updateType" @change="$emit('change')" />
-    <Select :model-value="filters.status" class="w-40" :options="sOpts" @update:model-value="updateStatus" @change="$emit('change')" />
-    <Select :model-value="filters.health_status" class="w-44" :options="healthOpts" @update:model-value="updateHealthStatus" @change="$emit('change')" />
-    <Select :model-value="filters.privacy_mode" class="w-40" :options="privacyOpts" @update:model-value="updatePrivacyMode" @change="$emit('change')" />
-    <Select :model-value="filters.group" class="w-40" :options="gOpts" @update:model-value="updateGroup" @change="$emit('change')" />
+    <Select :model-value="filters.platform" class="w-36" size="sm" :options="pOpts" @update:model-value="updatePlatform" @change="$emit('change')" />
+    <Select :model-value="filters.type" class="w-36" size="sm" :options="tOpts" @update:model-value="updateType" @change="$emit('change')" />
+    <Select :model-value="filters.status" class="w-36" size="sm" :options="sOpts" @update:model-value="updateStatus" @change="$emit('change')" />
+    <Select :model-value="filters.health_status" class="w-40" size="sm" :options="healthOpts" @update:model-value="updateHealthStatus" @change="$emit('change')" />
+    <Select :model-value="filters.privacy_mode" class="w-36" size="sm" :options="privacyOpts" @update:model-value="updatePrivacyMode" @change="$emit('change')" />
+    <Select :model-value="filters.group" class="w-36" size="sm" :options="gOpts" @update:model-value="updateGroup" @change="$emit('change')" />
   </div>
 </template>
 

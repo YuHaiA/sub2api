@@ -69,7 +69,7 @@
       'is-scrollable': isScrollable
     }"
   >
-    <table class="w-full min-w-max divide-y divide-gray-200 dark:divide-dark-700">
+    <table class="w-full min-w-max divide-y divide-slate-200/90 dark:divide-dark-700">
       <thead class="table-header bg-gray-50 dark:bg-dark-800">
         <tr>
           <th
@@ -77,7 +77,7 @@
             :key="column.key"
             scope="col"
             :class="[
-              'sticky-header-cell py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-dark-400',
+              'sticky-header-cell py-4 text-left text-[12px] font-semibold text-slate-500 dark:text-dark-300',
               getAdaptivePaddingClass(),
               { 'cursor-pointer hover:bg-gray-100 dark:hover:bg-dark-700': column.sortable },
               getStickyColumnClass(column, index),
@@ -118,12 +118,12 @@
           </th>
         </tr>
       </thead>
-      <tbody class="table-body divide-y divide-gray-200 bg-white dark:divide-dark-700 dark:bg-dark-900">
+      <tbody class="table-body divide-y divide-slate-200/85 bg-white dark:divide-dark-700 dark:bg-dark-900">
         <!-- Loading skeleton -->
         <tr v-if="loading" v-for="i in 5" :key="i">
           <td v-for="column in columns" :key="column.key" :class="['whitespace-nowrap py-4', getAdaptivePaddingClass()]">
-            <div class="animate-pulse">
-              <div class="h-4 w-3/4 rounded bg-gray-200 dark:bg-dark-700"></div>
+              <div class="animate-pulse">
+              <div class="h-4 w-3/4 rounded bg-slate-200 dark:bg-dark-700"></div>
             </div>
           </td>
         </tr>
@@ -162,13 +162,13 @@
             :data-row-id="resolveRowKey(sortedData[virtualRow.index], virtualRow.index)"
             :data-index="virtualRow.index"
             :ref="measureElement"
-            class="hover:bg-gray-50 dark:hover:bg-dark-800"
+            class="table-row hover:bg-slate-50/80 dark:hover:bg-dark-800"
           >
             <td
               v-for="(column, colIndex) in columns"
               :key="column.key"
               :class="[
-                'whitespace-nowrap py-4 text-sm text-gray-900 dark:text-gray-100',
+                'whitespace-nowrap py-[18px] text-sm text-slate-900 dark:text-gray-100 align-middle',
                 getAdaptivePaddingClass(),
                 getStickyColumnClass(column, colIndex),
                 column.class
@@ -640,14 +640,14 @@ const getAdaptivePaddingClass = () => {
   const columnCount = props.columns.length
 
   // 列数越多，内边距越小
-  if (columnCount >= 10) {
-    return 'px-2' // 8px
-  } else if (columnCount >= 7) {
+  if (columnCount >= 12) {
     return 'px-3' // 12px
-  } else if (columnCount >= 5) {
+  } else if (columnCount >= 8) {
     return 'px-4' // 16px
+  } else if (columnCount >= 5) {
+    return 'px-5' // 20px
   } else {
-    return 'px-6' // 24px (原始值)
+    return 'px-6' // 24px
   }
 }
 
@@ -708,12 +708,22 @@ defineExpose({
 /* 表格横向滚动 */
 .table-wrapper {
   --select-col-width: 52px; /* 勾选列宽度：px-6 (24px*2) + checkbox (16px) */
+  --table-surface-border: rgba(148, 163, 184, 0.2);
+  --table-surface-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.03),
+    0 8px 24px rgba(15, 23, 42, 0.04),
+    0 18px 40px rgba(15, 23, 42, 0.05);
   position: relative;
   overflow-x: auto;
   overflow-y: auto;
   flex: 1;
   min-height: 0;
   isolation: isolate;
+  border: 1px solid var(--table-surface-border);
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(248, 250, 252, 0.98) 100%);
+  box-shadow: var(--table-surface-shadow);
 }
 
 /* 表头容器，确保在滚动时覆盖表体内容 */
@@ -721,11 +731,12 @@ defineExpose({
   position: sticky;
   top: 0;
   z-index: 200;
-  background-color: rgb(249 250 251);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(248, 250, 252, 0.98) 100%);
 }
 
 .dark .table-wrapper .table-header {
-  background-color: rgb(31 41 55);
+  background: rgba(31, 41, 55, 0.96);
 }
 
 /* 表体保持在表头下方 */
@@ -739,11 +750,14 @@ defineExpose({
   position: sticky;
   top: 0;
   z-index: 210; /* 必须高于所有表体内容 */
-  background-color: rgb(249 250 251);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.97) 0%, rgba(248, 250, 252, 0.98) 100%);
+  box-shadow: inset 0 -1px 0 rgba(226, 232, 240, 0.9);
 }
 
 .dark .sticky-header-cell {
-  background-color: rgb(31 41 55);
+  background: rgba(31, 41, 55, 0.96);
+  box-shadow: inset 0 -1px 0 rgba(71, 85, 105, 0.45);
 }
 
 /* Sticky 列基础样式 */
@@ -779,7 +793,7 @@ defineExpose({
 
 /* 表体 sticky 列背景 */
 tbody .sticky-col {
-  background-color: white;
+  background-color: rgba(255, 255, 255, 0.98);
 }
 
 .dark tbody .sticky-col {
@@ -788,7 +802,7 @@ tbody .sticky-col {
 
 /* hover 状态保持 */
 tbody tr:hover .sticky-col {
-  background-color: rgb(249 250 251);
+  background-color: rgba(248, 250, 252, 0.98);
 }
 
 .dark tbody tr:hover .sticky-col {
@@ -805,7 +819,7 @@ tbody tr:hover .sticky-col {
   bottom: 0;
   width: 10px;
   transform: translateX(100%);
-  background: linear-gradient(to right, rgba(0, 0, 0, 0.08), transparent);
+  background: linear-gradient(to right, rgba(148, 163, 184, 0.24), transparent);
   pointer-events: none;
 }
 
@@ -818,7 +832,7 @@ tbody tr:hover .sticky-col {
   bottom: 0;
   width: 10px;
   transform: translateX(100%);
-  background: linear-gradient(to right, rgba(0, 0, 0, 0.08), transparent);
+  background: linear-gradient(to right, rgba(148, 163, 184, 0.24), transparent);
   pointer-events: none;
 }
 
@@ -831,7 +845,7 @@ tbody tr:hover .sticky-col {
   bottom: 0;
   width: 10px;
   transform: translateX(-100%);
-  background: linear-gradient(to left, rgba(0, 0, 0, 0.08), transparent);
+  background: linear-gradient(to left, rgba(148, 163, 184, 0.24), transparent);
   pointer-events: none;
 }
 
@@ -843,6 +857,22 @@ tbody tr:hover .sticky-col {
 
 .dark .is-scrollable .sticky-col-right::before {
   background: linear-gradient(to left, rgba(0, 0, 0, 0.2), transparent);
+}
+
+.dark .table-wrapper {
+  --table-surface-border: rgba(71, 85, 105, 0.5);
+  --table-surface-shadow:
+    0 1px 2px rgba(2, 6, 23, 0.2),
+    0 10px 28px rgba(2, 6, 23, 0.22),
+    0 22px 44px rgba(2, 6, 23, 0.18);
+  background:
+    linear-gradient(180deg, rgba(17, 24, 39, 0.98) 0%, rgba(15, 23, 42, 0.98) 100%);
+}
+
+.table-row {
+  transition:
+    background-color 220ms cubic-bezier(0.23, 1, 0.32, 1),
+    box-shadow 260ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 </style>
 

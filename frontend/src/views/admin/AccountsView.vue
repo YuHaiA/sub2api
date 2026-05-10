@@ -25,7 +25,7 @@
                     showAutoRefreshDropdown = !showAutoRefreshDropdown;
                     showColumnDropdown = false
                   "
-                  class="btn btn-secondary px-2 md:px-3"
+                  class="account-page-toolbar-btn account-page-toolbar-icon-btn md:w-auto md:px-3"
                   :title="t('admin.accounts.autoRefresh')"
                 >
                   <Icon name="refresh" size="sm" :class="[autoRefreshEnabled ? 'animate-spin' : '']" />
@@ -66,20 +66,20 @@
               <!-- Error Passthrough Rules -->
               <button
                 @click="showErrorPassthrough = true"
-                class="btn btn-secondary"
+                class="account-page-toolbar-btn"
                 :title="t('admin.errorPassthrough.title')"
               >
-                <Icon name="shield" size="md" class="mr-1.5" />
+                <Icon name="shield" size="sm" />
                 <span class="hidden md:inline">{{ t('admin.errorPassthrough.title') }}</span>
               </button>
 
               <!-- TLS Fingerprint Profiles -->
               <button
                 @click="showTLSFingerprintProfiles = true"
-                class="btn btn-secondary"
+                class="account-page-toolbar-btn"
                 :title="t('admin.tlsFingerprintProfiles.title')"
               >
-                <Icon name="lock" size="md" class="mr-1.5" />
+                <Icon name="lock" size="sm" />
                 <span class="hidden md:inline">{{ t('admin.tlsFingerprintProfiles.title') }}</span>
               </button>
 
@@ -90,10 +90,10 @@
                     showColumnDropdown = !showColumnDropdown;
                     showAutoRefreshDropdown = false
                   "
-                  class="btn btn-secondary px-2 md:px-3"
+                  class="account-page-toolbar-btn account-page-toolbar-icon-btn md:w-auto md:px-3"
                   :title="t('admin.users.columnSettings')"
                 >
-                  <svg class="h-4 w-4 md:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+                  <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z" />
                   </svg>
                   <span class="hidden md:inline">{{ t('admin.users.columnSettings') }}</span>
@@ -118,13 +118,13 @@
               </div>
             </template>
             <template #beforeCreate>
-              <button @click="showImportData = true" class="btn btn-secondary">
+              <button @click="showImportData = true" class="account-page-toolbar-btn">
                 {{ t('admin.accounts.dataImport') }}
               </button>
-              <button @click="openExportDataDialog" class="btn btn-secondary">
+              <button @click="openExportDataDialog" class="account-page-toolbar-btn">
                 {{ selIds.length ? t('admin.accounts.dataExportSelected') : t('admin.accounts.dataExport') }}
               </button>
-              <button @click="showDeduplicateDialog = true" class="btn btn-secondary" :disabled="deduplicatingAccounts">
+              <button @click="showDeduplicateDialog = true" class="account-page-toolbar-btn" :disabled="deduplicatingAccounts">
                 {{ deduplicatingAccounts ? t('admin.accounts.deduplicateRunning') : t('admin.accounts.deduplicateAction') }}
               </button>
             </template>
@@ -173,11 +173,16 @@
             <input type="checkbox" :checked="isSelected(row.id)" @change="toggleSel(row.id)" class="rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
           </template>
           <template #cell-name="{ row, value }">
-            <div class="flex flex-col">
-              <span class="font-medium text-gray-900 dark:text-white">{{ value }}</span>
+            <div class="min-w-0 max-w-full space-y-1">
+              <span
+                class="block truncate text-sm font-medium text-gray-900 dark:text-white"
+                :title="value"
+              >
+                {{ value }}
+              </span>
               <span
                 v-if="row.extra?.email_address"
-                class="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[200px]"
+                class="block truncate text-xs text-gray-500 dark:text-gray-400"
                 :title="row.extra.email_address"
               >
                 {{ row.extra.email_address }}
@@ -270,18 +275,29 @@
             </div>
           </template>
           <template #cell-actions="{ row }">
-            <div class="flex items-center gap-1">
-              <button @click="handleEdit(row)" class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" /></svg>
-                <span class="text-xs">{{ t('common.edit') }}</span>
+            <div class="inline-flex items-center rounded-xl border border-slate-200 bg-white/80 p-1 shadow-sm dark:border-dark-700 dark:bg-dark-800/80">
+              <button
+                @click="handleEdit(row)"
+                class="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-slate-600 transition hover:bg-primary-50 hover:text-primary-600 active:scale-[0.98] dark:text-dark-300 dark:hover:bg-primary-900/20 dark:hover:text-primary-300"
+                :title="t('common.edit')"
+              >
+                <Icon name="edit" size="sm" />
+                <span>{{ t('common.edit') }}</span>
               </button>
-              <button @click="handleDelete(row)" class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
-                <span class="text-xs">{{ t('common.delete') }}</span>
+              <button
+                @click="handleDelete(row)"
+                class="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-slate-600 transition hover:bg-red-50 hover:text-red-600 active:scale-[0.98] dark:text-dark-300 dark:hover:bg-red-900/20 dark:hover:text-red-300"
+                :title="t('common.delete')"
+              >
+                <Icon name="trash" size="sm" />
+                <span>{{ t('common.delete') }}</span>
               </button>
-              <button @click="openMenu(row, $event)" class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-dark-700 dark:hover:text-white">
-                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM12.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM18.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" /></svg>
-                <span class="text-xs">{{ t('common.more') }}</span>
+              <button
+                @click="openMenu(row, $event)"
+                class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 active:scale-[0.98] dark:text-dark-300 dark:hover:bg-dark-700 dark:hover:text-white"
+                :title="t('common.more')"
+              >
+                <Icon name="more" size="sm" />
               </button>
             </div>
           </template>
@@ -989,26 +1005,26 @@ function getAntigravityTierClass(row: any): string {
 // All available columns
 const allColumns = computed(() => {
   const c = [
-    { key: 'select', label: '', sortable: false },
-    { key: 'name', label: t('admin.accounts.columns.name'), sortable: true },
-    { key: 'platform_type', label: t('admin.accounts.columns.platformType'), sortable: false },
-    { key: 'capacity', label: t('admin.accounts.columns.capacity'), sortable: false },
-    { key: 'status', label: t('admin.accounts.columns.status'), sortable: true },
-    { key: 'schedulable', label: t('admin.accounts.columns.schedulable'), sortable: true },
-    { key: 'today_stats', label: t('admin.accounts.columns.todayStats'), sortable: false }
+    { key: 'select', label: '', sortable: false, class: 'w-[52px] min-w-[52px]' },
+    { key: 'name', label: t('admin.accounts.columns.name'), sortable: true, class: 'w-[360px] min-w-[360px] max-w-[360px]' },
+    { key: 'platform_type', label: t('admin.accounts.columns.platformType'), sortable: false, class: 'w-[224px] min-w-[224px]' },
+    { key: 'capacity', label: t('admin.accounts.columns.capacity'), sortable: false, class: 'w-[108px] min-w-[108px]' },
+    { key: 'status', label: t('admin.accounts.columns.status'), sortable: true, class: 'w-[156px] min-w-[156px]' },
+    { key: 'schedulable', label: t('admin.accounts.columns.schedulable'), sortable: true, class: 'w-[116px] min-w-[116px]' },
+    { key: 'today_stats', label: t('admin.accounts.columns.todayStats'), sortable: false, class: 'w-[176px] min-w-[176px]' }
   ]
   if (!authStore.isSimpleMode) {
-    c.push({ key: 'groups', label: t('admin.accounts.columns.groups'), sortable: false })
+    c.push({ key: 'groups', label: t('admin.accounts.columns.groups'), sortable: false, class: 'w-[220px] min-w-[220px]' })
   }
   c.push(
-    { key: 'usage', label: t('admin.accounts.columns.usageWindows'), sortable: false },
-    { key: 'proxy', label: t('admin.accounts.columns.proxy'), sortable: false },
-    { key: 'priority', label: t('admin.accounts.columns.priority'), sortable: true },
-    { key: 'rate_multiplier', label: t('admin.accounts.columns.billingRateMultiplier'), sortable: true },
-    { key: 'last_used_at', label: t('admin.accounts.columns.lastUsed'), sortable: true },
-    { key: 'expires_at', label: t('admin.accounts.columns.expiresAt'), sortable: true },
-    { key: 'notes', label: t('admin.accounts.columns.notes'), sortable: false },
-    { key: 'actions', label: t('admin.accounts.columns.actions'), sortable: false }
+    { key: 'usage', label: t('admin.accounts.columns.usageWindows'), sortable: false, class: 'w-[232px] min-w-[232px]' },
+    { key: 'proxy', label: t('admin.accounts.columns.proxy'), sortable: false, class: 'w-[176px] min-w-[176px]' },
+    { key: 'priority', label: t('admin.accounts.columns.priority'), sortable: true, class: 'w-[96px] min-w-[96px]' },
+    { key: 'rate_multiplier', label: t('admin.accounts.columns.billingRateMultiplier'), sortable: true, class: 'w-[124px] min-w-[124px]' },
+    { key: 'last_used_at', label: t('admin.accounts.columns.lastUsed'), sortable: true, class: 'w-[156px] min-w-[156px]' },
+    { key: 'expires_at', label: t('admin.accounts.columns.expiresAt'), sortable: true, class: 'w-[168px] min-w-[168px]' },
+    { key: 'notes', label: t('admin.accounts.columns.notes'), sortable: false, class: 'w-[220px] min-w-[220px] max-w-[220px]' },
+    { key: 'actions', label: t('admin.accounts.columns.actions'), sortable: false, class: 'w-[164px] min-w-[164px]' }
   )
   return c
 })
@@ -1502,3 +1518,15 @@ onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
 })
 </script>
+
+<style scoped>
+.account-page-toolbar-btn {
+  @apply inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition;
+  @apply hover:border-slate-300 hover:bg-slate-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60;
+  @apply dark:border-dark-600 dark:bg-dark-800 dark:text-dark-200 dark:hover:bg-dark-700;
+}
+
+.account-page-toolbar-icon-btn {
+  @apply w-9 px-0;
+}
+</style>
