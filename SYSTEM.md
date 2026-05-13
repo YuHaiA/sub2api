@@ -288,3 +288,20 @@
 - 影響範圍：
   - 僅影響嵌入式前端 `index.html` 的快取策略。
   - 靜態 JS/CSS 資源、API 行為、資料結構與權限邏輯不變。
+
+## 本次吸收上游生圖橋接開關
+
+- 已安全吸收上游與 `Codex` 圖片生成橋接直接相關的最小改動。
+- 修改內容：
+  - `backend/internal/config/config.go`
+  - `backend/internal/service/codex_image_generation_bridge.go`
+  - `backend/internal/service/openai_codex_transform.go`
+  - `backend/internal/service/openai_gateway_service.go`
+  - `frontend/src/components/account/EditAccountModal.vue`
+  - `frontend/src/i18n/locales/zh.ts`
+  - `frontend/src/i18n/locales/en.ts`
+- 修改前後差異：
+  - 修改前：本地已包含 `gpt-image-1` 系列定價資料，但沒有顯式的 `Codex` 圖片生成橋接全局開關，也沒有帳號級覆蓋開關。
+  - 修改後：新增 `gateway.codex_image_generation_bridge_enabled` 全局配置，並支持帳號級 `extra.codex_image_generation_bridge` 覆蓋；當橋接開關啟用且請求已帶 `image_generation` 工具時，`Codex /responses` 會補充圖片橋接提示指令，降低客戶端因本地不暴露 `image_gen` 命名空間而誤判不可生圖的情況。
+- 影響範圍：
+  - 僅影響 OpenAI / Codex `/responses` 圖片橋接開關與帳號編輯 UI，不包含上游後續的大批量圖片並發治理、Channel 級圖片治理與圖片輸出計費整流。

@@ -2475,6 +2475,12 @@ export default {
         codexCLIOnly: 'Codex official clients only',
         codexCLIOnlyDesc:
           'Only applies to OpenAI OAuth. When enabled, only Codex official client families are allowed; when disabled, the gateway bypasses this restriction and keeps existing behavior.',
+        codexImageGenerationBridge: 'Codex image generation bridge',
+        codexImageGenerationBridgeDesc:
+          'Account-level policy overrides the global setting. Controls whether Codex /responses text requests get the image_generation tool injected. Does not affect standalone image generation endpoints.',
+        codexImageGenerationBridgeInherit: 'Follow global',
+        codexImageGenerationBridgeEnabled: 'Force on',
+        codexImageGenerationBridgeDisabled: 'Force off',
         modelRestrictionDisabledByPassthrough: 'Automatic passthrough is enabled: model whitelist/mapping will not take effect.',
       },
       anthropic: {

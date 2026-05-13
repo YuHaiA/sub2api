@@ -2622,6 +2622,11 @@ export default {
         responsesWebsocketsV2PassthroughHint: '当前已开启自动透传：仅影响 HTTP 透传链路，不影响 WS mode。',
         codexCLIOnly: '仅允许 Codex 官方客户端',
         codexCLIOnlyDesc: '仅对 OpenAI OAuth 生效。开启后仅允许 Codex 官方客户端家族访问；关闭后完全绕过并保持原逻辑。',
+        codexImageGenerationBridge: 'Codex 图片生成桥接',
+        codexImageGenerationBridgeDesc: '账号级策略优先于全局配置。仅控制 Codex /responses 文本请求是否注入 image_generation 工具，不影响独立图片生成接口。',
+        codexImageGenerationBridgeInherit: '跟随全局',
+        codexImageGenerationBridgeEnabled: '强制开启',
+        codexImageGenerationBridgeDisabled: '强制关闭',
         modelRestrictionDisabledByPassthrough: '已开启自动透传：模型白名单/映射不会生效。',
       },
       anthropic: {

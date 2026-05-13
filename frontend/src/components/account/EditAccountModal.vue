@@ -1098,6 +1098,26 @@
         </div>
       </div>
 
+      <!-- OpenAI Codex 图片生成桥接账号级覆盖 -->
+      <div
+        v-if="account?.platform === 'openai' && (account?.type === 'oauth' || account?.type === 'apikey')"
+        class="border-t border-gray-200 pt-4 dark:border-dark-600"
+      >
+        <div class="flex items-center justify-between">
+          <div>
+            <label class="input-label mb-0">{{ t('admin.accounts.openai.codexImageGenerationBridge') }}</label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.openai.codexImageGenerationBridgeDesc') }}
+            </p>
+          </div>
+          <select v-model="codexImageGenerationBridgeMode" class="input w-28 text-sm">
+            <option value="inherit">{{ t('admin.accounts.openai.codexImageGenerationBridgeInherit') }}</option>
+            <option value="enabled">{{ t('admin.accounts.openai.codexImageGenerationBridgeEnabled') }}</option>
+            <option value="disabled">{{ t('admin.accounts.openai.codexImageGenerationBridgeDisabled') }}</option>
+          </select>
+        </div>
+      </div>
+
       <!-- OpenAI WS Mode 三态（off/ctx_pool/passthrough） -->
       <div
         v-if="account?.platform === 'openai' && (account?.type === 'oauth' || account?.type === 'apikey')"
@@ -1991,6 +2011,8 @@ const openaiPassthroughEnabled = ref(false)
 const openaiOAuthResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
 const openaiAPIKeyResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
 const codexCLIOnlyEnabled = ref(false)
+type CodexImageGenerationBridgeMode = 'inherit' | 'enabled' | 'disabled'
+const codexImageGenerationBridgeMode = ref<CodexImageGenerationBridgeMode>('inherit')
 const anthropicPassthroughEnabled = ref(false)
 const webSearchEmulationMode = ref('default')
 const webSearchGlobalEnabled = ref(false)
@@ -2177,10 +2199,19 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   openaiOAuthResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
   openaiAPIKeyResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
   codexCLIOnlyEnabled.value = false
+  codexImageGenerationBridgeMode.value = 'inherit'
   anthropicPassthroughEnabled.value = false
   webSearchEmulationMode.value = 'default'
   if (newAccount.platform === 'openai' && (newAccount.type === 'oauth' || newAccount.type === 'apikey')) {
     openaiPassthroughEnabled.value = extra?.openai_passthrough === true || extra?.openai_oauth_passthrough === true
+    const codexImageGenerationBridgeValue = typeof extra?.codex_image_generation_bridge === 'boolean'
+      ? extra.codex_image_generation_bridge
+      : extra?.codex_image_generation_bridge_enabled
+    if (codexImageGenerationBridgeValue === true) {
+      codexImageGenerationBridgeMode.value = 'enabled'
+    } else if (codexImageGenerationBridgeValue === false) {
+      codexImageGenerationBridgeMode.value = 'disabled'
+    }
     openaiOAuthResponsesWebSocketV2Mode.value = resolveOpenAIWSModeFromExtra(extra, {
       modeKey: 'openai_oauth_responses_websockets_v2_mode',
       enabledKey: 'openai_oauth_responses_websockets_v2_enabled',
@@ -3190,6 +3221,7 @@ const handleSubmit = async () => {
       const currentExtra = (props.account.extra as Record<string, unknown>) || {}
       const newExtra: Record<string, unknown> = { ...currentExtra }
       const hadCodexCLIOnlyEnabled = currentExtra.codex_cli_only === true
+      delete newExtra.codex_image_generation_bridge_enabled
       if (props.account.type === 'oauth') {
         newExtra.openai_oauth_responses_websockets_v2_mode = openaiOAuthResponsesWebSocketV2Mode.value
         newExtra.openai_oauth_responses_websockets_v2_enabled = isOpenAIWSModeEnabled(openaiOAuthResponsesWebSocketV2Mode.value)
@@ -3215,6 +3247,12 @@ const handleSubmit = async () => {
         } else {
           delete newExtra.codex_cli_only
         }
+      }
+
+      if (codexImageGenerationBridgeMode.value === 'inherit') {
+        delete newExtra.codex_image_generation_bridge
+      } else {
+        newExtra.codex_image_generation_bridge = codexImageGenerationBridgeMode.value === 'enabled'
       }
 
       updatePayload.extra = newExtra

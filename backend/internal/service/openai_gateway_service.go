@@ -466,6 +466,21 @@ func (s *OpenAIGatewayService) needsUpstreamChannelRestrictionCheck(ctx context.
 	return ch.BillingModelSource == BillingModelSourceUpstream
 }
 
+func (s *OpenAIGatewayService) isCodexImageGenerationBridgeEnabled(ctx context.Context, account *Account, apiKey *APIKey) bool {
+	if override := account.CodexImageGenerationBridgeOverride(); override != nil {
+		return *override
+	}
+	if s != nil && s.channelService != nil && apiKey != nil && apiKey.GroupID != nil {
+		ch, err := s.channelService.GetChannelForGroup(ctx, *apiKey.GroupID)
+		if err != nil {
+			slog.Warn("failed to resolve codex image generation bridge channel override", "group_id", *apiKey.GroupID, "error", err)
+		} else if override := ch.CodexImageGenerationBridgeOverride(PlatformOpenAI); override != nil {
+			return *override
+		}
+	}
+	return s != nil && s.cfg != nil && s.cfg.Gateway.CodexImageGenerationBridgeEnabled
+}
+
 // ReplaceModelInBody 替换请求体中的 JSON model 字段（通用 gjson/sjson 实现）。
 func (s *OpenAIGatewayService) ReplaceModelInBody(body []byte, newModel string) []byte {
 	return ReplaceModelInBody(body, newModel)
@@ -1819,6 +1834,8 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	originalBody := body
 	reqModel, reqStream, promptCacheKey := extractOpenAIRequestMetaFromBody(body)
 	originalModel := reqModel
+	apiKey := GetAPIKeyFromContext(c)
+	codexImageGenerationBridgeEnabled := s.isCodexImageGenerationBridgeEnabled(ctx, account, apiKey)
 
 	isCodexCLI := openai.IsCodexOfficialClientByHeaders(c.GetHeader("User-Agent"), c.GetHeader("originator")) || (s.cfg != nil && s.cfg.Gateway.ForceCodexCLI)
 	wsDecision := s.getOpenAIWSProtocolResolver().Resolve(account)
@@ -1989,6 +2006,11 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		if codexResult.PromptCacheKey != "" {
 			promptCacheKey = codexResult.PromptCacheKey
 		}
+	}
+	if codexImageGenerationBridgeEnabled && applyCodexImageGenerationBridgeInstructions(reqBody) {
+		bodyModified = true
+		disablePatch()
+		logger.LegacyPrintf("service.openai_gateway", "[OpenAI] Added Codex image_generation bridge instructions")
 	}
 	if err := validateCodexSparkInput(reqBody, upstreamModel); err != nil {
 		setOpsUpstreamError(c, http.StatusBadRequest, err.Error(), "")

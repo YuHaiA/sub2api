@@ -78,6 +78,8 @@ type codexTransformResult struct {
 }
 
 const (
+	codexImageGenerationBridgeMarker = "<sub2api-codex-image-generation>"
+	codexImageGenerationBridgeText   = codexImageGenerationBridgeMarker + "\nWhen the user asks for raster image generation or editing, use the OpenAI Responses native `image_generation` tool attached to this request. The local Codex client may not expose an `image_gen` namespace, but that does not mean image generation is unavailable. Do not ask the user to switch to CLI fallback solely because `image_gen` is absent.\n</sub2api-codex-image-generation>"
 	codexSparkImageUnsupportedMarker = "<sub2api-codex-spark-image-unsupported>"
 	codexSparkImageUnsupportedText   = codexSparkImageUnsupportedMarker + "\nThe current model is gpt-5.3-codex-spark, which does not support image generation, image editing, image input, or image-based Codex workflows. If the user asks for image generation or image editing, clearly explain this model limitation and ask them to switch to a non-Spark Codex model such as gpt-5.3-codex or gpt-5.4.\n</sub2api-codex-spark-image-unsupported>"
 )
@@ -377,6 +379,44 @@ func validateCodexSparkInput(reqBody map[string]any, model string) error {
 		return nil
 	}
 	return fmt.Errorf("model %q does not support image input", strings.TrimSpace(model))
+}
+
+func hasOpenAIImageGenerationTool(reqBody map[string]any) bool {
+	rawTools, ok := reqBody["tools"]
+	if !ok || rawTools == nil {
+		return false
+	}
+	tools, ok := rawTools.([]any)
+	if !ok {
+		return false
+	}
+	for _, rawTool := range tools {
+		toolMap, ok := rawTool.(map[string]any)
+		if !ok {
+			continue
+		}
+		if strings.TrimSpace(stringValue(toolMap["type"])) == "image_generation" {
+			return true
+		}
+	}
+	return false
+}
+
+func applyCodexImageGenerationBridgeInstructions(reqBody map[string]any) bool {
+	if len(reqBody) == 0 || !hasOpenAIImageGenerationTool(reqBody) {
+		return false
+	}
+	existing := stringValue(reqBody["instructions"])
+	if strings.Contains(existing, codexImageGenerationBridgeMarker) {
+		return false
+	}
+	existing = strings.TrimRight(existing, " \t\r\n")
+	if strings.TrimSpace(existing) == "" {
+		reqBody["instructions"] = codexImageGenerationBridgeText
+		return true
+	}
+	reqBody["instructions"] = existing + "\n\n" + codexImageGenerationBridgeText
+	return true
 }
 
 func applyCodexSparkImageUnsupportedInstructions(reqBody map[string]any) bool {
