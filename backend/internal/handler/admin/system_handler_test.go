@@ -33,6 +33,18 @@ func (s *systemHandlerUpdateServiceStub) GetDeployConfig(context.Context) (*serv
 	return &service.DeployConfig{}, nil
 }
 
+func (s *systemHandlerUpdateServiceStub) SaveDeployConfig(context.Context, *service.DeployConfig) error {
+	return nil
+}
+
+func (s *systemHandlerUpdateServiceStub) GetDeployState(context.Context) (*service.DeployState, error) {
+	return &service.DeployState{}, nil
+}
+
+func (s *systemHandlerUpdateServiceStub) TriggerDeploy(context.Context, *service.DeployTriggerRequest) (*service.DeployResult, error) {
+	return &service.DeployResult{}, nil
+}
+
 func (s *systemHandlerUpdateServiceStub) PerformUpdate(context.Context) error {
 	s.performCall++
 	return s.performErr

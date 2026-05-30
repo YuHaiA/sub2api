@@ -302,9 +302,9 @@
   - `backend/cmd/server/wire_gen.go`
   - 多個 `NewAccountHandler` 單元測試呼叫點
 - 修改前後差異：
-  - 修改前：路由已指向 `SettingHandler` / `SystemHandler`，但對應的帳號健康自動檢查、Token 自動刷新與部署配置查詢 handler 方法缺失，導致後端編譯失敗。
-  - 修改前：`NewAccountHandler` 新增 `settingService` 參數後，`wire_gen.go` 與測試仍使用舊參數位置；`ProvideTokenRefreshService` 生成呼叫也缺少 `settingService` 注入。
-  - 修改後：新增 `setting_auto_account_handler.go` 承接 `/admin/settings/account-health-auto-check`、`/admin/settings/account-token-auto-refresh` 與手動刷新路由；`SystemHandler` 補上 `GetDeployConfig`；依賴注入與測試呼叫點全部對齊新版建構子。
+  - 修改前：路由已指向 `SettingHandler` / `SystemHandler`，但對應的帳號健康自動檢查、Token 自動刷新與部署配置查詢/更新/狀態/觸發 handler 方法缺失，導致後端編譯失敗。
+  - 修改前：`NewAccountHandler` 新增 `settingService` 參數後，`wire_gen.go` 與測試仍使用舊參數位置；`ProvideTokenRefreshService`、`ProvideUpdateService`、`ProvideScheduledTestRunnerService` 生成呼叫也缺少新版依賴注入參數。
+  - 修改後：新增 `setting_auto_account_handler.go` 承接 `/admin/settings/account-health-auto-check`、`/admin/settings/account-token-auto-refresh` 與手動刷新路由；`SystemHandler` 補上部署配置、部署狀態與觸發部署路由；依賴注入與測試呼叫點全部對齊新版建構子。
 - 影響範圍：
   - 僅修正後端編譯與路由接線，不改資料庫 schema、不改 API path。
   - 本機仍缺少 `go` / `gofmt`，後端實際編譯、測試與 golangci-lint 需由 GitHub Actions 驗證。
