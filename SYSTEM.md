@@ -259,6 +259,19 @@
 - 影響範圍：
   - 僅影響账号管理頁頂部操作區的展示，不改 API、資料流或帳號操作邏輯。
 
+## 本次 GitHub Release 發布收斂
+
+- 已修正 GitHub Actions 會同時生成版本 release 與固定部署 release 的問題。
+- 修改內容：
+  - `.github/workflows/deploy-package.yml`
+  - `.github/workflows/release.yml`
+- 修改前後差異：
+  - 修改前：推送 `v*` tag 時，`deploy-package.yml` 會發布固定 `docker-deploy` release，並額外把版本化部署包掛到 `v*` release；`release.yml` 也會在 `v*` tag 上自動建立正式版本 release。
+  - 修改後：`deploy-package.yml` 只在 `main` 推送或手動執行時更新固定 `docker-deploy` release；不再生成版本化部署資產。`release.yml` 不再由 `v*` tag 自動觸發，只保留手動發布入口。
+- 影響範圍：
+  - 後續自動部署包只會更新 `docker-deploy` 這個固定 release，避免 GitHub Releases 頁面同時出現 `v0.x.x` 與 `docker-deploy` 兩個條目。
+  - 已存在的舊 `v*` release/tag 不會被本次代碼修改自動刪除；若需要清理，需要單獨對 GitHub release/tag 執行刪除操作。
+
 ## 本次前端工具列回退與刷新按鈕修正
 
 - 已根據反饋將账号頁第一行工具列退回上一版分組排列。

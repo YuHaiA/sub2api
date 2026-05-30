@@ -4,14 +4,7 @@ on:
   push:
     branches:
       - main
-    tags:
-      - 'v*'
   workflow_dispatch:
-    inputs:
-      version_tag:
-        description: 'Optional version tag to publish a versioned deploy package (for example v0.1.113)'
-        required: false
-        type: string
 
 permissions:
   contents: write
@@ -33,24 +26,9 @@ jobs:
         id: meta
         shell: bash
         run: |
-          if [ "${GITHUB_EVENT_NAME}" = "push" ] && [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            VERSION_TAG="${GITHUB_REF#refs/tags/}"
-          elif [ -n "${{ github.event.inputs.version_tag }}" ]; then
-            VERSION_TAG="${{ github.event.inputs.version_tag }}"
-          else
-            VERSION_TAG=""
-          fi
-
           FIXED_ASSET="sub2api-docker-image.tar"
           echo "fixed_asset=${FIXED_ASSET}" >> "${GITHUB_OUTPUT}"
           echo "fixed_sha=${FIXED_ASSET}.sha256" >> "${GITHUB_OUTPUT}"
-
-          if [ -n "${VERSION_TAG}" ]; then
-            VERSION_ASSET="sub2api-docker-image-${VERSION_TAG}.tar"
-            echo "version_tag=${VERSION_TAG}" >> "${GITHUB_OUTPUT}"
-            echo "version_asset=${VERSION_ASSET}" >> "${GITHUB_OUTPUT}"
-            echo "version_sha=${VERSION_ASSET}.sha256" >> "${GITHUB_OUTPUT}"
-          fi
 
       - name: Export fixed deploy image tar
         run: docker save -o "${{ steps.meta.outputs.fixed_asset }}" sub2api-gha:docker-deploy
@@ -58,15 +36,6 @@ jobs:
       - name: Generate fixed checksum
         shell: bash
         run: sha256sum "${{ steps.meta.outputs.fixed_asset }}" > "${{ steps.meta.outputs.fixed_sha }}"
-
-      - name: Export versioned deploy image tar
-        if: ${{ steps.meta.outputs.version_tag != '' }}
-        run: docker save -o "${{ steps.meta.outputs.version_asset }}" sub2api-gha:docker-deploy
-
-      - name: Generate versioned checksum
-        if: ${{ steps.meta.outputs.version_tag != '' }}
-        shell: bash
-        run: sha256sum "${{ steps.meta.outputs.version_asset }}" > "${{ steps.meta.outputs.version_sha }}"
 
       - name: Publish fixed deploy release asset
         uses: softprops/action-gh-release@v2
@@ -90,17 +59,3 @@ jobs:
           draft: false
           target_commitish: ${{ github.sha }}
           overwrite_files: true
-
-      - name: Publish versioned deploy release asset
-        if: ${{ steps.meta.outputs.version_tag != '' }}
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.meta.outputs.version_tag }}
-          append_body: true
-          generate_release_notes: false
-          fail_on_unmatched_files: true
-          preserve_order: true
-          overwrite_files: true
-          files: |
-            ${{ steps.meta.outputs.version_asset }}
-            ${{ steps.meta.outputs.version_sha }}
