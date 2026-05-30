@@ -305,3 +305,21 @@
   - 修改後：新增 `gateway.codex_image_generation_bridge_enabled` 全局配置，並支持帳號級 `extra.codex_image_generation_bridge` 覆蓋；當橋接開關啟用且請求已帶 `image_generation` 工具時，`Codex /responses` 會補充圖片橋接提示指令，降低客戶端因本地不暴露 `image_gen` 命名空間而誤判不可生圖的情況。
 - 影響範圍：
   - 僅影響 OpenAI / Codex `/responses` 圖片橋接開關與帳號編輯 UI，不包含上游後續的大批量圖片並發治理、Channel 級圖片治理與圖片輸出計費整流。
+
+## 本次試合併上游 v0.1.133
+
+- 已在隔離分支 `absorb-upstream-v0.1.133` 合併遠端 `upstream/main`，上游版本點為 `v0.1.133` 附近。
+- 修改內容：
+  - 大量吸收上游後端、前端、資料庫 migration、部署配置、依賴與文檔更新。
+  - 主要新增/變更範圍包含 user-platform quota、channel monitor、risk control、OpenAI embeddings/images gateway、OAuth/支付/用量統計修復與前端管理頁更新。
+  - 衝突檔案以 `upstream/main` 版本為主解決；`SYSTEM.md` 按工作區規範保留並補充本紀錄。
+- 修改前後差異：
+  - 修改前：本地 `main` 落後上游數百個提交，僅有本地部署、健康檢查與 Codex 圖片橋接等分支改動。
+  - 修改後：工作樹基於上游最新大版本變更，並保留專案級 `SYSTEM.md` 維護文檔；本地若曾在衝突檔案中覆蓋上游邏輯，本次暫以新版上游實作為準。
+- 架構影響：
+  - 引入多批 migration，正式部署前必須先備份資料庫並在測試環境驗證升級路徑。
+  - 後端依賴注入、服務層、repository、handler 與前端路由/頁面均有大幅變更，屬於中大型上游吸收，不應未驗證直接部署生產。
+- 待驗證事項：
+  - 後端 `go test ./...` 或至少 `go test ./cmd/server ./internal/service ./internal/handler/...`。
+  - 前端 `pnpm --dir frontend run typecheck` 與 `pnpm --dir frontend run build`。
+  - Docker image build 與一次乾跑容器啟動。

@@ -12,17 +12,23 @@ import "encoding/json"
 
 // AnthropicRequest is the request body for POST /v1/messages.
 type AnthropicRequest struct {
-	Model        string                 `json:"model"`
-	MaxTokens    int                    `json:"max_tokens"`
-	System       json.RawMessage        `json:"system,omitempty"` // string or []AnthropicContentBlock
-	Messages     []AnthropicMessage     `json:"messages"`
-	Tools        []AnthropicTool        `json:"tools,omitempty"`
-	Stream       bool                   `json:"stream,omitempty"`
-	Temperature  *float64               `json:"temperature,omitempty"`
-	TopP         *float64               `json:"top_p,omitempty"`
-	StopSeqs     []string               `json:"stop_sequences,omitempty"`
-	Thinking     *AnthropicThinking     `json:"thinking,omitempty"`
-	ToolChoice   json.RawMessage        `json:"tool_choice,omitempty"`
+	Model       string             `json:"model"`
+	MaxTokens   int                `json:"max_tokens"`
+	System      json.RawMessage    `json:"system,omitempty"` // string or []AnthropicContentBlock
+	Messages    []AnthropicMessage `json:"messages"`
+	Tools       []AnthropicTool    `json:"tools,omitempty"`
+	Stream      bool               `json:"stream,omitempty"`
+	Temperature *float64           `json:"temperature,omitempty"`
+	TopP        *float64           `json:"top_p,omitempty"`
+	StopSeqs    []string           `json:"stop_sequences,omitempty"`
+	Thinking    *AnthropicThinking `json:"thinking,omitempty"`
+	ToolChoice  json.RawMessage    `json:"tool_choice,omitempty"`
+	// Metadata 会被原样透传给上游。OAuth/Claude-Code 路径依赖 metadata.user_id
+	// 参与上游的"是否为官方 Claude Code 请求"判定；如果经由本结构体重新序列化
+	// 时丢弃该字段，网关侧后续的 metadata 重写(ensureClaudeOAuthMetadataUserID/
+	// RewriteUserIDWithMasking) 在 body 里拿不到起点，就无法重建一个合法的
+	// user_id，进而导致请求被归类为第三方 app。
+	Metadata     json.RawMessage        `json:"metadata,omitempty"`
 	OutputConfig *AnthropicOutputConfig `json:"output_config,omitempty"`
 }
 
@@ -47,6 +53,8 @@ type AnthropicMessage struct {
 type AnthropicContentBlock struct {
 	Type string `json:"type"`
 
+	CacheControl *AnthropicCacheControl `json:"cache_control,omitempty"`
+
 	// type=text
 	Text string `json:"text,omitempty"`
 
@@ -67,6 +75,28 @@ type AnthropicContentBlock struct {
 	IsError   bool            `json:"is_error,omitempty"`
 }
 
+func (b AnthropicContentBlock) MarshalJSON() ([]byte, error) {
+	type anthropicContentBlock AnthropicContentBlock
+	base := struct {
+		anthropicContentBlock
+	}{anthropicContentBlock: anthropicContentBlock(b)}
+
+	switch b.Type {
+	case "text":
+		return json.Marshal(struct {
+			Text string `json:"text"`
+			anthropicContentBlock
+		}{Text: b.Text, anthropicContentBlock: anthropicContentBlock(b)})
+	case "thinking":
+		return json.Marshal(struct {
+			Thinking string `json:"thinking"`
+			anthropicContentBlock
+		}{Thinking: b.Thinking, anthropicContentBlock: anthropicContentBlock(b)})
+	default:
+		return json.Marshal(base)
+	}
+}
+
 // AnthropicImageSource describes the source data for an image content block.
 type AnthropicImageSource struct {
 	Type      string `json:"type"` // "base64"
@@ -76,10 +106,18 @@ type AnthropicImageSource struct {
 
 // AnthropicTool describes a tool available to the model.
 type AnthropicTool struct {
-	Type        string          `json:"type,omitempty"` // e.g. "web_search_20250305" for server tools
-	Name        string          `json:"name"`
-	Description string          `json:"description,omitempty"`
-	InputSchema json.RawMessage `json:"input_schema"` // JSON Schema object
+	Type         string                 `json:"type,omitempty"` // e.g. "web_search_20250305" for server tools
+	Name         string                 `json:"name"`
+	Description  string                 `json:"description,omitempty"`
+	InputSchema  json.RawMessage        `json:"input_schema"` // JSON Schema object
+	CacheControl *AnthropicCacheControl `json:"cache_control,omitempty"`
+}
+
+// AnthropicCacheControl 对应 Anthropic API 的 cache_control 字段。
+// ttl 默认由调用方决定；本项目策略见 claude.DefaultCacheControlTTL。
+type AnthropicCacheControl struct {
+	Type string `json:"type"`          // "ephemeral"
+	TTL  string `json:"ttl,omitempty"` // "5m" / "1h" / 省略=默认 5m（由 Anthropic 判定）
 }
 
 // AnthropicResponse is the non-streaming response from POST /v1/messages.
@@ -151,19 +189,23 @@ type AnthropicDelta struct {
 
 // ResponsesRequest is the request body for POST /v1/responses.
 type ResponsesRequest struct {
-	Model           string              `json:"model"`
-	Instructions    string              `json:"instructions,omitempty"`
-	Input           json.RawMessage     `json:"input"` // string or []ResponsesInputItem
-	MaxOutputTokens *int                `json:"max_output_tokens,omitempty"`
-	Temperature     *float64            `json:"temperature,omitempty"`
-	TopP            *float64            `json:"top_p,omitempty"`
-	Stream          bool                `json:"stream,omitempty"`
-	Tools           []ResponsesTool     `json:"tools,omitempty"`
-	Include         []string            `json:"include,omitempty"`
-	Store           *bool               `json:"store,omitempty"`
-	Reasoning       *ResponsesReasoning `json:"reasoning,omitempty"`
-	ToolChoice      json.RawMessage     `json:"tool_choice,omitempty"`
-	ServiceTier     string              `json:"service_tier,omitempty"`
+	Model              string              `json:"model"`
+	Instructions       string              `json:"instructions,omitempty"`
+	Input              json.RawMessage     `json:"input"` // string or []ResponsesInputItem
+	MaxOutputTokens    *int                `json:"max_output_tokens,omitempty"`
+	Temperature        *float64            `json:"temperature,omitempty"`
+	TopP               *float64            `json:"top_p,omitempty"`
+	Stream             bool                `json:"stream,omitempty"`
+	Tools              []ResponsesTool     `json:"tools,omitempty"`
+	Include            []string            `json:"include,omitempty"`
+	Store              *bool               `json:"store,omitempty"`
+	ParallelToolCalls  *bool               `json:"parallel_tool_calls,omitempty"`
+	Reasoning          *ResponsesReasoning `json:"reasoning,omitempty"`
+	Text               *ResponsesText      `json:"text,omitempty"`
+	ToolChoice         json.RawMessage     `json:"tool_choice,omitempty"`
+	ServiceTier        string              `json:"service_tier,omitempty"`
+	PromptCacheKey     string              `json:"prompt_cache_key,omitempty"`
+	PreviousResponseID string              `json:"previous_response_id,omitempty"`
 }
 
 // ResponsesReasoning configures reasoning effort in the Responses API.
@@ -172,13 +214,18 @@ type ResponsesReasoning struct {
 	Summary string `json:"summary,omitempty"` // "auto" | "concise" | "detailed"
 }
 
+// ResponsesText configures text output options in the Responses API.
+type ResponsesText struct {
+	Verbosity string `json:"verbosity,omitempty"` // "low" | "medium" | "high"
+}
+
 // ResponsesInputItem is one item in the Responses API input array.
 // The Type field determines which other fields are populated.
 type ResponsesInputItem struct {
 	// Common
 	Type string `json:"type,omitempty"` // "" for role-based messages
 
-	// Role-based messages (system/user/assistant)
+	// Role-based messages (developer/system/user/assistant)
 	Role    string          `json:"role,omitempty"`
 	Content json.RawMessage `json:"content,omitempty"` // string or []ResponsesContentPart
 
@@ -281,14 +328,49 @@ type ResponsesUsage struct {
 	OutputTokensDetails *ResponsesOutputTokensDetails `json:"output_tokens_details,omitempty"`
 }
 
+func (u *ResponsesUsage) UnmarshalJSON(data []byte) error {
+	type responsesUsageAlias ResponsesUsage
+	var aux struct {
+		responsesUsageAlias
+		PromptTokens            int                           `json:"prompt_tokens"`
+		CompletionTokens        int                           `json:"completion_tokens"`
+		PromptTokensDetails     *ResponsesInputTokensDetails  `json:"prompt_tokens_details,omitempty"`
+		CompletionTokensDetails *ResponsesOutputTokensDetails `json:"completion_tokens_details,omitempty"`
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	*u = ResponsesUsage(aux.responsesUsageAlias)
+	if u.InputTokens == 0 && aux.PromptTokens != 0 {
+		u.InputTokens = aux.PromptTokens
+	}
+	if u.OutputTokens == 0 && aux.CompletionTokens != 0 {
+		u.OutputTokens = aux.CompletionTokens
+	}
+	if u.InputTokensDetails == nil && aux.PromptTokensDetails != nil {
+		u.InputTokensDetails = aux.PromptTokensDetails
+	}
+	if u.OutputTokensDetails == nil && aux.CompletionTokensDetails != nil {
+		u.OutputTokensDetails = aux.CompletionTokensDetails
+	}
+	if u.TotalTokens == 0 && (u.InputTokens != 0 || u.OutputTokens != 0) {
+		u.TotalTokens = u.InputTokens + u.OutputTokens
+	}
+	return nil
+}
+
 // ResponsesInputTokensDetails breaks down input token usage.
 type ResponsesInputTokensDetails struct {
 	CachedTokens int `json:"cached_tokens,omitempty"`
+	AudioTokens  int `json:"audio_tokens,omitempty"`
 }
 
 // ResponsesOutputTokensDetails breaks down output token usage.
 type ResponsesOutputTokensDetails struct {
-	ReasoningTokens int `json:"reasoning_tokens,omitempty"`
+	ReasoningTokens          int `json:"reasoning_tokens,omitempty"`
+	AudioTokens              int `json:"audio_tokens,omitempty"`
+	AcceptedPredictionTokens int `json:"accepted_prediction_tokens,omitempty"`
+	RejectedPredictionTokens int `json:"rejected_prediction_tokens,omitempty"`
 }
 
 // ---------------------------------------------------------------------------
@@ -300,8 +382,10 @@ type ResponsesOutputTokensDetails struct {
 type ResponsesStreamEvent struct {
 	Type string `json:"type"`
 
-	// response.created / response.completed / response.failed / response.incomplete
+	// response.created / response.completed / response.done / response.failed / response.incomplete
 	Response *ResponsesResponse `json:"response,omitempty"`
+	// 部分 OpenAI 兼容上游会把 usage 放在终止事件顶层，而不是 response.usage。
+	Usage *ResponsesUsage `json:"usage,omitempty"`
 
 	// response.output_item.added / response.output_item.done
 	Item *ResponsesOutput `json:"item,omitempty"`
@@ -437,15 +521,27 @@ type ChatChoice struct {
 
 // ChatUsage holds token counts in Chat Completions format.
 type ChatUsage struct {
-	PromptTokens        int               `json:"prompt_tokens"`
-	CompletionTokens    int               `json:"completion_tokens"`
-	TotalTokens         int               `json:"total_tokens"`
-	PromptTokensDetails *ChatTokenDetails `json:"prompt_tokens_details,omitempty"`
+	PromptTokens            int               `json:"prompt_tokens"`
+	CompletionTokens        int               `json:"completion_tokens"`
+	TotalTokens             int               `json:"total_tokens"`
+	PromptTokensDetails     *ChatTokenDetails `json:"prompt_tokens_details,omitempty"`
+	CompletionTokensDetails *ChatTokenDetails `json:"completion_tokens_details,omitempty"`
 }
 
-// ChatTokenDetails provides a breakdown of token usage.
+// ChatTokenDetails provides a breakdown of token usage. The same type is
+// reused for both prompt_tokens_details and completion_tokens_details;
+// unset fields are omitted so each side only emits the fields that apply.
+//
+// Field set mirrors OpenAI's official CompletionUsage schema:
+//   - prompt_tokens_details: cached_tokens, audio_tokens
+//   - completion_tokens_details: reasoning_tokens, audio_tokens,
+//     accepted_prediction_tokens, rejected_prediction_tokens
 type ChatTokenDetails struct {
-	CachedTokens int `json:"cached_tokens,omitempty"`
+	CachedTokens             int `json:"cached_tokens,omitempty"`
+	AudioTokens              int `json:"audio_tokens,omitempty"`
+	ReasoningTokens          int `json:"reasoning_tokens,omitempty"`
+	AcceptedPredictionTokens int `json:"accepted_prediction_tokens,omitempty"`
+	RejectedPredictionTokens int `json:"rejected_prediction_tokens,omitempty"`
 }
 
 // ChatCompletionsChunk is a single streaming chunk from POST /v1/chat/completions.

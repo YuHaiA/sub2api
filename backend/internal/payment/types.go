@@ -17,6 +17,7 @@ const (
 	TypeCard         PaymentType = "card"
 	TypeLink         PaymentType = "link"
 	TypeEasyPay      PaymentType = "easypay"
+	TypeAirwallex    PaymentType = "airwallex"
 )
 
 // Order status constants shared across payment and service layers.
@@ -82,6 +83,8 @@ func GetBasePaymentType(t string) string {
 	switch {
 	case t == TypeEasyPay:
 		return TypeEasyPay
+	case t == TypeAirwallex:
+		return TypeAirwallex
 	case t == TypeStripe || t == TypeCard || t == TypeLink:
 		return TypeStripe
 	case len(t) >= len(TypeAlipay) && t[:len(TypeAlipay)] == TypeAlipay:
@@ -96,39 +99,78 @@ func GetBasePaymentType(t string) string {
 // CreatePaymentRequest holds the parameters for creating a new payment.
 type CreatePaymentRequest struct {
 	OrderID            string // Internal order ID
-	Amount             string // Pay amount in CNY (formatted to 2 decimal places)
+	Amount             string // 支付金额，按服务商实例配置的币种解释
 	PaymentType        string // e.g. "alipay", "wxpay", "stripe"
 	Subject            string // Product description
 	NotifyURL          string // Webhook callback URL
 	ReturnURL          string // Browser redirect URL after payment
+	OpenID             string // WeChat JSAPI payer OpenID when available
 	ClientIP           string // Payer's IP address
 	IsMobile           bool   // Whether the request comes from a mobile device
 	InstanceSubMethods string // Comma-separated sub-methods from instance supported_types (for Stripe)
 }
 
+// CreatePaymentResultType describes the shape of the create-payment result.
+type CreatePaymentResultType = string
+
+const (
+	CreatePaymentResultOrderCreated  CreatePaymentResultType = "order_created"
+	CreatePaymentResultOAuthRequired CreatePaymentResultType = "oauth_required"
+	CreatePaymentResultJSAPIReady    CreatePaymentResultType = "jsapi_ready"
+)
+
+// WechatOAuthInfo describes the next step when WeChat OAuth is required before payment.
+type WechatOAuthInfo struct {
+	AuthorizeURL string `json:"authorize_url,omitempty"`
+	AppID        string `json:"appid,omitempty"`
+	OpenID       string `json:"openid,omitempty"`
+	Scope        string `json:"scope,omitempty"`
+	State        string `json:"state,omitempty"`
+	RedirectURL  string `json:"redirect_url,omitempty"`
+}
+
+// WechatJSAPIPayload contains the fields the frontend needs to invoke WeChat JSAPI payment.
+type WechatJSAPIPayload struct {
+	AppID     string `json:"appId,omitempty"`
+	TimeStamp string `json:"timeStamp,omitempty"`
+	NonceStr  string `json:"nonceStr,omitempty"`
+	Package   string `json:"package,omitempty"`
+	SignType  string `json:"signType,omitempty"`
+	PaySign   string `json:"paySign,omitempty"`
+}
+
 // CreatePaymentResponse is returned after successfully initiating a payment.
 type CreatePaymentResponse struct {
-	TradeNo      string // Third-party transaction ID
-	PayURL       string // H5 payment URL (alipay/wxpay)
-	QRCode       string // QR code content for scanning
-	ClientSecret string // Stripe PaymentIntent client secret
+	TradeNo      string                  // Third-party transaction ID
+	PayURL       string                  // H5 payment URL (alipay/wxpay)
+	QRCode       string                  // QR code content for scanning
+	ClientSecret string                  // Stripe PaymentIntent 客户端密钥
+	IntentID     string                  // 前端 SDK 需要的服务商支付意图 ID
+	Currency     string                  // 服务商支付币种
+	CountryCode  string                  // 服务商收银台国家/地区代码
+	PaymentEnv   string                  // 服务商前端环境标识
+	ResultType   CreatePaymentResultType // Typed result contract for frontend flows
+	OAuth        *WechatOAuthInfo        // WeChat OAuth bootstrap payload when required
+	JSAPI        *WechatJSAPIPayload     // WeChat JSAPI invocation payload when ready
 }
 
 // QueryOrderResponse describes the payment status from the upstream provider.
 type QueryOrderResponse struct {
-	TradeNo string
-	Status  string  // "pending", "paid", "failed", "refunded"
-	Amount  float64 // Amount in CNY
-	PaidAt  string  // RFC3339 timestamp or empty
+	TradeNo  string
+	Status   string  // "pending", "paid", "failed", "refunded"
+	Amount   float64 // 按服务商返回币种解释的金额
+	PaidAt   string  // RFC3339 timestamp or empty
+	Metadata map[string]string
 }
 
 // PaymentNotification is the parsed result of a webhook/notify callback.
 type PaymentNotification struct {
-	TradeNo string
-	OrderID string
-	Amount  float64
-	Status  string // "success" or "failed"
-	RawData string // Raw notification body for audit
+	TradeNo  string
+	OrderID  string
+	Amount   float64
+	Status   string // "success" or "failed"
+	RawData  string // Raw notification body for audit
+	Metadata map[string]string
 }
 
 // RefundRequest contains the parameters for requesting a refund.
@@ -178,4 +220,10 @@ type CancelableProvider interface {
 	Provider
 	// CancelPayment cancels/expires a pending payment on the upstream platform.
 	CancelPayment(ctx context.Context, tradeNo string) error
+}
+
+// MerchantIdentityProvider exposes the current non-sensitive merchant identity
+// derived from provider configuration for snapshot consistency checks.
+type MerchantIdentityProvider interface {
+	MerchantIdentityMetadata() map[string]string
 }

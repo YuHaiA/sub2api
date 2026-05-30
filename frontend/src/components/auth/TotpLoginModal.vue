@@ -24,6 +24,18 @@
 
         <!-- Code Input -->
         <div class="mb-6">
+          <!-- Hidden input for password manager autofill (autocomplete="one-time-code") -->
+          <input
+            ref="hiddenOtpInputRef"
+            type="text"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            maxlength="6"
+            class="pointer-events-none absolute left-0 top-0 h-px w-px opacity-0"
+            aria-hidden="true"
+            tabindex="-1"
+            @input="handleHiddenOtpInput"
+          />
           <div class="flex justify-center gap-2">
             <input
               v-for="(_, index) in 6"
@@ -33,6 +45,7 @@
               maxlength="1"
               inputmode="numeric"
               pattern="[0-9]"
+              autocomplete="off"
               class="h-12 w-10 rounded-lg border border-gray-300 text-center text-lg font-semibold focus:border-primary-500 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-700"
               :disabled="verifying"
               @input="handleCodeInput($event, index)"
@@ -45,11 +58,6 @@
             <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-500"></div>
             {{ t('common.verifying') }}
           </div>
-        </div>
-
-        <!-- Error -->
-        <div v-if="error" class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-400">
-          {{ error }}
         </div>
 
         <!-- Cancel button only -->
@@ -69,6 +77,7 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useAppStore } from '@/stores'
 
 defineProps<{
   tempToken: string
@@ -81,11 +90,12 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const appStore = useAppStore()
 
 const verifying = ref(false)
-const error = ref('')
 const code = ref<string[]>(['', '', '', '', '', ''])
 const inputRefs = ref<(HTMLInputElement | null)[]>([])
+const hiddenOtpInputRef = ref<HTMLInputElement | null>(null)
 
 // Watch for code changes and auto-submit when 6 digits are entered
 watch(
@@ -100,12 +110,18 @@ watch(
 defineExpose({
   setVerifying: (value: boolean) => { verifying.value = value },
   setError: (message: string) => {
-    error.value = message
+    if (message) {
+      appStore.showError(message)
+    }
     code.value = ['', '', '', '', '', '']
     // Clear input DOM values
     inputRefs.value.forEach(input => {
       if (input) input.value = ''
     })
+    // Clear hidden autofill input
+    if (hiddenOtpInputRef.value) {
+      hiddenOtpInputRef.value.value = ''
+    }
     nextTick(() => {
       inputRefs.value[0]?.focus()
     })
@@ -125,6 +141,26 @@ const handleCodeInput = (event: Event, index: number) => {
     nextTick(() => {
       inputRefs.value[index + 1]?.focus()
     })
+  }
+}
+
+// Handle autofill from password managers via the hidden autocomplete="one-time-code" input
+const handleHiddenOtpInput = (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const digits = input.value.replace(/[^0-9]/g, '').slice(0, 6).split('')
+
+  digits.forEach((digit, i) => {
+    code.value[i] = digit
+    if (inputRefs.value[i]) {
+      inputRefs.value[i]!.value = digit
+    }
+  })
+
+  for (let i = digits.length; i < 6; i++) {
+    code.value[i] = ''
+    if (inputRefs.value[i]) {
+      inputRefs.value[i]!.value = ''
+    }
   }
 }
 

@@ -3,10 +3,14 @@
 package admin
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
@@ -91,7 +95,7 @@ func TestChannelToResponse_EmptyDefaults(t *testing.T) {
 	ch := &service.Channel{
 		ID:                 1,
 		Name:               "ch",
-		BillingModelSource: "",
+		BillingModelSource: service.BillingModelSourceChannelMapped,
 		CreatedAt:          now,
 		UpdatedAt:          now,
 		GroupIDs:           nil,
@@ -105,6 +109,9 @@ func TestChannelToResponse_EmptyDefaults(t *testing.T) {
 		},
 	}
 
+	// handler 层 channelToResponse 现在是纯透传：BillingModelSource 的空值兜底
+	// 已下放到 service 层（Create/GetByID/List/Update/ListAvailable 出口统一处理），
+	// 因此这里构造 fixture 时直接传入归一化后的值。
 	resp := channelToResponse(ch)
 	require.Equal(t, "channel_mapped", resp.BillingModelSource)
 	require.NotNil(t, resp.GroupIDs)
@@ -115,6 +122,19 @@ func TestChannelToResponse_EmptyDefaults(t *testing.T) {
 	require.Len(t, resp.ModelPricing, 1)
 	require.Equal(t, "anthropic", resp.ModelPricing[0].Platform)
 	require.Equal(t, "token", resp.ModelPricing[0].BillingMode)
+}
+
+func TestChannelToResponse_BillingModelSourcePassthrough(t *testing.T) {
+	// handler 不再兜底 BillingModelSource：空值应原样透传（由 service 层负责默认回填）。
+	ch := &service.Channel{
+		ID:                 1,
+		Name:               "ch",
+		BillingModelSource: "",
+		CreatedAt:          time.Now(),
+		UpdatedAt:          time.Now(),
+	}
+	resp := channelToResponse(ch)
+	require.Equal(t, "", resp.BillingModelSource, "handler 应纯透传，默认值由 service.normalizeBillingModelSource 负责")
 }
 
 func TestChannelToResponse_NilModels(t *testing.T) {
@@ -399,4 +419,59 @@ func TestPricingRequestToService_NilPriceFields(t *testing.T) {
 	require.Nil(t, r.CacheReadPrice)
 	require.Nil(t, r.ImageOutputPrice)
 	require.Nil(t, r.PerRequestPrice)
+}
+
+// ---------------------------------------------------------------------------
+// 3. SyncPricingModels handler
+// ---------------------------------------------------------------------------
+
+func setupSyncPricingModelsRouter(pricingSvc *service.PricingService) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	h := &ChannelHandler{pricingService: pricingSvc}
+	router.GET("/channels/pricing/sync-models", h.SyncPricingModels)
+	return router
+}
+
+func TestSyncPricingModels_MissingPlatform(t *testing.T) {
+	svc := service.NewPricingService(nil, nil)
+	router := setupSyncPricingModelsRouter(svc)
+
+	req := httptest.NewRequest(http.MethodGet, "/channels/pricing/sync-models", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestSyncPricingModels_UnsupportedPlatform(t *testing.T) {
+	svc := service.NewPricingService(nil, nil)
+	router := setupSyncPricingModelsRouter(svc)
+
+	req := httptest.NewRequest(http.MethodGet, "/channels/pricing/sync-models?platform=unknown", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestSyncPricingModels_ValidPlatform_EmptyService(t *testing.T) {
+	svc := service.NewPricingService(nil, nil)
+	router := setupSyncPricingModelsRouter(svc)
+
+	for _, platform := range []string{"anthropic", "openai", "gemini", "antigravity"} {
+		req := httptest.NewRequest(http.MethodGet, "/channels/pricing/sync-models?platform="+platform, nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusOK, w.Code, "platform=%s", platform)
+
+		var body struct {
+			Data struct {
+				Models []string `json:"models"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+		require.NotNil(t, body.Data.Models, "models must not be null for platform=%s", platform)
+	}
 }

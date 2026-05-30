@@ -17,11 +17,14 @@ type stubAdminService struct {
 	proxies              []service.Proxy
 	proxyCounts          []service.ProxyWithAccountCount
 	redeems              []service.RedeemCode
+	boundAuthIdentity    *service.AdminBindAuthIdentityInput
+	boundAuthIdentityFor int64
 	createdAccounts      []*service.CreateAccountInput
 	createdProxies       []*service.CreateProxyInput
 	updatedProxyIDs      []int64
 	updatedProxies       []*service.UpdateProxyInput
 	testedProxyIDs       []int64
+	getUserErr           error
 	createAccountErr     error
 	updateAccountErr     error
 	bulkUpdateAccountErr error
@@ -41,6 +44,14 @@ type stubAdminService struct {
 		sortBy      string
 		sortOrder   string
 		calls       int
+	}
+	lastListUsers struct {
+		page      int
+		pageSize  int
+		filters   service.UserListFilters
+		sortBy    string
+		sortOrder string
+		calls     int
 	}
 	lastListProxies struct {
 		protocol  string
@@ -127,10 +138,19 @@ func newStubAdminService() *stubAdminService {
 }
 
 func (s *stubAdminService) ListUsers(ctx context.Context, page, pageSize int, filters service.UserListFilters, sortBy, sortOrder string) ([]service.User, int64, error) {
+	s.lastListUsers.page = page
+	s.lastListUsers.pageSize = pageSize
+	s.lastListUsers.filters = filters
+	s.lastListUsers.sortBy = sortBy
+	s.lastListUsers.sortOrder = sortOrder
+	s.lastListUsers.calls++
 	return s.users, int64(len(s.users)), nil
 }
 
 func (s *stubAdminService) GetUser(ctx context.Context, id int64) (*service.User, error) {
+	if s.getUserErr != nil {
+		return nil, s.getUserErr
+	}
 	for i := range s.users {
 		if s.users[i].ID == id {
 			return &s.users[i], nil
@@ -159,12 +179,73 @@ func (s *stubAdminService) UpdateUserBalance(ctx context.Context, userID int64, 
 	return &user, nil
 }
 
+func (s *stubAdminService) BatchUpdateConcurrency(ctx context.Context, userIDs []int64, value int, mode string) (int, error) {
+	return len(userIDs), nil
+}
+
 func (s *stubAdminService) GetUserAPIKeys(ctx context.Context, userID int64, page, pageSize int, sortBy, sortOrder string) ([]service.APIKey, int64, error) {
 	return s.apiKeys, int64(len(s.apiKeys)), nil
 }
 
 func (s *stubAdminService) GetUserUsageStats(ctx context.Context, userID int64, period string) (any, error) {
 	return map[string]any{"user_id": userID}, nil
+}
+
+func (s *stubAdminService) GetUserRPMStatus(ctx context.Context, userID int64) (*service.UserRPMStatus, error) {
+	user, err := s.GetUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	return &service.UserRPMStatus{
+		UserRPMUsed:  0,
+		UserRPMLimit: user.RPMLimit,
+	}, nil
+}
+
+func (s *stubAdminService) BindUserAuthIdentity(ctx context.Context, userID int64, input service.AdminBindAuthIdentityInput) (*service.AdminBoundAuthIdentity, error) {
+	s.boundAuthIdentityFor = userID
+	copied := input
+	if input.Metadata != nil {
+		copied.Metadata = map[string]any{}
+		for key, value := range input.Metadata {
+			copied.Metadata[key] = value
+		}
+	}
+	if input.Channel != nil {
+		channel := *input.Channel
+		if input.Channel.Metadata != nil {
+			channel.Metadata = map[string]any{}
+			for key, value := range input.Channel.Metadata {
+				channel.Metadata[key] = value
+			}
+		}
+		copied.Channel = &channel
+	}
+	s.boundAuthIdentity = &copied
+
+	now := time.Now().UTC()
+	result := &service.AdminBoundAuthIdentity{
+		UserID:          userID,
+		ProviderType:    input.ProviderType,
+		ProviderKey:     input.ProviderKey,
+		ProviderSubject: input.ProviderSubject,
+		VerifiedAt:      &now,
+		Issuer:          input.Issuer,
+		Metadata:        input.Metadata,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}
+	if input.Channel != nil {
+		result.Channel = &service.AdminBoundAuthIdentityChannel{
+			Channel:        input.Channel.Channel,
+			ChannelAppID:   input.Channel.ChannelAppID,
+			ChannelSubject: input.Channel.ChannelSubject,
+			Metadata:       input.Channel.Metadata,
+			CreatedAt:      now,
+			UpdatedAt:      now,
+		}
+	}
+	return result, nil
 }
 
 func (s *stubAdminService) ListGroups(ctx context.Context, page, pageSize int, platform, status, search string, isExclusive *bool, sortBy, sortOrder string) ([]service.Group, int64, error) {
@@ -182,6 +263,13 @@ func (s *stubAdminService) GetAllGroupsByPlatform(ctx context.Context, platform 
 func (s *stubAdminService) GetGroup(ctx context.Context, id int64) (*service.Group, error) {
 	group := service.Group{ID: id, Name: "group", Status: service.StatusActive}
 	return &group, nil
+}
+
+func (s *stubAdminService) GetGroupModelsListCandidates(ctx context.Context, id int64, platform string) ([]string, error) {
+	if platform == service.PlatformOpenAI {
+		return []string{"gpt-5.5", "gpt-5.4"}, nil
+	}
+	return []string{"claude-sonnet-4-6"}, nil
 }
 
 func (s *stubAdminService) CreateGroup(ctx context.Context, input *service.CreateGroupInput) (*service.Group, error) {
@@ -211,6 +299,14 @@ func (s *stubAdminService) ClearGroupRateMultipliers(_ context.Context, _ int64)
 }
 
 func (s *stubAdminService) BatchSetGroupRateMultipliers(_ context.Context, _ int64, _ []service.GroupRateMultiplierInput) error {
+	return nil
+}
+
+func (s *stubAdminService) ClearGroupRPMOverrides(_ context.Context, _ int64) error {
+	return nil
+}
+
+func (s *stubAdminService) BatchSetGroupRPMOverrides(_ context.Context, _ int64, _ []service.GroupRPMOverrideInput) error {
 	return nil
 }
 
@@ -258,6 +354,10 @@ func (s *stubAdminService) UpdateAccount(ctx context.Context, id int64, input *s
 	}
 	account := service.Account{ID: id, Name: input.Name, Status: service.StatusActive}
 	return &account, nil
+}
+
+func (s *stubAdminService) UpdateAccountExtra(ctx context.Context, id int64, updates map[string]any) error {
+	return nil
 }
 
 func (s *stubAdminService) DeleteAccount(ctx context.Context, id int64) error {
@@ -479,6 +579,22 @@ func (s *stubAdminService) AdminUpdateAPIKeyGroupID(ctx context.Context, keyID i
 				}
 			}
 			return &service.AdminUpdateAPIKeyGroupIDResult{APIKey: &k}, nil
+		}
+	}
+	return nil, service.ErrAPIKeyNotFound
+}
+
+func (s *stubAdminService) AdminResetAPIKeyRateLimitUsage(ctx context.Context, keyID int64) (*service.APIKey, error) {
+	for i := range s.apiKeys {
+		if s.apiKeys[i].ID == keyID {
+			s.apiKeys[i].Usage5h = 0
+			s.apiKeys[i].Usage1d = 0
+			s.apiKeys[i].Usage7d = 0
+			s.apiKeys[i].Window5hStart = nil
+			s.apiKeys[i].Window1dStart = nil
+			s.apiKeys[i].Window7dStart = nil
+			k := s.apiKeys[i]
+			return &k, nil
 		}
 	}
 	return nil, service.ErrAPIKeyNotFound

@@ -77,6 +77,23 @@ export async function getById(id: number): Promise<AdminGroup> {
 }
 
 /**
+ * Get candidate models for custom /v1/models list.
+ * id=0 returns platform default models for create flow.
+ */
+export async function getModelsListCandidates(
+  id: number,
+  platform?: GroupPlatform
+): Promise<string[]> {
+  const { data } = await apiClient.get<{ models: string[] }>(
+    `/admin/groups/${id}/models-list-candidates`,
+    {
+      params: platform ? { platform } : undefined
+    }
+  )
+  return data.models || []
+}
+
+/**
  * Create new group
  * @param groupData - Group data
  * @returns Created group
@@ -164,7 +181,8 @@ export interface GroupRateMultiplierEntry {
   user_email: string
   user_notes: string
   user_status: string
-  rate_multiplier: number
+  rate_multiplier?: number | null
+  rpm_override?: number | null
 }
 
 /**
@@ -205,9 +223,7 @@ export async function clearGroupRateMultipliers(id: number): Promise<{ message: 
 
 /**
  * Batch set rate multipliers for users in a group
- * @param id - Group ID
- * @param entries - Array of { user_id, rate_multiplier }
- * @returns Success confirmation
+ * Only touches rate_multiplier column; preserves rpm_override on existing rows.
  */
 export async function batchSetGroupRateMultipliers(
   id: number,
@@ -217,6 +233,60 @@ export async function batchSetGroupRateMultipliers(
     `/admin/groups/${id}/rate-multipliers`,
     { entries }
   )
+  return data
+}
+
+/**
+ * RPM override entry for a user in a group
+ */
+export interface GroupRPMOverrideEntry {
+  user_id: number
+  user_name: string
+  user_email: string
+  user_notes: string
+  user_status: string
+  rpm_override: number
+}
+
+/**
+ * Get RPM overrides for users in a group (subset of rate-multipliers endpoint).
+ */
+export async function getGroupRPMOverrides(id: number): Promise<GroupRPMOverrideEntry[]> {
+  const { data } = await apiClient.get<GroupRateMultiplierEntry[]>(
+    `/admin/groups/${id}/rate-multipliers`
+  )
+  return data
+    .filter(e => e.rpm_override != null)
+    .map(e => ({
+      user_id: e.user_id,
+      user_name: e.user_name,
+      user_email: e.user_email,
+      user_notes: e.user_notes,
+      user_status: e.user_status,
+      rpm_override: e.rpm_override as number
+    }))
+}
+
+/**
+ * Batch set RPM overrides for users in a group.
+ * Only touches rpm_override column; preserves rate_multiplier on existing rows.
+ */
+export async function batchSetGroupRPMOverrides(
+  id: number,
+  entries: Array<{ user_id: number; rpm_override: number }>
+): Promise<{ message: string }> {
+  const { data } = await apiClient.put<{ message: string }>(
+    `/admin/groups/${id}/rpm-overrides`,
+    { entries }
+  )
+  return data
+}
+
+/**
+ * Clear all RPM overrides for a group (preserves rate_multiplier).
+ */
+export async function clearGroupRPMOverrides(id: number): Promise<{ message: string }> {
+  const { data } = await apiClient.delete<{ message: string }>(`/admin/groups/${id}/rpm-overrides`)
   return data
 }
 
@@ -253,6 +323,7 @@ export const groupsAPI = {
   getAll,
   getByPlatform,
   getById,
+  getModelsListCandidates,
   create,
   update,
   delete: deleteGroup,
@@ -262,6 +333,9 @@ export const groupsAPI = {
   getGroupRateMultipliers,
   clearGroupRateMultipliers,
   batchSetGroupRateMultipliers,
+  getGroupRPMOverrides,
+  clearGroupRPMOverrides,
+  batchSetGroupRPMOverrides,
   updateSortOrder,
   getUsageSummary,
   getCapacitySummary
