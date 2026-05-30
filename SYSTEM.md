@@ -290,6 +290,25 @@
   - 僅修正編譯與 lint 阻塞，不改變健康檢查、Token 自動刷新或 OpenAI gateway 既有業務語義。
   - 本機已通過前端 `lint:check` 與 `typecheck`；本機環境缺少 `go` / `gofmt`，後端編譯需依 GitHub Actions 最終驗證。
 
+## 本次後端 CI 二次失敗修正
+
+- 已針對最新 `main` 後端 CI 失敗補齊合併後遺漏的 handler 與依賴注入接線。
+- 修改內容：
+  - `backend/internal/handler/admin/setting_auto_account_handler.go`
+  - `backend/internal/handler/admin/setting_handler.go`
+  - `backend/internal/handler/admin/system_handler.go`
+  - `backend/internal/handler/admin/system_handler_test.go`
+  - `backend/internal/handler/wire.go`
+  - `backend/cmd/server/wire_gen.go`
+  - 多個 `NewAccountHandler` 單元測試呼叫點
+- 修改前後差異：
+  - 修改前：路由已指向 `SettingHandler` / `SystemHandler`，但對應的帳號健康自動檢查、Token 自動刷新與部署配置查詢 handler 方法缺失，導致後端編譯失敗。
+  - 修改前：`NewAccountHandler` 新增 `settingService` 參數後，`wire_gen.go` 與測試仍使用舊參數位置；`ProvideTokenRefreshService` 生成呼叫也缺少 `settingService` 注入。
+  - 修改後：新增 `setting_auto_account_handler.go` 承接 `/admin/settings/account-health-auto-check`、`/admin/settings/account-token-auto-refresh` 與手動刷新路由；`SystemHandler` 補上 `GetDeployConfig`；依賴注入與測試呼叫點全部對齊新版建構子。
+- 影響範圍：
+  - 僅修正後端編譯與路由接線，不改資料庫 schema、不改 API path。
+  - 本機仍缺少 `go` / `gofmt`，後端實際編譯、測試與 golangci-lint 需由 GitHub Actions 驗證。
+
 ## 本次前端工具列回退與刷新按鈕修正
 
 - 已根據反饋將账号頁第一行工具列退回上一版分組排列。

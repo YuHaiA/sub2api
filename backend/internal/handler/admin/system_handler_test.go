@@ -29,6 +29,10 @@ func (s *systemHandlerUpdateServiceStub) CheckUpdate(_ context.Context, force bo
 	return s.updateInfo, s.checkErr
 }
 
+func (s *systemHandlerUpdateServiceStub) GetDeployConfig(context.Context) (*service.DeployConfig, error) {
+	return &service.DeployConfig{}, nil
+}
+
 func (s *systemHandlerUpdateServiceStub) PerformUpdate(context.Context) error {
 	s.performCall++
 	return s.performErr

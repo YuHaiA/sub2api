@@ -64,6 +64,7 @@ type SettingHandler struct {
 	paymentService           *service.PaymentService
 	userAttributeService     *service.UserAttributeService
 	notificationEmailService *service.NotificationEmailService
+	tokenRefreshService      *service.TokenRefreshService
 }
 
 // NewSettingHandler 创建系统设置处理器
@@ -83,6 +84,11 @@ func NewSettingHandler(settingService *service.SettingService, emailService *ser
 // the constructor signature used by existing unit tests.
 func (h *SettingHandler) SetNotificationEmailService(notificationEmailService *service.NotificationEmailService) {
 	h.notificationEmailService = notificationEmailService
+}
+
+// SetTokenRefreshService attaches the token refresh runner used by manual admin actions.
+func (h *SettingHandler) SetTokenRefreshService(tokenRefreshService *service.TokenRefreshService) {
+	h.tokenRefreshService = tokenRefreshService
 }
 
 // GetSettings 获取所有系统设置

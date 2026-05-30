@@ -24,6 +24,7 @@ type SystemHandler struct {
 
 type systemUpdateService interface {
 	CheckUpdate(ctx context.Context, force bool) (*service.UpdateInfo, error)
+	GetDeployConfig(ctx context.Context) (*service.DeployConfig, error)
 	PerformUpdate(ctx context.Context) error
 	Rollback() error
 }
@@ -55,6 +56,15 @@ func (h *SystemHandler) CheckUpdates(c *gin.Context) {
 		return
 	}
 	response.Success(c, info)
+}
+
+// GetDeployConfig returns the configured Docker deploy release settings.
+func (h *SystemHandler) GetDeployConfig(c *gin.Context) {
+	cfg, err := h.updateSvc.GetDeployConfig(c.Request.Context())
+	if response.ErrorFrom(c, err) {
+		return
+	}
+	response.Success(c, cfg)
 }
 
 // PerformUpdate downloads and applies the update
