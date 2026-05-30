@@ -323,3 +323,19 @@
   - 後端 `go test ./...` 或至少 `go test ./cmd/server ./internal/service ./internal/handler/...`。
   - 前端 `pnpm --dir frontend run typecheck` 與 `pnpm --dir frontend run build`。
   - Docker image build 與一次乾跑容器啟動。
+
+## 本次後台導航卡頓止血
+
+- 已針對後台左側導航切換卡頓做低風險前端修正。
+- 修改內容：
+  - `frontend/src/App.vue`
+  - `frontend/src/utils/usageLoadQueue.ts`
+- 修改前後差異：
+  - 修改前：後台路由每次切換都銷毀並重建頁面實例，已載入過的管理頁返回時仍會重新執行 `onMounted`、重新拉資料並重渲染表格。
+  - 修改後：`/admin` 下的路由使用 `KeepAlive` 快取最多 12 個頁面實例，已訪問頁面切回時保留組件狀態與表格狀態，減少重建成本。
+  - 修改前：帳號頁多個 `AccountUsageCell` 掛載時會同步發起所有 `/admin/accounts/{id}/usage` 請求。
+  - 修改後：usage 請求通過全局小隊列限制為最多 4 個並發，避免切入帳號頁或恢復頁面時瞬間打滿瀏覽器與後端連線。
+- 影響範圍：
+  - 僅影響前端後台頁面切換體感與帳號 usage 請求節流，不修改後端 API、資料庫 schema、權限或部署流程。
+- 注意事項：
+  - `KeepAlive` 會保留頁面資料狀態，切回頁面時不一定即時重新拉最新資料；需要最新資料時仍可點頁面內刷新按鈕。

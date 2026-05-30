@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { RouterView, useRouter, useRoute } from 'vue-router'
+import type { RouteLocationNormalizedLoaded } from 'vue-router'
 import { onMounted, onBeforeUnmount, watch } from 'vue'
 import Toast from '@/components/common/Toast.vue'
 import NavigationProgress from '@/components/common/NavigationProgress.vue'
@@ -14,6 +15,11 @@ const appStore = useAppStore()
 const authStore = useAuthStore()
 const subscriptionStore = useSubscriptionStore()
 const announcementStore = useAnnouncementStore()
+const ADMIN_VIEW_CACHE_MAX = 12
+
+function shouldKeepAliveRoute(route: RouteLocationNormalizedLoaded) {
+  return route.path.startsWith('/admin')
+}
 
 /**
  * Update favicon dynamically
@@ -113,7 +119,12 @@ onMounted(async () => {
 
 <template>
   <NavigationProgress />
-  <RouterView />
+  <RouterView v-slot="{ Component, route }">
+    <KeepAlive :max="ADMIN_VIEW_CACHE_MAX">
+      <component :is="Component" v-if="shouldKeepAliveRoute(route)" />
+    </KeepAlive>
+    <component :is="Component" v-if="!shouldKeepAliveRoute(route)" />
+  </RouterView>
   <Toast />
   <AnnouncementPopup />
 </template>
