@@ -2,50 +2,89 @@
   <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(380px,460px)] xl:items-stretch">
     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 xl:h-full xl:auto-rows-fr">
       <div class="flex min-h-[168px] flex-col rounded-2xl border border-slate-200 bg-white/80 p-5 backdrop-blur xl:h-full dark:border-slate-700 dark:bg-slate-800/70">
-        <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{{ t('admin.accounts.tokenRefresh.lastRunTotal') }}</p>
-        <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-slate-900 dark:text-white">{{ tokenConfig.running ? (tokenConfig.current_total ?? 0) : (tokenConfig.last_run_total ?? 0) }}</p>
+        <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+          {{ t('admin.accounts.tokenRefresh.lastRunTotal') }}
+        </p>
+        <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-slate-900 dark:text-white">
+          {{ tokenConfig.running ? (tokenConfig.current_total ?? 0) : (tokenConfig.last_run_total ?? 0) }}
+        </p>
         <div class="mt-auto pt-6"></div>
       </div>
 
       <div class="flex min-h-[168px] flex-col rounded-2xl border border-emerald-200 bg-emerald-50/90 p-5 xl:h-full dark:border-emerald-900/40 dark:bg-emerald-900/10">
-        <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-300">{{ t('admin.accounts.tokenRefresh.lastRunSuccess') }}</p>
-        <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-emerald-700 dark:text-emerald-200">{{ tokenConfig.running ? (tokenConfig.current_success ?? 0) : (tokenConfig.last_run_success ?? 0) }}</p>
+        <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-300">
+          {{ t('admin.accounts.tokenRefresh.lastRunSuccess') }}
+        </p>
+        <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-emerald-700 dark:text-emerald-200">
+          {{ tokenConfig.running ? (tokenConfig.current_success ?? 0) : (tokenConfig.last_run_success ?? 0) }}
+        </p>
         <div class="mt-auto pt-6"></div>
       </div>
 
       <div class="flex min-h-[168px] flex-col rounded-2xl border border-rose-200 bg-rose-50/90 p-5 xl:h-full dark:border-rose-900/40 dark:bg-rose-900/10">
-        <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-rose-700 dark:text-rose-300">{{ t('admin.accounts.tokenRefresh.lastRunFailed') }}</p>
-        <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-rose-700 dark:text-rose-200">{{ tokenConfig.running ? (tokenConfig.current_failed ?? 0) : (tokenConfig.last_run_failed ?? 0) }}</p>
+        <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-rose-700 dark:text-rose-300">
+          {{ t('admin.accounts.tokenRefresh.lastRunFailed') }}
+        </p>
+        <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-rose-700 dark:text-rose-200">
+          {{ tokenConfig.running ? (tokenConfig.current_failed ?? 0) : (tokenConfig.last_run_failed ?? 0) }}
+        </p>
         <div class="mt-auto pt-6"></div>
       </div>
 
       <div class="flex min-h-[168px] flex-col rounded-2xl border border-violet-200 bg-violet-50/90 p-5 xl:h-full dark:border-violet-900/40 dark:bg-violet-900/10">
-        <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-violet-700 dark:text-violet-300">{{ t('admin.accounts.tokenRefresh.completedCount') }}</p>
-        <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-violet-700 dark:text-violet-200">{{ completedCount }}</p>
+        <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-violet-700 dark:text-violet-300">
+          {{ t('admin.accounts.tokenRefresh.completedCount') }}
+        </p>
+        <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-violet-700 dark:text-violet-200">
+          {{ completedCount }}
+        </p>
         <div class="mt-auto pt-6"></div>
       </div>
 
       <div class="flex min-h-[168px] flex-col rounded-2xl border border-amber-200 bg-amber-50/90 p-5 xl:h-full dark:border-amber-900/40 dark:bg-amber-900/10">
-        <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">{{ t('admin.accounts.tokenRefresh.pendingCount') }}</p>
-        <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-amber-700 dark:text-amber-200">{{ pendingCount }}</p>
+        <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">
+          {{ t('admin.accounts.tokenRefresh.pendingCount') }}
+        </p>
+        <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-amber-700 dark:text-amber-200">
+          {{ pendingCount }}
+        </p>
         <div class="mt-auto pt-6"></div>
       </div>
 
       <div class="flex min-h-[168px] flex-col rounded-2xl border border-sky-200 bg-sky-50/90 p-5 xl:h-full dark:border-sky-900/40 dark:bg-sky-900/10">
-        <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">{{ t('admin.accounts.tokenRefresh.currentBatch') }}</p>
-        <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-sky-700 dark:text-sky-200">{{ tokenConfig.batch_size }}</p>
-        <p class="mt-auto pt-6 text-xs leading-5 text-sky-600/80 dark:text-sky-300/80">{{ scopeDescription }}</p>
+        <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">
+          {{ t('admin.accounts.tokenRefresh.currentBatch') }}
+        </p>
+        <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-sky-700 dark:text-sky-200">
+          {{ tokenConfig.batch_size }}
+        </p>
+        <p class="mt-auto pt-6 text-xs leading-5 text-sky-600/80 dark:text-sky-300/80">
+          {{ scopeDescription }}
+        </p>
       </div>
     </div>
 
     <div class="space-y-4 rounded-[24px] border border-slate-200 bg-white/90 p-6 backdrop-blur xl:flex xl:h-full xl:flex-col dark:border-slate-700 dark:bg-slate-800/75">
       <div>
-        <h3 class="text-base font-semibold text-slate-900 dark:text-white">{{ t('admin.accounts.tokenRefresh.title') }}</h3>
-        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ t('admin.accounts.tokenRefresh.hint') }}</p>
+        <h3 class="text-base font-semibold text-slate-900 dark:text-white">
+          {{ t('admin.accounts.tokenRefresh.title') }}
+        </h3>
+        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          {{ t('admin.accounts.tokenRefresh.hint') }}
+        </p>
       </div>
 
       <label class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200">
-        <input v-model="tokenConfig.enabled" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500" />
+        <input
+          :checked="tokenConfig.enabled"
+          type="checkbox"
+          class="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+          @change="
+            updateTokenConfig({
+              enabled: ($event.target as HTMLInputElement).checked,
+            })
+          "
+        />
         {{ t('admin.accounts.tokenRefresh.enabled') }}
       </label>
 
@@ -60,9 +99,21 @@
           <label class="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
             {{ t('admin.accounts.tokenRefresh.unit') }}
           </label>
-          <select v-model="tokenConfig.interval_unit" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200 dark:border-slate-600 dark:bg-slate-900 dark:text-white">
-            <option value="hour">{{ t('admin.accounts.tokenRefresh.unitHour') }}</option>
-            <option value="day">{{ t('admin.accounts.tokenRefresh.unitDay') }}</option>
+          <select
+            :value="tokenConfig.interval_unit"
+            class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+            @change="
+              updateTokenConfig({
+                interval_unit: ($event.target as HTMLSelectElement).value as AccountTokenAutoRefreshConfig['interval_unit'],
+              })
+            "
+          >
+            <option value="hour">
+              {{ t('admin.accounts.tokenRefresh.unitHour') }}
+            </option>
+            <option value="day">
+              {{ t('admin.accounts.tokenRefresh.unitDay') }}
+            </option>
           </select>
         </div>
       </div>
@@ -78,9 +129,21 @@
           <label class="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
             {{ t('admin.accounts.tokenRefresh.scope') }}
           </label>
-          <select v-model="tokenConfig.scope" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200 dark:border-slate-600 dark:bg-slate-900 dark:text-white">
-            <option value="all">{{ t('admin.accounts.tokenRefresh.scopeAll') }}</option>
-            <option value="group">{{ t('admin.accounts.tokenRefresh.scopeGroup') }}</option>
+          <select
+            :value="tokenConfig.scope"
+            class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+            @change="
+              updateTokenConfig({
+                scope: ($event.target as HTMLSelectElement).value as AccountTokenAutoRefreshConfig['scope'],
+              })
+            "
+          >
+            <option value="all">
+              {{ t('admin.accounts.tokenRefresh.scopeAll') }}
+            </option>
+            <option value="group">
+              {{ t('admin.accounts.tokenRefresh.scopeGroup') }}
+            </option>
           </select>
         </div>
       </div>
@@ -89,8 +152,18 @@
         <label class="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
           {{ t('admin.accounts.tokenRefresh.group') }}
         </label>
-        <select v-model.number="tokenConfig.group_id" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200 dark:border-slate-600 dark:bg-slate-900 dark:text-white">
-          <option :value="0">{{ t('admin.accounts.tokenRefresh.groupPlaceholder') }}</option>
+        <select
+          :value="tokenConfig.group_id ?? 0"
+          class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+          @change="
+            updateTokenConfig({
+              group_id: Number(($event.target as HTMLSelectElement).value),
+            })
+          "
+        >
+          <option :value="0">
+            {{ t('admin.accounts.tokenRefresh.groupPlaceholder') }}
+          </option>
           <option v-for="group in groups" :key="group.id" :value="group.id">
             {{ group.name }}
           </option>
@@ -99,14 +172,24 @@
 
       <div class="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:bg-slate-900/70 dark:text-slate-300">
         <div class="flex flex-wrap items-center justify-between gap-2">
-          <span>{{ tokenConfig.running ? t('admin.accounts.tokenRefresh.runningProgress') : t('admin.accounts.tokenRefresh.lastRunAt', { time: tokenLastRunText }) }}</span>
+          <span>{{
+            tokenConfig.running
+              ? t('admin.accounts.tokenRefresh.runningProgress')
+              : t('admin.accounts.tokenRefresh.lastRunAt', {
+                  time: tokenLastRunText,
+                })
+          }}</span>
           <span class="badge text-xs" :class="tokenConfig.enabled ? 'badge-success' : 'badge-gray'">
-            {{ tokenConfig.running ? t('admin.accounts.tokenRefresh.running') : (tokenConfig.enabled ? t('common.enabled') : t('common.disabled')) }}
+            {{ tokenConfig.running ? t('admin.accounts.tokenRefresh.running') : tokenConfig.enabled ? t('common.enabled') : t('common.disabled') }}
           </span>
         </div>
         <div class="mt-2 space-y-1 text-xs text-slate-500 dark:text-slate-400">
-          <div>{{ t('admin.accounts.queueRunning', { task: queueRunningText }) }}</div>
-          <div>{{ t('admin.accounts.queuePending', { task: queuePendingText }) }}</div>
+          <div>
+            {{ t('admin.accounts.queueRunning', { task: queueRunningText }) }}
+          </div>
+          <div>
+            {{ t('admin.accounts.queuePending', { task: queuePendingText }) }}
+          </div>
         </div>
       </div>
 
@@ -139,7 +222,8 @@ const props = defineProps<{
   groups: AdminGroup[]
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
+  (e: 'update:tokenConfig', value: AccountTokenAutoRefreshConfig): void
   (e: 'update:tokenIntervalValueInput', value: string): void
   (e: 'update:tokenBatchSizeInput', value: string): void
   (e: 'saveConfig'): void
@@ -147,6 +231,10 @@ defineEmits<{
 }>()
 
 const { t } = useI18n()
+
+function updateTokenConfig(patch: Partial<AccountTokenAutoRefreshConfig>) {
+  emit('update:tokenConfig', { ...props.tokenConfig, ...patch })
+}
 
 const selectedGroupName = computed(() => {
   const groupID = props.tokenConfig.group_id ?? 0

@@ -3,53 +3,102 @@
     <div class="xl:h-full">
       <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 xl:h-full xl:auto-rows-fr">
         <div class="flex min-h-[168px] flex-col rounded-2xl border border-slate-200 bg-white/80 p-5 backdrop-blur xl:h-full dark:border-slate-700 dark:bg-slate-800/70">
-          <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{{ t('admin.accounts.healthSummary.total') }}</p>
-          <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-slate-900 dark:text-white">{{ displayTotal }}</p>
+          <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+            {{ t('admin.accounts.healthSummary.total') }}
+          </p>
+          <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-slate-900 dark:text-white">
+            {{ displayTotal }}
+          </p>
           <div class="mt-auto pt-6"></div>
         </div>
         <div class="flex min-h-[168px] flex-col rounded-2xl border border-emerald-200 bg-emerald-50/90 p-5 xl:h-full dark:border-emerald-900/40 dark:bg-emerald-900/10">
-          <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-300">{{ t('admin.accounts.healthSummary.healthy') }}</p>
-          <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-emerald-700 dark:text-emerald-200">{{ healthSummary.healthy_accounts }}</p>
-          <p class="mt-auto pt-6 text-xs leading-5 text-emerald-600/80 dark:text-emerald-300/80">{{ t('admin.accounts.healthSummary.healthyHint') }}</p>
+          <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-300">
+            {{ t('admin.accounts.healthSummary.healthy') }}
+          </p>
+          <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-emerald-700 dark:text-emerald-200">
+            {{ healthSummary.healthy_accounts }}
+          </p>
+          <p class="mt-auto pt-6 text-xs leading-5 text-emerald-600/80 dark:text-emerald-300/80">
+            {{ t('admin.accounts.healthSummary.healthyHint') }}
+          </p>
         </div>
         <div class="flex min-h-[168px] flex-col rounded-2xl border border-amber-200 bg-amber-50/90 p-5 xl:h-full dark:border-amber-900/40 dark:bg-amber-900/10">
-          <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">{{ t('admin.accounts.healthSummary.constrained') }}</p>
-          <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-amber-700 dark:text-amber-200">{{ healthSummary.constrained_accounts }}</p>
-          <p class="mt-auto pt-6 text-xs leading-5 text-amber-600/80 dark:text-amber-300/80">{{ t('admin.accounts.healthSummary.constrainedHint') }}</p>
+          <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">
+            {{ t('admin.accounts.healthSummary.constrained') }}
+          </p>
+          <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-amber-700 dark:text-amber-200">
+            {{ healthSummary.constrained_accounts }}
+          </p>
+          <p class="mt-auto pt-6 text-xs leading-5 text-amber-600/80 dark:text-amber-300/80">
+            {{ t('admin.accounts.healthSummary.constrainedHint') }}
+          </p>
         </div>
         <div class="flex min-h-[168px] flex-col rounded-2xl border border-rose-200 bg-rose-50/90 p-5 xl:h-full dark:border-rose-900/40 dark:bg-rose-900/10">
-          <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-rose-700 dark:text-rose-300">{{ t('admin.accounts.healthSummary.unavailable') }}</p>
-          <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-rose-700 dark:text-rose-200">{{ healthSummary.unavailable_accounts }}</p>
+          <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-rose-700 dark:text-rose-300">
+            {{ t('admin.accounts.healthSummary.unavailable') }}
+          </p>
+          <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-rose-700 dark:text-rose-200">
+            {{ healthSummary.unavailable_accounts }}
+          </p>
           <div class="mt-auto space-y-2 pt-6 text-xs leading-5 text-rose-600/80 dark:text-rose-300/80">
             <p>{{ t('admin.accounts.healthSummary.unavailableHint') }}</p>
             <p>
-            {{ t('admin.accounts.healthSummary.unchecked', { count: healthSummary.unchecked_accounts }) }}
+              {{
+                t('admin.accounts.healthSummary.unchecked', {
+                  count: healthSummary.unchecked_accounts,
+                })
+              }}
             </p>
           </div>
         </div>
 
         <div class="flex min-h-[168px] flex-col rounded-2xl border border-violet-200 bg-violet-50/90 p-5 xl:h-full dark:border-violet-900/40 dark:bg-violet-900/10">
-          <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-violet-700 dark:text-violet-300">{{ t('admin.accounts.healthSummary.completedCount') }}</p>
-          <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-violet-700 dark:text-violet-200">{{ completedCount }}</p>
-          <div class="mt-auto pt-6 text-xs leading-5 text-violet-600/80 dark:text-violet-300/80">{{ progressHint }}</div>
+          <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-violet-700 dark:text-violet-300">
+            {{ t('admin.accounts.healthSummary.completedCount') }}
+          </p>
+          <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-violet-700 dark:text-violet-200">
+            {{ completedCount }}
+          </p>
+          <div class="mt-auto pt-6 text-xs leading-5 text-violet-600/80 dark:text-violet-300/80">
+            {{ progressHint }}
+          </div>
         </div>
 
         <div class="flex min-h-[168px] flex-col rounded-2xl border border-amber-200 bg-amber-50/90 p-5 xl:h-full dark:border-amber-900/40 dark:bg-amber-900/10">
-          <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">{{ t('admin.accounts.healthSummary.pendingCount') }}</p>
-          <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-amber-700 dark:text-amber-200">{{ pendingCount }}</p>
-          <div class="mt-auto pt-6 text-xs leading-5 text-amber-600/80 dark:text-amber-300/80">{{ progressHint }}</div>
+          <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">
+            {{ t('admin.accounts.healthSummary.pendingCount') }}
+          </p>
+          <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-amber-700 dark:text-amber-200">
+            {{ pendingCount }}
+          </p>
+          <div class="mt-auto pt-6 text-xs leading-5 text-amber-600/80 dark:text-amber-300/80">
+            {{ progressHint }}
+          </div>
         </div>
       </div>
     </div>
 
     <div class="space-y-4 rounded-[24px] border border-slate-200 bg-white/90 p-6 backdrop-blur xl:flex xl:h-full xl:flex-col dark:border-slate-700 dark:bg-slate-800/75">
       <div>
-        <h3 class="text-base font-semibold text-slate-900 dark:text-white">{{ t('admin.accounts.autoCheck') }}</h3>
-        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ t('admin.accounts.autoCheckIntervalHint') }}</p>
+        <h3 class="text-base font-semibold text-slate-900 dark:text-white">
+          {{ t('admin.accounts.autoCheck') }}
+        </h3>
+        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          {{ t('admin.accounts.autoCheckIntervalHint') }}
+        </p>
       </div>
 
       <label class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200">
-        <input v-model="autoConfig.enabled" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500" />
+        <input
+          :checked="autoConfig.enabled"
+          type="checkbox"
+          class="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+          @change="
+            updateAutoConfig({
+              enabled: ($event.target as HTMLInputElement).checked,
+            })
+          "
+        />
         {{ t('admin.accounts.autoCheckEnabled') }}
       </label>
 
@@ -72,19 +121,23 @@
         <label class="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
           {{ t('admin.accounts.autoCheckModel') }}
         </label>
-        <Input v-model="autoConfig.model_id" :placeholder="t('admin.accounts.healthCheckModelPlaceholder')" />
+        <Input :model-value="autoConfig.model_id" :placeholder="t('admin.accounts.healthCheckModelPlaceholder')" @update:model-value="updateAutoConfig({ model_id: $event })" />
       </div>
 
       <div class="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:bg-slate-900/70 dark:text-slate-300">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <span>{{ statusText }}</span>
           <span class="badge text-xs" :class="autoConfig.enabled ? 'badge-success' : 'badge-gray'">
-            {{ autoConfig.running ? t('admin.accounts.healthCheckRunning') : (autoConfig.enabled ? t('common.enabled') : t('common.disabled')) }}
+            {{ autoConfig.running ? t('admin.accounts.healthCheckRunning') : autoConfig.enabled ? t('common.enabled') : t('common.disabled') }}
           </span>
         </div>
         <div class="mt-2 space-y-1 text-xs text-slate-500 dark:text-slate-400">
-          <div>{{ t('admin.accounts.queueRunning', { task: queueRunningText }) }}</div>
-          <div>{{ t('admin.accounts.queuePending', { task: queuePendingText }) }}</div>
+          <div>
+            {{ t('admin.accounts.queueRunning', { task: queueRunningText }) }}
+          </div>
+          <div>
+            {{ t('admin.accounts.queuePending', { task: queuePendingText }) }}
+          </div>
         </div>
       </div>
 
@@ -120,7 +173,8 @@ const props = defineProps<{
   deletingUnhealthy: boolean
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
+  (e: 'update:autoConfig', value: AccountHealthAutoCheckConfig): void
   (e: 'update:manualModelId', value: string): void
   (e: 'update:autoIntervalInput', value: string): void
   (e: 'runHealthCheck'): void
@@ -130,15 +184,21 @@ defineEmits<{
 
 const { t } = useI18n()
 
+function updateAutoConfig(patch: Partial<AccountHealthAutoCheckConfig>) {
+  emit('update:autoConfig', { ...props.autoConfig, ...patch })
+}
+
 const statusText = computed(() => {
   if (props.autoConfig.running) {
     return t('admin.accounts.healthCheckProgress', {
       current: props.autoConfig.current_success ?? 0,
       total: props.autoConfig.current_total ?? 0,
-      failed: props.autoConfig.current_failed ?? 0
+      failed: props.autoConfig.current_failed ?? 0,
     })
   }
-  return t('admin.accounts.healthSummary.lastChecked', { time: props.autoLastRunText })
+  return t('admin.accounts.healthSummary.lastChecked', {
+    time: props.autoLastRunText,
+  })
 })
 
 const completedCount = computed(() => {

@@ -6,8 +6,12 @@
         <div class="relative space-y-7 p-6 xl:p-8">
           <div class="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p class="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-500">{{ t('admin.accountHealth.title') }}</p>
-              <h2 class="mt-3 text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">{{ t('admin.accountHealth.description') }}</h2>
+              <p class="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-500">
+                {{ t('admin.accountHealth.title') }}
+              </p>
+              <h2 class="mt-3 text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">
+                {{ t('admin.accountHealth.description') }}
+              </h2>
               <p class="mt-3 max-w-2xl text-sm leading-6 text-slate-500 dark:text-slate-400">
                 {{ activeTab === 'health' ? healthStatusText : tokenStatusText }}
               </p>
@@ -46,6 +50,7 @@
             :health-checking="healthChecking"
             :saving-auto-config="savingAutoConfig"
             :deleting-unhealthy="deletingUnhealthy"
+            @update:auto-config="applyAutoConfig"
             @update:manual-model-id="manualModelId = $event"
             @update:auto-interval-input="autoIntervalInput = $event"
             @run-health-check="runGlobalHealthCheck"
@@ -62,6 +67,7 @@
             :saving-token-config="savingTokenConfig"
             :running-token-refresh="runningTokenRefresh"
             :groups="groups"
+            @update:token-config="applyTokenConfig"
             @update:token-interval-value-input="tokenIntervalValueInput = $event"
             @update:token-batch-size-input="tokenBatchSizeInput = $event"
             @save-config="saveTokenConfig"
@@ -114,7 +120,7 @@ const autoConfig = reactive<AccountHealthAutoCheckConfig>({
   current_total: 0,
   current_success: 0,
   current_failed: 0,
-  last_run_at: null
+  last_run_at: null,
 })
 
 const tokenConfig = reactive<AccountTokenAutoRefreshConfig>({
@@ -131,7 +137,7 @@ const tokenConfig = reactive<AccountTokenAutoRefreshConfig>({
   last_run_at: null,
   last_run_total: 0,
   last_run_success: 0,
-  last_run_failed: 0
+  last_run_failed: 0,
 })
 
 const healthSummary = ref<AccountHealthSummary>({
@@ -140,12 +146,12 @@ const healthSummary = ref<AccountHealthSummary>({
   constrained_accounts: 0,
   unavailable_accounts: 0,
   unchecked_accounts: 0,
-  last_checked_at: ''
+  last_checked_at: '',
 })
 
 const tabs = computed(() => [
   { key: 'health' as const, label: t('admin.accounts.autoCheck') },
-  { key: 'token' as const, label: t('admin.accounts.tokenRefresh.tab') }
+  { key: 'token' as const, label: t('admin.accounts.tokenRefresh.tab') },
 ])
 
 const autoLastRunText = computed(() => formatLastRun(autoConfig.last_run_at))
@@ -160,24 +166,18 @@ const healthStatusText = computed(() => {
     return t('admin.accounts.healthCheckProgress', {
       current: autoConfig.current_success ?? 0,
       total: autoConfig.current_total ?? 0,
-      failed: autoConfig.current_failed ?? 0
+      failed: autoConfig.current_failed ?? 0,
     })
   }
   const base = autoConfig.enabled ? t('admin.accounts.autoCheckEnabled') : t('admin.accounts.healthSummary.neverChecked')
-  return autoConfig.last_run_at
-    ? `${base} · ${t('admin.accounts.healthSummary.lastChecked', { time: autoLastRunText.value })}`
-    : base
+  return autoConfig.last_run_at ? `${base} · ${t('admin.accounts.healthSummary.lastChecked', { time: autoLastRunText.value })}` : base
 })
 
 const tokenStatusText = computed(() => {
   const base = tokenConfig.enabled ? t('admin.accounts.tokenRefresh.enabled') : t('admin.accounts.tokenRefresh.disabledHint')
-  const scope = tokenConfig.scope === 'group'
-    ? `${t('admin.accounts.tokenRefresh.scopeGroup')} · ${tokenGroupName.value || t('admin.accounts.tokenRefresh.groupPlaceholder')}`
-    : t('admin.accounts.tokenRefresh.scopeAll')
+  const scope = tokenConfig.scope === 'group' ? `${t('admin.accounts.tokenRefresh.scopeGroup')} · ${tokenGroupName.value || t('admin.accounts.tokenRefresh.groupPlaceholder')}` : t('admin.accounts.tokenRefresh.scopeAll')
   const status = `${base} · ${scope}`
-  return tokenConfig.last_run_at
-    ? `${status} · ${t('admin.accounts.tokenRefresh.lastRunAt', { time: tokenLastRunText.value })}`
-    : status
+  return tokenConfig.last_run_at ? `${status} · ${t('admin.accounts.tokenRefresh.lastRunAt', { time: tokenLastRunText.value })}` : status
 })
 
 function formatLastRun(timestamp?: number | null) {
@@ -249,16 +249,14 @@ async function runGlobalHealthCheck() {
   healthChecking.value = true
   try {
     const modelID = manualModelId.value.trim() || autoConfig.model_id.trim()
-    const result = await adminAPI.accounts.runHealthCheck({ model_id: modelID || undefined })
+    const result = await adminAPI.accounts.runHealthCheck({
+      model_id: modelID || undefined,
+    })
     autoConfig.running = true
     autoConfig.current_total = result.total
     autoConfig.current_success = 0
     autoConfig.current_failed = 0
-    appStore.showSuccess(
-      result.started
-        ? t('admin.accounts.healthCheckRunStarted')
-        : t('admin.accounts.healthCheckAlreadyRunning')
-    )
+    appStore.showSuccess(result.started ? t('admin.accounts.healthCheckRunStarted') : t('admin.accounts.healthCheckAlreadyRunning'))
   } catch (error: any) {
     appStore.showError(error?.message || t('admin.accounts.healthCheckFailed'))
   } finally {
@@ -280,7 +278,7 @@ async function saveAutoConfig() {
     const updated = await adminAPI.accounts.updateAccountHealthAutoCheckConfig({
       enabled: autoConfig.enabled,
       interval_minutes: interval,
-      model_id: autoConfig.model_id.trim()
+      model_id: autoConfig.model_id.trim(),
     })
     applyAutoConfig(updated)
     appStore.showSuccess(t('admin.accounts.autoCheckSaved'))
@@ -317,7 +315,7 @@ async function saveTokenConfig() {
       interval_unit: tokenConfig.interval_unit,
       batch_size: batchSize,
       scope: tokenConfig.scope,
-      group_id: tokenConfig.scope === 'group' ? tokenConfig.group_id : 0
+      group_id: tokenConfig.scope === 'group' ? tokenConfig.group_id : 0,
     })
     applyTokenConfig(updated)
     appStore.showSuccess(t('admin.accounts.tokenRefresh.saved'))
@@ -339,11 +337,7 @@ async function runTokenRefreshNow() {
     tokenConfig.current_failed = 0
     tokenConfig.batch_size = result.batch_size
     tokenBatchSizeInput.value = String(result.batch_size)
-    appStore.showSuccess(
-      result.started
-        ? t('admin.accounts.tokenRefresh.runStarted')
-        : t('admin.accounts.tokenRefresh.runAlreadyRunning')
-    )
+    appStore.showSuccess(result.started ? t('admin.accounts.tokenRefresh.runStarted') : t('admin.accounts.tokenRefresh.runAlreadyRunning'))
   } catch (error: any) {
     appStore.showError(error?.message || t('common.error'))
   } finally {
@@ -373,10 +367,7 @@ async function pollUpdates() {
 
   polling.value = true
   try {
-    const [healthCfg, refreshCfg] = await Promise.all([
-      adminAPI.accounts.getAccountHealthAutoCheckConfig(),
-      adminAPI.accounts.getAccountTokenAutoRefreshConfig()
-    ])
+    const [healthCfg, refreshCfg] = await Promise.all([adminAPI.accounts.getAccountHealthAutoCheckConfig(), adminAPI.accounts.getAccountTokenAutoRefreshConfig()])
 
     const nextHealthRunAt = healthCfg.last_run_at ?? null
     const hasNewHealthRun = nextHealthRunAt !== null && lastObservedAutoRunAt.value !== null && nextHealthRunAt !== lastObservedAutoRunAt.value

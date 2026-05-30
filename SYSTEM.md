@@ -272,6 +272,24 @@
   - 後續自動部署包只會更新 `docker-deploy` 這個固定 release，避免 GitHub Releases 頁面同時出現 `v0.x.x` 與 `docker-deploy` 兩個條目。
   - 已存在的舊 `v*` release/tag 不會被本次代碼修改自動刪除；若需要清理，需要單獨對 GitHub release/tag 執行刪除操作。
 
+## 本次 GitHub Actions 失敗修正
+
+- 已針對 `main` 推送後的 CI / Security Scan 紅叉補修編譯與前端 lint 問題。
+- 修改內容：
+  - `backend/internal/handler/dto/types.go`
+  - `backend/internal/service/openai_gateway_service.go`
+  - `frontend/src/components/admin/account-health/AccountHealthAutoCheckPanel.vue`
+  - `frontend/src/components/admin/account-health/AccountTokenAutoRefreshPanel.vue`
+  - `frontend/src/views/admin/AccountHealthView.vue`
+- 修改前後差異：
+  - 修改前：`account_handler.go` 會寫入 `dto.Account` 的健康狀態欄位，但 DTO 未定義對應字段，導致後端編譯失敗。
+  - 修改前：`openai_gateway_service.go` 合併後殘留重複 `isCodexImageGenerationBridgeEnabled` 與錯誤的 `GetAPIKeyFromContext`/重複變數宣告，導致後端編譯失敗。
+  - 修改前：健康檢查與 Token 自動刷新面板直接 `v-model` 修改 props，觸發 `vue/no-mutating-props`。
+  - 修改後：DTO 補齊健康狀態輸出欄位；OpenAI gateway 刪除重複/錯誤宣告；前端子組件改為 emit 更新事件，由父頁統一更新 reactive 狀態。
+- 影響範圍：
+  - 僅修正編譯與 lint 阻塞，不改變健康檢查、Token 自動刷新或 OpenAI gateway 既有業務語義。
+  - 本機已通過前端 `lint:check` 與 `typecheck`；本機環境缺少 `go` / `gofmt`，後端編譯需依 GitHub Actions 最終驗證。
+
 ## 本次前端工具列回退與刷新按鈕修正
 
 - 已根據反饋將账号頁第一行工具列退回上一版分組排列。

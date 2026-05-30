@@ -512,21 +512,6 @@ func (s *OpenAIGatewayService) needsUpstreamChannelRestrictionCheck(ctx context.
 	return ch.BillingModelSource == BillingModelSourceUpstream
 }
 
-func (s *OpenAIGatewayService) isCodexImageGenerationBridgeEnabled(ctx context.Context, account *Account, apiKey *APIKey) bool {
-	if override := account.CodexImageGenerationBridgeOverride(); override != nil {
-		return *override
-	}
-	if s != nil && s.channelService != nil && apiKey != nil && apiKey.GroupID != nil {
-		ch, err := s.channelService.GetChannelForGroup(ctx, *apiKey.GroupID)
-		if err != nil {
-			slog.Warn("failed to resolve codex image generation bridge channel override", "group_id", *apiKey.GroupID, "error", err)
-		} else if override := ch.CodexImageGenerationBridgeOverride(PlatformOpenAI); override != nil {
-			return *override
-		}
-	}
-	return s != nil && s.cfg != nil && s.cfg.Gateway.CodexImageGenerationBridgeEnabled
-}
-
 // ReplaceModelInBody 替换请求体中的 JSON model 字段（通用 gjson/sjson 实现）。
 func (s *OpenAIGatewayService) ReplaceModelInBody(body []byte, newModel string) []byte {
 	return ReplaceModelInBody(body, newModel)
@@ -2329,8 +2314,6 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	originalBody := body
 	reqModel, reqStream, promptCacheKey := extractOpenAIRequestMetaFromBody(body)
 	originalModel := reqModel
-	apiKey := GetAPIKeyFromContext(c)
-	codexImageGenerationBridgeEnabled := s.isCodexImageGenerationBridgeEnabled(ctx, account, apiKey)
 
 	if account.Type == AccountTypeAPIKey && !openai_compat.ShouldUseResponsesAPI(account.Extra) {
 		return s.forwardResponsesViaRawChatCompletions(ctx, c, account, body)
