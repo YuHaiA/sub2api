@@ -608,3 +608,38 @@
   - 修改后：`prune_unused_images` 改为 `docker image prune -f`，只清理 dangling 镜像层；备份镜像由 `prune_old_backups` 按 `KEEP_BACKUPS=1` 单独控制。
 - 后续规则：
   - 如果目标是保留 tagged backup image，禁止使用 `docker image prune -a` 作为常规收尾清理。
+
+## 本次终端操作问题记录
+
+- PowerShell 与远端 shell 混用问题：
+  - 在 PowerShell 中执行 `ssh "... $tmp ..."` 或 `ssh "... $(date ...) ..."` 时，`$tmp` / `$(...)` 可能会先被本机 PowerShell 展开，导致远端命令异常。
+  - 本次表现：
+    - `curl: (2) no URL specified`
+    - `Cannot bind parameter 'Date'. Cannot convert value "+%Y%m%d%H%M%S"`
+  - 后续规则：
+    - 远端 shell 变量尽量避免放在 PowerShell 双引号字符串里。
+    - 需要远端展开变量时，优先用单引号包住整段远端命令，或在本机先生成安全值再传入远端命令。
+- Windows 本机命令差异：
+  - 本机默认 shell 是 PowerShell，不保证有 Linux `grep` / `bash`。
+  - 本次表现：
+    - `grep` 在本机不可用。
+    - `bash -n` 触发 WSL 但 `/bin/bash` 不存在。
+  - 后续规则：
+    - 本机搜索文件继续优先用 `rg` / `Select-String`。
+    - shell 脚本语法检查优先在服务器 Linux 环境执行 `bash -n`，不要假设 Windows 本机可跑 bash。
+- GitHub API 查询限制：
+  - 未认证 GitHub REST API 容易触发 rate limit。
+  - 本次表现：
+    - `API rate limit exceeded`
+  - 后续规则：
+    - 查询 workflow 状态时优先减少轮询次数。
+    - 能用 `git ls-remote` 验证 tag / branch 指向时，不依赖 GitHub API。
+- 宿主机 root-owned 文件同步：
+  - `/home/ec2-user/sub2api-deploy/bin/deploy-from-package.sh` 是 root-owned，`scp` 不能直接覆盖。
+  - 本次表现：
+    - `Permission denied`
+    - `chmod: Operation not permitted`
+  - 后续规则：
+    - 先上传到 `/tmp/*.new`。
+    - 在服务器上执行 `bash -n /tmp/*.new` 验证。
+    - 再用 `sudo install -o root -g root -m 0755 /tmp/*.new <target>` 原子替换。
