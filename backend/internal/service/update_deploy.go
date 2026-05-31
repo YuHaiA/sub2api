@@ -121,7 +121,7 @@ func defaultDeployConfig() *DeployConfig {
 		Mode:              "docker_compose",
 		ExecutionMode:     deployExecutionModeHostAgent,
 		SourceType:        deploySourceTypeArchive,
-		DefaultImage:      "weishaw/sub2api:latest",
+		DefaultImage:      "sub2api:rollback",
 		ArchiveURL:        "https://github.com/YuHaiA/sub2api/releases/download/docker-deploy/sub2api-docker-image.tar",
 		LoadedImage:       "sub2api-gha:docker-deploy",
 		ServiceName:       "sub2api",
@@ -149,7 +149,7 @@ func normalizeDeployConfig(cfg *DeployConfig) *DeployConfig {
 		out.SourceType = strings.TrimSpace(strings.ToLower(out.SourceType))
 	}
 	if strings.TrimSpace(out.DefaultImage) == "" {
-		out.DefaultImage = "weishaw/sub2api:latest"
+		out.DefaultImage = "sub2api:rollback"
 	}
 	if strings.TrimSpace(out.ArchiveURL) == "" {
 		out.ArchiveURL = "https://github.com/YuHaiA/sub2api/releases/download/docker-deploy/sub2api-docker-image.tar"

@@ -6952,7 +6952,7 @@ const deployConfig = reactive<DeployConfig>({
   mode: "docker_compose",
   execution_mode: "host_agent",
   source_type: "docker_archive_url",
-  default_image: "weishaw/sub2api:latest",
+  default_image: "sub2api:rollback",
   archive_url: "https://github.com/YuHaiA/sub2api/releases/download/docker-deploy/sub2api-docker-image.tar",
   loaded_image: "sub2api-gha:docker-deploy",
   service_name: "sub2api",
@@ -9389,7 +9389,7 @@ function applyDeployConfig(config: DeployConfig) {
       config.archive_url ||
       "https://github.com/YuHaiA/sub2api/releases/download/docker-deploy/sub2api-docker-image.tar",
     loaded_image: config.loaded_image || "sub2api-gha:docker-deploy",
-    default_image: config.default_image || "weishaw/sub2api:latest",
+    default_image: config.default_image || "sub2api:rollback",
     service_name: config.service_name || "sub2api",
     compose_project_dir:
       config.compose_project_dir || "/home/ec2-user/sub2api-deploy",

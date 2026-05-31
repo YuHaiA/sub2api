@@ -36,7 +36,7 @@
 ### 3. 容器運行層
 
 - 目前主應用容器：`sub2api`
-- 目前運行鏡像：`weishaw/sub2api:latest`
+- 目前運行鏡像：`sub2api:rollback`
 - 真正對外提供服務的是容器，不是本地 repo，也不是部署目錄裡的源碼快照
 
 ## 維護規則
@@ -485,3 +485,24 @@
 - 验证状态：
   - 已执行 `pnpm --dir frontend run typecheck`，通过。
   - 已执行 `pnpm --dir frontend run build`，通过；仅保留既有 chunk size / dynamic import 构建警告。
+
+## 本次固定部署参数修正
+
+- 背景：
+  - 服务器实际 `docker-compose.yml` 中 `sub2api` 服务使用的运行镜像 tag 是 `sub2api:rollback`。
+  - 设置页恢复部署入口后，默认 `Runtime Image` 仍显示 `weishaw/sub2api:latest`，会导致后台更新时把固定包 tag 到错误镜像，容器可能继续使用旧 `sub2api:rollback`。
+  - 因为本次先通过宿主机脚本直接部署，后台数据库中的 `system_deploy_state` 仍停留在 `pending`。
+- 修改内容：
+  - `backend/internal/service/update_deploy.go`
+  - `frontend/src/views/admin/SettingsView.vue`
+  - `SYSTEM.md`
+- 修改前后差异：
+  - 修改前：后端部署配置默认值与前端默认表单均使用 `weishaw/sub2api:latest`。
+  - 修改后：默认运行镜像统一改为服务器实际使用的 `sub2api:rollback`；固定包仍从 `docker-deploy/sub2api-docker-image.tar` 拉取，加载镜像仍为 `sub2api-gha:docker-deploy`。
+  - 服务器数据库已手动校正 `system_deploy_config.default_image=sub2api:rollback`，并将 `system_deploy_state.status` 从 `pending` 校正为 `succeeded`。
+- 影响范围：
+  - 仅修正固定部署默认参数与文档，不改变部署包地址、不创建版本 tag。
+- 验证状态：
+  - 已执行 `pnpm --dir frontend run typecheck`，通过。
+  - 已执行 `pnpm --dir frontend run build`，通过；仅保留既有 chunk size / dynamic import 构建警告。
+  - 本机缺少 `gofmt` / `go`，未能运行 Go 格式化与后端测试；本次 Go 改动只调整字符串默认值。
