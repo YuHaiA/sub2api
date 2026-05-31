@@ -53,6 +53,7 @@ type DeployState struct {
 	RequestedImage string `json:"requested_image,omitempty"`
 	RequestedImageID string `json:"requested_image_id,omitempty"`
 	RunningImageID string `json:"running_image_id,omitempty"`
+	AlreadyUpToDate bool   `json:"already_up_to_date,omitempty"`
 	LastMessage    string `json:"last_message,omitempty"`
 	LastError      string `json:"last_error,omitempty"`
 	LastOutput     string `json:"last_output,omitempty"`
@@ -73,6 +74,7 @@ type DeployResult struct {
 	Commands          []string `json:"commands,omitempty"`
 	Message           string   `json:"message"`
 	NeedRestart       bool     `json:"need_restart"`
+	AlreadyUpToDate   bool     `json:"already_up_to_date,omitempty"`
 }
 
 type deployAgentRequest struct {
@@ -93,6 +95,7 @@ type deployAgentResponse struct {
 	Image             string   `json:"image,omitempty"`
 	ImageID           string   `json:"image_id,omitempty"`
 	RunningImageID    string   `json:"running_image_id,omitempty"`
+	AlreadyUpToDate   bool     `json:"already_up_to_date,omitempty"`
 	ServiceName       string   `json:"service_name,omitempty"`
 	ComposeProjectDir string   `json:"compose_project_dir,omitempty"`
 	Message           string   `json:"message,omitempty"`
@@ -367,6 +370,7 @@ func (s *UpdateService) TriggerDeploy(ctx context.Context, req *DeployTriggerReq
 		RequestedImage:   cfg.DefaultImage,
 		RequestedImageID: "",
 		RunningImageID:   "",
+		AlreadyUpToDate:  false,
 		LastMessage:      result.Message,
 		LastOutput:       "",
 		StartedAt:        &now,
@@ -388,6 +392,7 @@ func (s *UpdateService) TriggerDeploy(ctx context.Context, req *DeployTriggerReq
 			state.LastOutput = trimDeployOutput(agentResp.Output)
 			state.RequestedImageID = strings.TrimSpace(agentResp.ImageID)
 			state.RunningImageID = strings.TrimSpace(agentResp.RunningImageID)
+			state.AlreadyUpToDate = agentResp.AlreadyUpToDate
 		}
 		state.LastMessage = "Deploy failed"
 		_ = s.saveDeployState(context.Background(), state)
@@ -405,11 +410,15 @@ func (s *UpdateService) TriggerDeploy(ctx context.Context, req *DeployTriggerReq
 		state.LastOutput = trimDeployOutput(agentResp.Output)
 		state.RequestedImageID = strings.TrimSpace(agentResp.ImageID)
 		state.RunningImageID = strings.TrimSpace(agentResp.RunningImageID)
+		state.AlreadyUpToDate = agentResp.AlreadyUpToDate
 	}
 	_ = s.saveDeployState(context.Background(), state)
 
 	result.Status = deployStatusSucceeded
 	result.Message = successMessage
+	if agentResp != nil {
+		result.AlreadyUpToDate = agentResp.AlreadyUpToDate
+	}
 	return result, nil
 }
 

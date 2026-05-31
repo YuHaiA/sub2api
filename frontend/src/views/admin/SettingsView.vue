@@ -6602,6 +6602,9 @@
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 {{ localText("服务端更新只使用 docker-deploy 固定发布包，不创建版本 tag。", "Server updates use only the fixed docker-deploy package; no version tags are created.") }}
               </p>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {{ localText("更新成功或确认已是最新后，会自动清理未使用的旧 Docker 镜像；保留最近 1 个备份镜像。", "After a successful update or up-to-date check, unused Docker images are pruned automatically; the latest backup image is kept.") }}
+              </p>
             </div>
             <div class="space-y-5 p-6">
               <div v-if="deployLoading" class="flex items-center gap-2 text-gray-500">
@@ -6657,10 +6660,13 @@
                     <div>
                       <div class="text-sm font-medium text-gray-900 dark:text-white">
                         {{ localText("部署状态", "Deploy Status") }}:
-                        <span :class="deployStatusClass">{{ deployState.status || "idle" }}</span>
+                        <span :class="deployStatusClass">{{ deployStatusLabel }}</span>
                       </div>
                       <p v-if="deployState.last_message" class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                        {{ deployState.last_message }}
+                        {{ deployLastMessageLabel }}
+                      </p>
+                      <p v-if="deployState.already_up_to_date" class="mt-1 text-sm font-medium text-green-600 dark:text-green-400">
+                        {{ localText("当前运行镜像已是最新，已跳过重复部署。", "The running image is already up to date; duplicate deploy was skipped.") }}
                       </p>
                       <p v-if="deployState.last_error" class="mt-1 text-sm text-red-600 dark:text-red-400">
                         {{ deployState.last_error }}
@@ -6967,6 +6973,7 @@ const deployConfig = reactive<DeployConfig>({
 });
 const deployState = reactive<DeployState>({
   status: "idle",
+  already_up_to_date: false,
 });
 
 const deployStatusClass = computed(() => {
@@ -6974,6 +6981,33 @@ const deployStatusClass = computed(() => {
   if (deployState.status === "failed") return "text-red-600 dark:text-red-400";
   if (deployState.status === "running" || deployState.status === "pending") return "text-amber-600 dark:text-amber-400";
   return "text-gray-600 dark:text-gray-300";
+});
+
+const deployStatusLabel = computed(() => {
+  switch (deployState.status) {
+    case "succeeded":
+      return localText("成功", "Succeeded");
+    case "failed":
+      return localText("失败", "Failed");
+    case "running":
+      return localText("执行中", "Running");
+    case "pending":
+      return localText("等待中", "Pending");
+    default:
+      return localText("空闲", "Idle");
+  }
+});
+
+const deployLastMessageLabel = computed(() => {
+  const message = (deployState.last_message || "").trim();
+  if (!message) return "";
+  if (deployState.already_up_to_date || message.toLowerCase() === "already up to date") {
+    return localText("已是最新镜像，无需更新。", "Already up to date.");
+  }
+  if (message === "Deploy completed successfully") {
+    return localText("部署已完成。", "Deploy completed successfully.");
+  }
+  return message;
 });
 
 // Overload Cooldown (529) 状态
@@ -9439,7 +9473,10 @@ async function runDeploy(dryRun: boolean) {
   try {
     await saveDeployConfig();
     const result = await adminAPI.system.triggerDeploy({ dry_run: dryRun });
-    appStore.showSuccess(result.message || t("common.success"));
+    const message = result.already_up_to_date
+      ? localText("当前运行镜像已是最新，已跳过更新。", "The running image is already up to date; update skipped.")
+      : result.message || t("common.success");
+    appStore.showSuccess(message);
     await loadDeployStatus();
   } catch (err) {
     appStore.showError(extractApiErrorMessage(err, t("common.error")));

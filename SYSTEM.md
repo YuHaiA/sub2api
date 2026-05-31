@@ -144,7 +144,7 @@
   - `deploy/host-agent/deploy-from-package.sh`
 - 為避免「伺服器已手改、本地 repo 未同步」造成後續覆蓋，本地腳本已同步補上：
   - 部署後健康檢查等待
-  - 舊 backup image 自動保留最近 2 個
+  - 舊 backup image 自動保留最近 1 個
   - 部署完成後輸出 image/container 結果摘要
 - 部署腳本現在具備 no-op 短路：
   - 先下載並 `docker load` 最新 release 包，再比較 `LOADED_IMAGE` 與當前容器 image digest。
@@ -506,3 +506,39 @@
   - 已执行 `pnpm --dir frontend run typecheck`，通过。
   - 已执行 `pnpm --dir frontend run build`，通过；仅保留既有 chunk size / dynamic import 构建警告。
   - 本机缺少 `gofmt` / `go`，未能运行 Go 格式化与后端测试；本次 Go 改动只调整字符串默认值。
+
+## 本次固定部署已最新提示修正
+
+- 背景：
+  - 宿主部署脚本已经具备镜像 digest / release ETag 的 no-op 短路，但后端状态与前端提示没有结构化字段，只能依赖最近输出中的文字判断。
+  - 宿主脚本默认 `IMAGE_TAG` 仍是历史 `weishaw/sub2api:latest`，与当前服务器实际运行镜像 `sub2api:rollback` 不一致。
+- 修改内容：
+  - `deploy/host-agent/deploy-from-package.sh`
+  - `deploy/host-agent/sub2api_host_deploy_agent.py`
+  - `backend/internal/service/update_deploy.go`
+  - `frontend/src/api/admin/system.ts`
+  - `frontend/src/views/admin/SettingsView.vue`
+- 修改前后差异：
+  - 修改前：已是最新时脚本会跳过部署，但 agent / 后端 / 前端没有统一的 `already_up_to_date` 状态；后台只能显示普通成功消息。
+  - 修改后：agent 在输出包含 `already up to date` 时返回 `already_up_to_date=true`；后端保存到 `DeployState` 并回传到 `DeployResult`；设置页会用明确提示告知“当前运行镜像已是最新，已跳过更新”。
+  - 宿主脚本默认 `IMAGE_TAG` 调整为 `sub2api:rollback`，与后端默认配置和服务器实际 compose 镜像保持一致。
+- 影响范围：
+  - 仅影响固定部署入口的状态展示与宿主脚本默认参数。
+  - 不改变 release 包地址、docker load / tag / compose up 的实际更新流程，也不会创建版本 tag。
+- 待验证事项：
+  - 需要在具备 Docker / 宿主 agent 的服务器环境点击后台“立即更新”，确认已最新时返回 no-op 提示且不重启容器。
+
+## 本次固定部署中文状态提示补强
+
+- 背景：
+  - 后台设置页已能识别 `already_up_to_date`，但状态区仍会直接显示后端英文 `succeeded` / `Already up to date`，容易让操作者误判是否真的更新完成。
+  - 使用者确认需要中文提示，并关心旧镜像是否会自动清理。
+- 修改内容：
+  - `frontend/src/views/admin/SettingsView.vue`
+  - `SYSTEM.md`
+- 修改前后差异：
+  - 修改前：部署状态显示原始英文状态值，最近消息直接显示后端返回内容。
+  - 修改后：部署状态在中文界面显示为“成功 / 失败 / 执行中 / 等待中 / 空闲”；已是最新时显示“已是最新镜像，无需更新”，并保留绿色说明“当前运行镜像已是最新，已跳过重复部署”。
+  - 部署页说明新增旧镜像清理提示：更新成功或确认已是最新后，会自动执行未使用镜像清理，并保留最近 1 个备份镜像。
+- 影响范围：
+  - 仅影响后台设置页部署区的展示文案，不改变后端 API 或宿主部署脚本行为。

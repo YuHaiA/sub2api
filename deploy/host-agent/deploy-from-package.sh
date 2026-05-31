@@ -3,7 +3,7 @@ set -euo pipefail
 
 ARCHIVE_URL="${ARCHIVE_URL:-https://github.com/YuHaiA/sub2api/releases/download/docker-deploy/sub2api-docker-image.tar}"
 LOADED_IMAGE="${LOADED_IMAGE:-sub2api-gha:docker-deploy}"
-IMAGE_TAG="${IMAGE_TAG:-weishaw/sub2api:latest}"
+IMAGE_TAG="${IMAGE_TAG:-sub2api:rollback}"
 COMPOSE_PROJECT_DIR="${COMPOSE_PROJECT_DIR:-/home/ec2-user/sub2api-deploy}"
 COMPOSE_FILE="${COMPOSE_FILE:-}"
 SERVICE_NAME="${SERVICE_NAME:-sub2api}"
@@ -12,7 +12,7 @@ COMPOSE_BINARY="${COMPOSE_BINARY:-docker-compose}"
 ARCHIVE_PATH="${ARCHIVE_PATH:-$COMPOSE_PROJECT_DIR/deploy-update.tar}"
 METADATA_DIR="${METADATA_DIR:-$COMPOSE_PROJECT_DIR/.deploy-state}"
 ARCHIVE_ETAG_FILE="${ARCHIVE_ETAG_FILE:-$METADATA_DIR/archive.etag}"
-KEEP_BACKUPS="${KEEP_BACKUPS:-2}"
+KEEP_BACKUPS="${KEEP_BACKUPS:-1}"
 HEALTH_WAIT_SECONDS="${HEALTH_WAIT_SECONDS:-120}"
 HEALTH_POLL_INTERVAL="${HEALTH_POLL_INTERVAL:-5}"
 

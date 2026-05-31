@@ -79,7 +79,8 @@ def handle_deploy(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     message = "Deploy completed successfully"
     lowered = output.lower()
-    if "already up to date" in lowered:
+    already_up_to_date = "already up to date" in lowered
+    if already_up_to_date:
         message = "Already up to date"
 
     image_id = ""
@@ -101,6 +102,7 @@ def handle_deploy(payload: Dict[str, Any]) -> Dict[str, Any]:
         "compose_project_dir": str(payload.get("compose_project_dir", "")).strip(),
         "commands": payload.get("commands") or [],
         "message": message,
+        "already_up_to_date": already_up_to_date,
         "output": output,
         "need_restart": False,
     }

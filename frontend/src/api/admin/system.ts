@@ -69,6 +69,7 @@ export interface DeployState {
   requested_image?: string
   requested_image_id?: string
   running_image_id?: string
+  already_up_to_date?: boolean
   last_message?: string
   last_error?: string
   last_output?: string
@@ -83,6 +84,7 @@ export interface DeployResult {
   image: string
   service_name: string
   compose_dir: string
+  already_up_to_date?: boolean
   commands?: string[]
 }
 
