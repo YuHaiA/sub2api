@@ -542,3 +542,18 @@
   - 部署页说明新增旧镜像清理提示：更新成功或确认已是最新后，会自动执行未使用镜像清理，并保留最近 1 个备份镜像。
 - 影响范围：
   - 仅影响后台设置页部署区的展示文案，不改变后端 API 或宿主部署脚本行为。
+
+## 本次固定部署发布流程错误记录
+
+- 错误现象：
+  - 修复已提交并推送到功能分支 `fix/latest-provider-503` 后，后台“立即更新”仍显示旧输出：`backup images within keep limit: 0/2`。
+  - 这说明服务器拉到的 `docker-deploy/sub2api-docker-image.tar` 仍是旧包，而不是新代码没有生效。
+- 根因：
+  - `.github/workflows/deploy-package.yml` 只在 `main` push 或手动 `workflow_dispatch` 时更新固定 `docker-deploy` release asset。
+  - 仅推送功能分支不会刷新后台部署入口下载的固定镜像包。
+- 正确流程：
+  - 若使用后台部署入口验证服务端更新，必须确保改动已进入 `origin/main`。
+  - 等 `Deploy Package` workflow 成功完成并覆盖 `docker-deploy/sub2api-docker-image.tar` 后，再到后台点击“立即更新”。
+  - 如果后台更新仍显示旧日志，先检查 GitHub Actions 与 `docker-deploy` release 的目标 commit，不要先假设宿主脚本或容器运行逻辑失败。
+- 影响范围：
+  - 这是发布流程问题，不是部署脚本的运行时 bug。
