@@ -595,3 +595,16 @@
 - 后续规则：
   - 判断固定部署包是否对应最新代码时，以 `Deploy Package` workflow 的 head SHA、`docker-deploy` tag 指向和资源更新时间共同确认。
   - 不要拿 release asset 文件 SHA 与 Docker image ID 做相等比较。
+
+## 本次备份镜像保留逻辑修正
+
+- 背景：
+  - 部署脚本设置了 `KEEP_BACKUPS=1`，但服务器 `docker images` 只剩 `sub2api:rollback`，没有 `sub2api:backup-*`。
+  - 根因是脚本在 `backup_current_image` 创建备份 tag 后，又执行 `docker image prune -a -f`；`-a` 会删除所有未被容器使用的镜像，包括刚创建的 backup tag。
+- 修改内容：
+  - `deploy/host-agent/deploy-from-package.sh`
+- 修改前后差异：
+  - 修改前：`prune_unused_images` 执行 `docker image prune -a -f`，会把未被容器引用的备份镜像一并清掉。
+  - 修改后：`prune_unused_images` 改为 `docker image prune -f`，只清理 dangling 镜像层；备份镜像由 `prune_old_backups` 按 `KEEP_BACKUPS=1` 单独控制。
+- 后续规则：
+  - 如果目标是保留 tagged backup image，禁止使用 `docker image prune -a` 作为常规收尾清理。

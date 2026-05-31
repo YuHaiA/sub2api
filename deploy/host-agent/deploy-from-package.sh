@@ -142,8 +142,8 @@ prune_old_backups() {
 }
 
 prune_unused_images() {
-  log "prune unused docker images"
-  "$DOCKER_BINARY" image prune -a -f >/dev/null 2>&1 || log "warn: failed to prune unused images"
+  log "prune dangling docker images"
+  "$DOCKER_BINARY" image prune -f >/dev/null 2>&1 || log "warn: failed to prune dangling images"
 }
 
 wait_for_health() {
