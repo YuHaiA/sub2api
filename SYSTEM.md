@@ -557,3 +557,24 @@
   - 如果后台更新仍显示旧日志，先检查 GitHub Actions 与 `docker-deploy` release 的目标 commit，不要先假设宿主脚本或容器运行逻辑失败。
 - 影响范围：
   - 这是发布流程问题，不是部署脚本的运行时 bug。
+
+## 本次宿主部署脚本同步修正
+
+- 背景：
+  - `docker-deploy` 镜像包更新后，后台部署页中文提示与镜像 digest 已更新，但最近部署输出仍显示 `backup images within keep limit: 0/2`。
+  - 排查服务器发现宿主机真实执行脚本 `/home/ec2-user/sub2api-deploy/bin/deploy-from-package.sh` 仍是旧版：
+    - `IMAGE_TAG="${IMAGE_TAG:-weishaw/sub2api:latest}"`
+    - `KEEP_BACKUPS="${KEEP_BACKUPS:-2}"`
+  - 根因是 host deploy agent 调用的是宿主机 root-owned 脚本，Docker 镜像更新不会自动覆盖宿主机 `bin/deploy-from-package.sh`。
+- 服务器操作：
+  - 已将仓库脚本 `deploy/host-agent/deploy-from-package.sh` 上传到服务器 `/tmp/deploy-from-package.sh.new`。
+  - 使用 `sudo install -o root -g root -m 0755` 覆盖 `/home/ec2-user/sub2api-deploy/bin/deploy-from-package.sh`。
+  - 已重启 `sub2api-host-deploy-agent`，服务状态为 `active`。
+- 验证结果：
+  - 服务器脚本当前为：
+    - `IMAGE_TAG="${IMAGE_TAG:-sub2api:rollback}"`
+    - `KEEP_BACKUPS="${KEEP_BACKUPS:-1}"`
+  - 直接执行宿主脚本 no-op 路径后输出 `backup images within keep limit: 0/1`，确认新保留策略生效。
+- 后续规则：
+  - 以后凡是修改 `deploy/host-agent/deploy-from-package.sh` 或 host agent 行为，除了进入 `origin/main` 并等待 `Deploy Package` 完成，还必须确认是否需要同步宿主机 `/home/ec2-user/sub2api-deploy/bin/deploy-from-package.sh` 与 systemd agent。
+  - 不能假设 Docker 镜像更新会自动更新宿主机部署脚本。
