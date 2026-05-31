@@ -389,3 +389,35 @@
   - 僅影響前端後台頁面切換體感與帳號 usage 請求節流，不修改後端 API、資料庫 schema、權限或部署流程。
 - 注意事項：
   - `KeepAlive` 會保留頁面資料狀態，切回頁面時不一定即時重新拉最新資料；需要最新資料時仍可點頁面內刷新按鈕。
+
+## 本次最新版本渠道限制 503 修正
+
+- 背景：
+  - 線上最新 `docker-deploy` 版本在使用 API 密鑰請求 `/responses` 時會返回 503 provider error。
+  - 日誌顯示實際錯誤為 `no available accounts supporting model: gpt-5.5 (channel pricing restriction)`，不是上游 provider 真正不可用。
+  - 線上資料庫中 group 2 關聯渠道 `codex` 的 `restrict_models=true`，但 `channel_model_pricing` 沒有任何模型定價行；最新程式碼把空定價列表解讀為 deny-all，導致選帳號前直接阻擋。
+- 修改內容：
+  - `backend/internal/service/channel_service.go`
+  - `backend/internal/service/gateway_channel_restriction_test.go`
+- 修改前後差異：
+  - 修改前：`ChannelService.IsModelRestricted` 只要 `restrict_models=true` 且找不到匹配 pricing，就返回 restricted；當 pricing allowlist 為空時會禁止所有模型。
+  - 修改後：新增 `pricingAllowlistByGroup` 快取與 `hasPricingAllowlistForGroupPlatform` O(1) 判定，只有當當前分組/平台實際配置了定價 allowlist 時才執行模型限制；空 pricing 不再等於 deny-all。
+  - 新增回歸測試覆蓋 `checkChannelPricingRestriction` 與 `isUpstreamModelRestrictedByChannel` 在空 pricing allowlist 下不阻擋 `gpt-5.5`；相關渠道限制測試統一以 `gpt-5.5` 作為請求模型，不在 allowlist 的對照模型使用 `gpt-5.4-mini`。
+- 影響範圍：
+  - 僅改變渠道模型限制判定的空列表語義。
+  - 已配置 pricing allowlist 的渠道仍維持原有限制行為；未配置 pricing 的渠道會回退到全局定價/帳號能力判定，不會在選帳號前被渠道定價擋掉。
+- 待驗證事項：
+  - 已嘗試執行 `go test -tags unit ./internal/service -run 'TestBillingModelForRestriction|TestResolveAccountUpstreamModel|TestCheckChannelPricingRestriction|TestIsUpstreamModelRestrictedByChannel'`；本機因 `proxy.golang.org` 依賴下載逾時未能完成，需以 GitHub Actions 完整構建結果作為發布驗證。
+  - 部署前仍需在非生產環境驗證最新映像可正常處理 group 2 / `gpt-5.5` 的 `/responses` 請求。
+
+## 0.1.134 發布準備
+
+- 修改內容：
+  - `backend/cmd/server/VERSION`
+- 修改前後差異：
+  - 版本號由 `0.1.133` 升至 `0.1.134`，用於本次渠道空 pricing allowlist 503 修正發布。
+- 影響範圍：
+  - 僅影響構建版本標識與發布 tag 對應；不改變運行邏輯。
+- 驗證狀態：
+  - 已執行 `gofmt` 格式化本次 Go 改動。
+  - 本地 Go 測試受依賴下載網路逾時阻塞，推送後需查看 CI / deploy-package workflow 結果。
