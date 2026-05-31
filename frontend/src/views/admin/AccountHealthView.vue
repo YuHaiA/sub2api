@@ -18,7 +18,7 @@
             </div>
 
             <div v-if="activeTab === 'health'" class="flex flex-wrap items-center gap-2">
-              <button class="btn btn-danger" :disabled="deletingUnhealthy || healthChecking" @click="deleteUnhealthyAccountsInScope">
+              <button class="btn btn-danger" :disabled="deleteDisabled || healthChecking" @click="deleteUnhealthyAccountsInScope">
                 {{ deletingUnhealthy ? t('admin.accounts.deleteUnhealthyRunning') : t('admin.accounts.deleteUnhealthy') }}
               </button>
               <button class="btn btn-secondary" :disabled="healthChecking" @click="runGlobalHealthCheck">
@@ -50,9 +50,13 @@
             :health-checking="healthChecking"
             :saving-auto-config="savingAutoConfig"
             :deleting-unhealthy="deletingUnhealthy"
+            :delete-account-statuses="deleteAccountStatuses"
+            :delete-health-statuses="deleteHealthStatuses"
             @update:auto-config="applyAutoConfig"
             @update:manual-model-id="manualModelId = $event"
             @update:auto-interval-input="autoIntervalInput = $event"
+            @update:delete-account-statuses="deleteAccountStatuses = $event"
+            @update:delete-health-statuses="deleteHealthStatuses = $event"
             @run-health-check="runGlobalHealthCheck"
             @save-config="saveAutoConfig"
             @delete-unhealthy="deleteUnhealthyAccountsInScope"
@@ -82,7 +86,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { AccountHealthAutoCheckConfig, AccountHealthSummary, AccountTokenAutoRefreshConfig } from '@/api/admin/accounts'
+import type { AccountHealthAutoCheckConfig, AccountHealthSummary, AccountTokenAutoRefreshConfig, DeleteAccountStatus, DeleteHealthStatus } from '@/api/admin/accounts'
 import type { AdminGroup } from '@/types'
 import { adminAPI } from '@/api/admin'
 import AccountHealthAutoCheckPanel from '@/components/admin/account-health/AccountHealthAutoCheckPanel.vue'
@@ -111,6 +115,8 @@ const manualModelId = ref('')
 const autoIntervalInput = ref('60')
 const tokenIntervalValueInput = ref('1')
 const tokenBatchSizeInput = ref('10')
+const deleteAccountStatuses = ref<DeleteAccountStatus[]>(['disabled', 'error'])
+const deleteHealthStatuses = ref<DeleteHealthStatus[]>(['unavailable'])
 
 const autoConfig = reactive<AccountHealthAutoCheckConfig>({
   enabled: false,
@@ -159,6 +165,12 @@ const tokenLastRunText = computed(() => formatLastRun(tokenConfig.last_run_at))
 const tokenGroupName = computed(() => {
   const groupID = tokenConfig.group_id ?? 0
   return groups.value.find((group) => group.id === groupID)?.name ?? ''
+})
+const deleteDisabled = computed(() => deletingUnhealthy.value || (deleteAccountStatuses.value.length === 0 && deleteHealthStatuses.value.length === 0))
+const selectedDeleteLabels = computed(() => {
+  const accountLabels = deleteAccountStatuses.value.map((status) => t(`admin.accounts.deleteAccountStatus.${status}`))
+  const healthLabels = deleteHealthStatuses.value.map((status) => t('admin.accounts.deleteHealthStatus', { status: t(`admin.accounts.healthStatus.${status}`) }))
+  return [...accountLabels, ...healthLabels].join(', ')
 })
 
 const healthStatusText = computed(() => {
@@ -346,12 +358,18 @@ async function runTokenRefreshNow() {
 }
 
 async function deleteUnhealthyAccountsInScope() {
-  if (deletingUnhealthy.value) return
-  if (!confirm(t('admin.accounts.deleteUnhealthyConfirm'))) return
+  if (deleteDisabled.value) {
+    appStore.showError(t('admin.accounts.deleteStatusRequired'))
+    return
+  }
+  if (!confirm(t('admin.accounts.deleteUnhealthyConfirm', { statuses: selectedDeleteLabels.value }))) return
 
   deletingUnhealthy.value = true
   try {
-    const result = await adminAPI.accounts.deleteUnhealthyAccounts()
+    const result = await adminAPI.accounts.deleteUnhealthyAccounts({
+      account_statuses: deleteAccountStatuses.value,
+      health_statuses: deleteHealthStatuses.value,
+    })
     await reloadPage()
     appStore.showSuccess(t('admin.accounts.deleteUnhealthyDone', { count: result.deleted_count }))
   } catch (error: any) {

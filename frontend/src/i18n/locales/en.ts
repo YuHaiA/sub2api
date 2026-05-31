@@ -2983,8 +2983,27 @@ export default {
       healthCheckModelPlaceholder: 'Model ID, e.g. gpt-5.5',
       deleteUnhealthy: 'Delete Unhealthy',
       deleteUnhealthyRunning: 'Deleting...',
-      deleteUnhealthyConfirm: 'Delete accounts currently marked unavailable? This action cannot be undone.',
+      deleteUnhealthyConfirm: 'Physically delete accounts matching: {statuses}? This removes database rows and cannot be undone.',
       deleteUnhealthyDone: 'Deleted {count} unhealthy account(s)',
+      deleteStatusTitle: 'Bulk Delete Scope',
+      deleteStatusHint: 'Select account statuses or health-check statuses, including statuses synced from other testing pages.',
+      deleteStatusRequired: 'Select at least one account status or health status to delete',
+      deleteHealthStatus: 'Health check: {status}',
+      deleteAccountStatus: {
+        disabled: 'Account status: Disabled',
+        inactive: 'Account status: Inactive',
+        error: 'Account status: Error',
+        rate_limited: 'Account status: Rate limited',
+        temp_unschedulable: 'Account status: Temp unschedulable',
+        unschedulable: 'Account status: Unschedulable'
+      },
+      healthStatus: {
+        all: 'All health statuses',
+        healthy: 'Healthy',
+        constrained: 'Constrained',
+        unavailable: 'Unavailable',
+        unchecked: 'Unchecked'
+      },
       queueRunning: 'Running: {task}',
       queuePending: 'Pending: {task}',
       queueTask: {

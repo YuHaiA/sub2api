@@ -3059,8 +3059,27 @@ export default {
       healthCheckModelPlaceholder: '模型 ID，例如 gpt-5.5',
       deleteUnhealthy: '删除异常账号',
       deleteUnhealthyRunning: '删除中...',
-      deleteUnhealthyConfirm: '确定要删除当前判定为不可用的账号吗？此操作不可撤销。',
+      deleteUnhealthyConfirm: '确定要物理删除这些账号吗？匹配状态：{statuses}。此操作会真正删除数据库记录，不可撤销。',
       deleteUnhealthyDone: '已删除 {count} 个异常账号',
+      deleteStatusTitle: '批量删除范围',
+      deleteStatusHint: '可按账号状态或健康检查状态选择，适合从其它测活页面同步状态后集中清理。',
+      deleteStatusRequired: '请至少选择一种要删除的账号状态或健康状态',
+      deleteHealthStatus: '健康检查：{status}',
+      deleteAccountStatus: {
+        disabled: '账号状态：停用',
+        inactive: '账号状态：停用',
+        error: '账号状态：错误',
+        rate_limited: '账号状态：限流中',
+        temp_unschedulable: '账号状态：临时不可调度',
+        unschedulable: '账号状态：不可调度'
+      },
+      healthStatus: {
+        all: '全部健康状态',
+        healthy: '健康',
+        constrained: '受限',
+        unavailable: '不可用',
+        unchecked: '未检查'
+      },
       queueRunning: '运行中：{task}',
       queuePending: '排队中：{task}',
       queueTask: {

@@ -784,7 +784,7 @@ func (h *AccountHandler) Deduplicate(c *gin.Context) {
 	response.Success(c, result)
 }
 
-// DeleteUnhealthy handles deleting unavailable accounts under the current filters.
+// DeleteUnhealthy handles deleting accounts matching selected account or health statuses.
 // POST /api/v1/admin/accounts/delete-unhealthy
 func (h *AccountHandler) DeleteUnhealthy(c *gin.Context) {
 	var req DeleteUnhealthyAccountsRequest
@@ -800,10 +800,11 @@ func (h *AccountHandler) DeleteUnhealthy(c *gin.Context) {
 		return
 	}
 
+	accountStatusSet := normalizeDeleteAccountStatuses(req.AccountStatuses)
+	healthStatusSet := normalizeDeleteHealthStatuses(req.HealthStatuses, len(req.AccountStatuses) == 0 && len(req.HealthStatuses) == 0)
 	result := DeleteUnhealthyAccountsResult{}
 	for _, account := range accounts {
-		snapshot := parseStoredAccountHealth(&account)
-		if snapshot.Status != accountHealthStatusUnavailable {
+		if !shouldDeleteAccountBySelection(account, accountStatusSet, healthStatusSet) {
 			continue
 		}
 		if err := h.adminService.DeleteAccount(c.Request.Context(), account.ID); err != nil {
@@ -864,7 +865,9 @@ type DeduplicateAccountsResult struct {
 }
 
 type DeleteUnhealthyAccountsRequest struct {
-	Filters *AccountHealthCheckFilters `json:"filters"`
+	Filters         *AccountHealthCheckFilters `json:"filters"`
+	AccountStatuses []string                   `json:"account_statuses"`
+	HealthStatuses  []string                   `json:"health_statuses"`
 }
 
 type DeleteUnhealthyAccountsResult struct {
@@ -996,6 +999,82 @@ func normalizeAccountHealthFilters(filters *AccountHealthCheckFilters) AccountHe
 		normalized.SortOrder = "asc"
 	}
 	return normalized
+}
+
+func normalizeDeleteAccountStatuses(statuses []string) map[string]struct{} {
+	allowed := map[string]string{
+		service.StatusActive:   service.StatusActive,
+		service.StatusDisabled: service.StatusDisabled,
+		"inactive":             service.StatusDisabled,
+		service.StatusError:    service.StatusError,
+		"rate_limited":         "rate_limited",
+		"temp_unschedulable":   "temp_unschedulable",
+		"unschedulable":        "unschedulable",
+	}
+	return normalizeDeleteStatusSet(statuses, allowed)
+}
+
+func normalizeDeleteHealthStatuses(statuses []string, useDefault bool) map[string]struct{} {
+	allowed := map[string]string{
+		accountHealthStatusUnchecked:   accountHealthStatusUnchecked,
+		accountHealthStatusHealthy:     accountHealthStatusHealthy,
+		accountHealthStatusConstrained: accountHealthStatusConstrained,
+		accountHealthStatusUnavailable: accountHealthStatusUnavailable,
+	}
+	result := normalizeDeleteStatusSet(statuses, allowed)
+	if useDefault {
+		result[accountHealthStatusUnavailable] = struct{}{}
+	}
+	return result
+}
+
+func normalizeDeleteStatusSet(statuses []string, allowed map[string]string) map[string]struct{} {
+	result := make(map[string]struct{})
+	for _, status := range statuses {
+		normalized, ok := allowed[strings.TrimSpace(strings.ToLower(status))]
+		if !ok {
+			continue
+		}
+		result[normalized] = struct{}{}
+	}
+	return result
+}
+
+func shouldDeleteAccountBySelection(account service.Account, accountStatuses map[string]struct{}, healthStatuses map[string]struct{}) bool {
+	for status := range accountStatuses {
+		if accountMatchesDeleteAccountStatus(account, status) {
+			return true
+		}
+	}
+	if len(healthStatuses) == 0 {
+		return false
+	}
+	_, ok := healthStatuses[parseStoredAccountHealth(&account).Status]
+	return ok
+}
+
+func accountMatchesDeleteAccountStatus(account service.Account, status string) bool {
+	now := time.Now()
+	switch status {
+	case "rate_limited":
+		return account.Status == service.StatusActive && account.RateLimitResetAt != nil && account.RateLimitResetAt.After(now)
+	case "temp_unschedulable":
+		return account.Status == service.StatusActive && account.TempUnschedulableUntil != nil && account.TempUnschedulableUntil.After(now)
+	case "unschedulable":
+		return account.Status == service.StatusActive && !account.Schedulable && !accountRateLimited(account, now) && !accountTempUnschedulable(account, now)
+	case service.StatusDisabled, "inactive":
+		return account.Status == service.StatusDisabled || account.Status == "inactive"
+	default:
+		return account.Status == status
+	}
+}
+
+func accountRateLimited(account service.Account, now time.Time) bool {
+	return account.RateLimitResetAt != nil && account.RateLimitResetAt.After(now)
+}
+
+func accountTempUnschedulable(account service.Account, now time.Time) bool {
+	return account.TempUnschedulableUntil != nil && account.TempUnschedulableUntil.After(now)
 }
 
 func parseAccountHealthGroupID(raw string) (int64, error) {

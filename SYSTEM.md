@@ -643,3 +643,35 @@
     - 先上传到 `/tmp/*.new`。
     - 在服务器上执行 `bash -n /tmp/*.new` 验证。
     - 再用 `sudo install -o root -g root -m 0755 /tmp/*.new <target>` 原子替换。
+
+## 本次账号物理删除与批量状态删除修正
+
+- 背景：
+  - 后台文档已声明账号删除应为物理删除，但实际 `accountRepository.Delete` 仍调用普通 Ent `Delete()`。
+  - `accounts` 使用 `SoftDeleteMixin`，普通 `Delete()` 会被 hook 改写为 `UPDATE deleted_at = NOW()`，因此仍是软删除。
+  - 测活页的“删除异常账号”原本只删除健康检查状态为 `unavailable` 的账号，无法覆盖其它页面测活后写入的账号状态。
+- 修改内容：
+  - `backend/internal/repository/account_repo.go`
+  - `backend/internal/handler/admin/account_handler.go`
+  - `frontend/src/api/admin/accounts.ts`
+  - `frontend/src/views/admin/AccountHealthView.vue`
+  - `frontend/src/components/admin/account-health/AccountHealthAutoCheckPanel.vue`
+  - `frontend/src/i18n/locales/zh.ts`
+  - `frontend/src/i18n/locales/en.ts`
+- 修改前后差异：
+  - 修改前：单账号删除、去重删除、异常账号批量删除最终都会走普通 Ent 删除，实际会软删除 `accounts.deleted_at`。
+  - 修改后：账号删除在删除 `account_groups`、`scheduled_test_plans` 后，通过 `mixins.SkipSoftDelete(ctx)` 执行真实 `DELETE FROM accounts` 语义。
+  - 修改前：`POST /admin/accounts/delete-unhealthy` 空 payload 只删除健康检查 `unavailable`。
+  - 修改后：空 payload 仍保持兼容；新增 `account_statuses` 与 `health_statuses` 可选数组，可按账号状态和健康检查状态批量物理删除。
+- 支持的批量删除状态：
+  - 账号状态：`disabled` / `inactive`、`error`、`rate_limited`、`temp_unschedulable`、`unschedulable`。
+  - 健康检查状态：`unavailable`、`constrained`、`unchecked`，接口也接受 `healthy` 但前端未默认展示为清理选项。
+- 前端行为：
+  - 测活管理页新增“批量删除范围”勾选区，默认勾选停用、错误、不可用。
+  - 删除确认框明确提示“物理删除数据库记录，不可撤销”，并列出当前匹配状态。
+- 验证记录：
+  - `frontend` 已执行 `pnpm run typecheck` 通过。
+  - 本机 Windows 环境没有 `go/gofmt`，后端格式化与 Go 测试无法在本机直接执行；后续如需 Go 验证，应在 Linux/CI 或具备 Go 工具链的环境运行。
+- 后续规则：
+  - 只要任务要求“不要软删除”，必须检查 Ent soft-delete hook 是否需要 `mixins.SkipSoftDelete(ctx)`。
+  - 批量删除类按钮必须让用户明确知道删除条件与是否不可撤销，不能只写“删除异常”这种模糊状态。

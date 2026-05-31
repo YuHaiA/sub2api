@@ -141,8 +141,43 @@
         </div>
       </div>
 
+      <div class="space-y-3 rounded-2xl border border-rose-200 bg-rose-50/80 p-4 dark:border-rose-900/40 dark:bg-rose-950/20">
+        <div>
+          <p class="text-sm font-semibold text-rose-800 dark:text-rose-200">
+            {{ t('admin.accounts.deleteStatusTitle') }}
+          </p>
+          <p class="mt-1 text-xs leading-5 text-rose-700/80 dark:text-rose-300/80">
+            {{ t('admin.accounts.deleteStatusHint') }}
+          </p>
+        </div>
+
+        <div class="grid gap-3 sm:grid-cols-2">
+          <label v-for="option in accountDeleteOptions" :key="option.value" class="flex items-center gap-2 text-sm text-rose-800 dark:text-rose-100">
+            <input
+              type="checkbox"
+              class="h-4 w-4 rounded border-rose-300 text-rose-600 focus:ring-rose-500"
+              :checked="deleteAccountStatuses.includes(option.value)"
+              @change="toggleDeleteAccountStatus(option.value, ($event.target as HTMLInputElement).checked)"
+            />
+            {{ option.label }}
+          </label>
+        </div>
+
+        <div class="grid gap-3 sm:grid-cols-2">
+          <label v-for="option in healthDeleteOptions" :key="option.value" class="flex items-center gap-2 text-sm text-rose-800 dark:text-rose-100">
+            <input
+              type="checkbox"
+              class="h-4 w-4 rounded border-rose-300 text-rose-600 focus:ring-rose-500"
+              :checked="deleteHealthStatuses.includes(option.value)"
+              @change="toggleDeleteHealthStatus(option.value, ($event.target as HTMLInputElement).checked)"
+            />
+            {{ option.label }}
+          </label>
+        </div>
+      </div>
+
       <div class="grid gap-3 border-t border-slate-200 pt-3 sm:grid-cols-3 xl:mt-auto dark:border-slate-700">
-        <button class="btn btn-danger w-full" :disabled="deletingUnhealthy || healthChecking" @click="$emit('deleteUnhealthy')">
+        <button class="btn btn-danger w-full" :disabled="deleteDisabled || healthChecking" @click="$emit('deleteUnhealthy')">
           {{ deletingUnhealthy ? t('admin.accounts.deleteUnhealthyRunning') : t('admin.accounts.deleteUnhealthy') }}
         </button>
         <button class="btn btn-secondary w-full" :disabled="healthChecking" @click="$emit('runHealthCheck')">
@@ -160,7 +195,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Input from '@/components/common/Input.vue'
-import type { AccountHealthAutoCheckConfig, AccountHealthSummary } from '@/api/admin/accounts'
+import type { AccountHealthAutoCheckConfig, AccountHealthSummary, DeleteAccountStatus, DeleteHealthStatus } from '@/api/admin/accounts'
 
 const props = defineProps<{
   healthSummary: AccountHealthSummary
@@ -171,12 +206,16 @@ const props = defineProps<{
   healthChecking: boolean
   savingAutoConfig: boolean
   deletingUnhealthy: boolean
+  deleteAccountStatuses: DeleteAccountStatus[]
+  deleteHealthStatuses: DeleteHealthStatus[]
 }>()
 
 const emit = defineEmits<{
   (e: 'update:autoConfig', value: AccountHealthAutoCheckConfig): void
   (e: 'update:manualModelId', value: string): void
   (e: 'update:autoIntervalInput', value: string): void
+  (e: 'update:deleteAccountStatuses', value: DeleteAccountStatus[]): void
+  (e: 'update:deleteHealthStatuses', value: DeleteHealthStatus[]): void
   (e: 'runHealthCheck'): void
   (e: 'saveConfig'): void
   (e: 'deleteUnhealthy'): void
@@ -187,6 +226,37 @@ const { t } = useI18n()
 function updateAutoConfig(patch: Partial<AccountHealthAutoCheckConfig>) {
   emit('update:autoConfig', { ...props.autoConfig, ...patch })
 }
+
+function toggleDeleteAccountStatus(status: DeleteAccountStatus, checked: boolean) {
+  emit('update:deleteAccountStatuses', toggleValue(props.deleteAccountStatuses, status, checked))
+}
+
+function toggleDeleteHealthStatus(status: DeleteHealthStatus, checked: boolean) {
+  emit('update:deleteHealthStatuses', toggleValue(props.deleteHealthStatuses, status, checked))
+}
+
+function toggleValue<T extends string>(values: T[], value: T, checked: boolean): T[] {
+  if (checked) {
+    return values.includes(value) ? values : [...values, value]
+  }
+  return values.filter((item) => item !== value)
+}
+
+const accountDeleteOptions = computed<Array<{ value: DeleteAccountStatus; label: string }>>(() => [
+  { value: 'disabled', label: t('admin.accounts.deleteAccountStatus.disabled') },
+  { value: 'error', label: t('admin.accounts.deleteAccountStatus.error') },
+  { value: 'rate_limited', label: t('admin.accounts.deleteAccountStatus.rate_limited') },
+  { value: 'temp_unschedulable', label: t('admin.accounts.deleteAccountStatus.temp_unschedulable') },
+  { value: 'unschedulable', label: t('admin.accounts.deleteAccountStatus.unschedulable') },
+])
+
+const healthDeleteOptions = computed<Array<{ value: DeleteHealthStatus; label: string }>>(() => [
+  { value: 'unavailable', label: t('admin.accounts.healthStatus.unavailable') },
+  { value: 'constrained', label: t('admin.accounts.healthStatus.constrained') },
+  { value: 'unchecked', label: t('admin.accounts.healthStatus.unchecked') },
+])
+
+const deleteDisabled = computed(() => props.deletingUnhealthy || (props.deleteAccountStatuses.length === 0 && props.deleteHealthStatuses.length === 0))
 
 const statusText = computed(() => {
   if (props.autoConfig.running) {

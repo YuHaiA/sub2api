@@ -524,6 +524,17 @@ export interface DeleteUnhealthyAccountsResult {
   deleted_count: number
 }
 
+export type DeleteAccountStatus =
+  | 'active'
+  | 'disabled'
+  | 'inactive'
+  | 'error'
+  | 'rate_limited'
+  | 'temp_unschedulable'
+  | 'unschedulable'
+
+export type DeleteHealthStatus = 'healthy' | 'constrained' | 'unavailable' | 'unchecked'
+
 /**
  * 批量获取多个账号的今日统计
  * @param accountIds - 账号 ID 列表
@@ -640,6 +651,8 @@ export async function deleteUnhealthyAccounts(payload?: {
     sort_by?: string
     sort_order?: 'asc' | 'desc'
   }
+  account_statuses?: DeleteAccountStatus[]
+  health_statuses?: DeleteHealthStatus[]
 }): Promise<DeleteUnhealthyAccountsResult> {
   const { data } = await apiClient.post<DeleteUnhealthyAccountsResult>('/admin/accounts/delete-unhealthy', payload ?? {}, {
     timeout: 300000
