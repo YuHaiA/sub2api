@@ -675,3 +675,24 @@
 - 后续规则：
   - 只要任务要求“不要软删除”，必须检查 Ent soft-delete hook 是否需要 `mixins.SkipSoftDelete(ctx)`。
   - 批量删除类按钮必须让用户明确知道删除条件与是否不可撤销，不能只写“删除异常”这种模糊状态。
+
+## 本次账号管理表格与账号健康卡片样式修正
+
+- 背景：
+  - 账号管理表的名称列在长邮箱 / 长域名账号名场景下会撑得过宽，挤压平台、状态、操作等后续列。
+  - 账号健康页摘要卡片使用大面积等高色块，数字较少时留白过大，右侧设置面板与左侧卡片高度比例不协调。
+- 修改内容：
+  - `frontend/src/components/common/types.ts`
+  - `frontend/src/components/common/DataTable.vue`
+  - `frontend/src/views/admin/AccountsView.vue`
+  - `frontend/src/components/admin/account-health/AccountHealthAutoCheckPanel.vue`
+- 修改前后差异：
+  - 修改前：`DataTable` 的列定义只支持 `class`，无法稳定给单列设置宽度；账号名文本没有明确的最大宽度约束。
+  - 修改后：通用列定义新增 `width` / `minWidth` / `maxWidth`，表头与单元格会应用这些尺寸；账号名列固定为紧凑宽度，并对账号名与邮箱做 `truncate`，完整内容保留在 `title`。
+  - 修改前：账号健康统计卡片最小高度较高、数字字号偏大、提示文字底部留白明显。
+  - 修改后：统计卡片统一使用 `health-stat-card` 紧凑样式，降低高度、收敛数字字号与间距，右侧控制面板不再被左侧大卡片明显拉高。
+- 影响范围：
+  - 仅影响前端展示样式与通用表格列尺寸能力。
+  - 不修改账号 API、分页、排序、删除、测活或任何后端逻辑。
+- 待验证事项：
+  - 需执行前端 `typecheck` / `build` 验证 Vue 模板与新增列字段类型。

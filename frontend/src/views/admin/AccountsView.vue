@@ -211,11 +211,11 @@
             <input type="checkbox" :checked="isSelected(row.id)" @change="toggleSel(row.id)" class="rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
           </template>
           <template #cell-name="{ row, value }">
-            <div class="flex flex-col">
-              <span class="font-medium text-gray-900 dark:text-white">{{ value }}</span>
+            <div class="flex min-w-0 max-w-[220px] flex-col">
+              <span class="block truncate font-medium text-gray-900 dark:text-white" :title="String(value || '')">{{ value }}</span>
               <span
                 v-if="row.extra?.email_address || row.extra?.email || row.credentials?.email"
-                class="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[200px]"
+                class="block max-w-[200px] truncate text-xs text-gray-500 dark:text-gray-400"
                 :title="String(row.extra?.email_address || row.extra?.email || row.credentials?.email)"
               >
                 {{ row.extra?.email_address || row.extra?.email || row.credentials?.email }}
@@ -1114,8 +1114,8 @@ function getAntigravityTierClass(row: any): string {
 // All available columns
 const allColumns = computed(() => {
   const c = [
-    { key: 'select', label: '', sortable: false },
-    { key: 'name', label: t('admin.accounts.columns.name'), sortable: true },
+    { key: 'select', label: '', sortable: false, width: '52px', minWidth: '52px', maxWidth: '52px' },
+    { key: 'name', label: t('admin.accounts.columns.name'), sortable: true, width: '260px', minWidth: '240px', maxWidth: '260px', class: 'account-name-col' },
     { key: 'platform_type', label: t('admin.accounts.columns.platformType'), sortable: false },
     { key: 'capacity', label: t('admin.accounts.columns.capacity'), sortable: false },
     { key: 'status', label: t('admin.accounts.columns.status'), sortable: true },

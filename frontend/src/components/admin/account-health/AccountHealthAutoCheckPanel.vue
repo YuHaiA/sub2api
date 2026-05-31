@@ -1,46 +1,45 @@
 <template>
-  <div class="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(380px,460px)] xl:items-stretch">
-    <div class="xl:h-full">
-      <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 xl:h-full xl:auto-rows-fr">
-        <div class="flex min-h-[168px] flex-col rounded-2xl border border-slate-200 bg-white/80 p-5 backdrop-blur xl:h-full dark:border-slate-700 dark:bg-slate-800/70">
-          <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+  <div class="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,440px)] xl:items-start">
+    <div>
+      <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <div class="health-stat-card border-slate-200 bg-white/90 dark:border-slate-700 dark:bg-slate-800/70">
+          <p class="health-stat-label text-slate-500 dark:text-slate-400">
             {{ t('admin.accounts.healthSummary.total') }}
           </p>
-          <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-slate-900 dark:text-white">
+          <p class="health-stat-value text-slate-900 dark:text-white">
             {{ displayTotal }}
           </p>
-          <div class="mt-auto pt-6"></div>
         </div>
-        <div class="flex min-h-[168px] flex-col rounded-2xl border border-emerald-200 bg-emerald-50/90 p-5 xl:h-full dark:border-emerald-900/40 dark:bg-emerald-900/10">
-          <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-300">
+        <div class="health-stat-card border-emerald-200 bg-emerald-50/80 dark:border-emerald-900/40 dark:bg-emerald-900/10">
+          <p class="health-stat-label text-emerald-700 dark:text-emerald-300">
             {{ t('admin.accounts.healthSummary.healthy') }}
           </p>
-          <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-emerald-700 dark:text-emerald-200">
+          <p class="health-stat-value text-emerald-700 dark:text-emerald-200">
             {{ healthSummary.healthy_accounts }}
           </p>
-          <p class="mt-auto pt-6 text-xs leading-5 text-emerald-600/80 dark:text-emerald-300/80">
+          <p class="health-stat-hint text-emerald-600/80 dark:text-emerald-300/80">
             {{ t('admin.accounts.healthSummary.healthyHint') }}
           </p>
         </div>
-        <div class="flex min-h-[168px] flex-col rounded-2xl border border-amber-200 bg-amber-50/90 p-5 xl:h-full dark:border-amber-900/40 dark:bg-amber-900/10">
-          <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">
+        <div class="health-stat-card border-amber-200 bg-amber-50/75 dark:border-amber-900/40 dark:bg-amber-900/10">
+          <p class="health-stat-label text-amber-700 dark:text-amber-300">
             {{ t('admin.accounts.healthSummary.constrained') }}
           </p>
-          <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-amber-700 dark:text-amber-200">
+          <p class="health-stat-value text-amber-700 dark:text-amber-200">
             {{ healthSummary.constrained_accounts }}
           </p>
-          <p class="mt-auto pt-6 text-xs leading-5 text-amber-600/80 dark:text-amber-300/80">
+          <p class="health-stat-hint text-amber-600/80 dark:text-amber-300/80">
             {{ t('admin.accounts.healthSummary.constrainedHint') }}
           </p>
         </div>
-        <div class="flex min-h-[168px] flex-col rounded-2xl border border-rose-200 bg-rose-50/90 p-5 xl:h-full dark:border-rose-900/40 dark:bg-rose-900/10">
-          <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-rose-700 dark:text-rose-300">
+        <div class="health-stat-card border-rose-200 bg-rose-50/75 dark:border-rose-900/40 dark:bg-rose-900/10">
+          <p class="health-stat-label text-rose-700 dark:text-rose-300">
             {{ t('admin.accounts.healthSummary.unavailable') }}
           </p>
-          <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-rose-700 dark:text-rose-200">
+          <p class="health-stat-value text-rose-700 dark:text-rose-200">
             {{ healthSummary.unavailable_accounts }}
           </p>
-          <div class="mt-auto space-y-2 pt-6 text-xs leading-5 text-rose-600/80 dark:text-rose-300/80">
+          <div class="health-stat-hint space-y-1 text-rose-600/80 dark:text-rose-300/80">
             <p>{{ t('admin.accounts.healthSummary.unavailableHint') }}</p>
             <p>
               {{
@@ -52,26 +51,26 @@
           </div>
         </div>
 
-        <div class="flex min-h-[168px] flex-col rounded-2xl border border-violet-200 bg-violet-50/90 p-5 xl:h-full dark:border-violet-900/40 dark:bg-violet-900/10">
-          <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-violet-700 dark:text-violet-300">
+        <div class="health-stat-card border-violet-200 bg-violet-50/70 dark:border-violet-900/40 dark:bg-violet-900/10">
+          <p class="health-stat-label text-violet-700 dark:text-violet-300">
             {{ t('admin.accounts.healthSummary.completedCount') }}
           </p>
-          <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-violet-700 dark:text-violet-200">
+          <p class="health-stat-value text-violet-700 dark:text-violet-200">
             {{ completedCount }}
           </p>
-          <div class="mt-auto pt-6 text-xs leading-5 text-violet-600/80 dark:text-violet-300/80">
+          <div class="health-stat-hint text-violet-600/80 dark:text-violet-300/80">
             {{ progressHint }}
           </div>
         </div>
 
-        <div class="flex min-h-[168px] flex-col rounded-2xl border border-amber-200 bg-amber-50/90 p-5 xl:h-full dark:border-amber-900/40 dark:bg-amber-900/10">
-          <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">
+        <div class="health-stat-card border-sky-200 bg-sky-50/75 dark:border-sky-900/40 dark:bg-sky-900/10">
+          <p class="health-stat-label text-sky-700 dark:text-sky-300">
             {{ t('admin.accounts.healthSummary.pendingCount') }}
           </p>
-          <p class="mt-5 text-[42px] font-semibold leading-none tracking-tight text-amber-700 dark:text-amber-200">
+          <p class="health-stat-value text-sky-700 dark:text-sky-200">
             {{ pendingCount }}
           </p>
-          <div class="mt-auto pt-6 text-xs leading-5 text-amber-600/80 dark:text-amber-300/80">
+          <div class="health-stat-hint text-sky-600/80 dark:text-sky-300/80">
             {{ progressHint }}
           </div>
         </div>
@@ -314,3 +313,21 @@ function formatQueueTask(task?: string) {
   }
 }
 </script>
+
+<style scoped>
+.health-stat-card {
+  @apply flex min-h-[128px] flex-col rounded-2xl border p-4 shadow-sm;
+}
+
+.health-stat-label {
+  @apply text-[11px] font-semibold uppercase tracking-[0.12em];
+}
+
+.health-stat-value {
+  @apply mt-3 text-[34px] font-semibold leading-none;
+}
+
+.health-stat-hint {
+  @apply mt-auto pt-4 text-xs leading-5;
+}
+</style>

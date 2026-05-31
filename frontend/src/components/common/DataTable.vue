@@ -83,6 +83,7 @@
               getStickyColumnClass(column, index),
               column.class
             ]"
+            :style="getColumnStyle(column)"
             @click="column.sortable && handleSort(column.key)"
           >
             <slot
@@ -173,6 +174,7 @@
                 getStickyColumnClass(column, colIndex),
                 column.class
               ]"
+              :style="getColumnStyle(column)"
             >
               <slot :name="`cell-${column.key}`"
                     :row="sortedData[virtualRow.index]"
@@ -648,6 +650,14 @@ const getAdaptivePaddingClass = () => {
     return 'px-5' // 20px
   } else {
     return 'px-6' // 24px
+  }
+}
+
+const getColumnStyle = (column: Column) => {
+  return {
+    width: column.width,
+    minWidth: column.minWidth,
+    maxWidth: column.maxWidth
   }
 }
 
