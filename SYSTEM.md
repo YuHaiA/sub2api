@@ -421,3 +421,19 @@
 - 驗證狀態：
   - 已執行 `gofmt` 格式化本次 Go 改動。
   - 本地 Go 測試受依賴下載網路逾時阻塞，推送後需查看 CI / deploy-package workflow 結果。
+
+## 账号健康页 i18n 热修
+
+- 背景：
+  - 部署 `0.1.134` 后，后台账号健康页面显示 `admin.accounts.*` / `admin.accountHealth.*` 原始 key，页面文案不可读。
+  - 根因是 `AccountHealthView`、`AccountHealthAutoCheckPanel`、`AccountTokenAutoRefreshPanel` 引用了新增 i18n key，但 `zh.ts` / `en.ts` 未补齐对应翻译。
+- 修改内容：
+  - `frontend/src/i18n/locales/zh.ts`
+  - `frontend/src/i18n/locales/en.ts`
+- 修改前后差异：
+  - 修改前：账号健康页标题、摘要卡片、自动检查面板、Token 刷新面板均可能裸露翻译 key。
+  - 修改后：补齐 `admin.accountHealth`、`admin.accounts.healthSummary`、`admin.accounts.tokenRefresh`、队列状态、健康检查与删除异常账号相关文案。
+- 影响范围：
+  - 仅影响前端国际化文案，不修改 API、权限、数据结构或后端调度逻辑。
+- 验证状态：
+  - 已执行 `pnpm --dir frontend build`，`vue-tsc -b && vite build` 通过。
