@@ -37,6 +37,14 @@ jobs:
         shell: bash
         run: sha256sum "${{ steps.meta.outputs.fixed_asset }}" > "${{ steps.meta.outputs.fixed_sha }}"
 
+      - name: Move fixed deploy tag to this commit
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -f docker-deploy "${GITHUB_SHA}"
+          git push -f origin refs/tags/docker-deploy
+
       - name: Publish fixed deploy release asset
         uses: softprops/action-gh-release@v2
         with:

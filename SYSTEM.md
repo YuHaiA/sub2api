@@ -578,3 +578,20 @@
 - 后续规则：
   - 以后凡是修改 `deploy/host-agent/deploy-from-package.sh` 或 host agent 行为，除了进入 `origin/main` 并等待 `Deploy Package` 完成，还必须确认是否需要同步宿主机 `/home/ec2-user/sub2api-deploy/bin/deploy-from-package.sh` 与 systemd agent。
   - 不能假设 Docker 镜像更新会自动更新宿主机部署脚本。
+
+## 本次固定 Release Tag 指向修正
+
+- 背景：
+  - GitHub Release 页面显示 `docker-deploy` tag 仍指向旧提交 `97706cd`，但资源文件显示最近 1 分钟已更新，后台运行镜像 digest 也已变化。
+  - 这会造成“GitHub 页面提交号”和“服务器镜像 digest / 资源文件时间”看起来对不上。
+- 根因：
+  - `softprops/action-gh-release` 覆盖 release asset 时不会保证已存在的 `docker-deploy` tag 被移动到当前 `main` commit。
+  - GitHub 页面资源旁边的 `sha256:...` 是 tar 资源文件本身的 SHA256，不是 Docker image ID；后台显示的 `sha256:...` 是容器运行镜像 ID，两者正常不会相同。
+- 修改内容：
+  - `.github/workflows/deploy-package.yml`
+- 修改前后差异：
+  - 修改前：workflow 只覆盖 `sub2api-docker-image.tar` 与 `.sha256`，release tag 可能停留在旧 commit。
+  - 修改后：发布固定包前先执行 `git tag -f docker-deploy "$GITHUB_SHA"` 并强推 `refs/tags/docker-deploy`，确保 Release 页面 tag、固定资源包和 `main` commit 对齐。
+- 后续规则：
+  - 判断固定部署包是否对应最新代码时，以 `Deploy Package` workflow 的 head SHA、`docker-deploy` tag 指向和资源更新时间共同确认。
+  - 不要拿 release asset 文件 SHA 与 Docker image ID 做相等比较。
