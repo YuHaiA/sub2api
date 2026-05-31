@@ -5559,6 +5559,7 @@ export default {
         gateway: '网关服务',
         email: '邮件设置',
         backup: '数据备份',
+        deploy: '部署更新',
         payment: '支付设置',
       },
       features: {

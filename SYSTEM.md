@@ -463,3 +463,25 @@
   - 已执行 `pnpm --dir frontend run typecheck`，通过。
   - 已执行 `pnpm --dir frontend run build`，通过；仅保留既有 chunk size / dynamic import 构建警告。
   - 已启动本地前端 `http://127.0.0.1:5173/` 并用浏览器访问 `/admin/account-health`；未登录状态会按预期跳转登录页，因此未能直接进入后台侧栏做人工点击验证。
+
+## 本次设置页固定部署入口恢复
+
+- 背景：
+  - 后台系统设置页原有的服务器更新 / 部署入口在上游合并后的 `SettingsView.vue` 中不再显示。
+  - 排查确认后端路由仍存在：`/admin/system/deploy-config`、`/admin/system/deploy-status`、`/admin/system/deploy`、`/admin/system/update`。
+  - 前端 API 封装 `frontend/src/api/admin/system.ts` 也仍保留部署配置、状态查询与触发部署方法；缺失的是设置页 UI tab 挂载。
+- 修改内容：
+  - `frontend/src/views/admin/SettingsView.vue`
+  - `frontend/src/i18n/locales/zh.ts`
+  - `frontend/src/i18n/locales/en.ts`
+  - `SYSTEM.md`
+- 修改前后差异：
+  - 修改前：设置页 tab 只有通用、登录条款、功能开关、安全认证、用户默认值、网关服务、支付、邮件、备份，没有部署更新入口。
+  - 修改后：新增 `部署更新 / Deploy` tab，恢复固定 `docker-deploy` 部署包的配置、状态查看、演练与立即更新操作。
+  - 页面文案明确说明服务器更新只使用固定 `docker-deploy` 包，不创建版本 tag。
+- 影响范围：
+  - 仅恢复前端设置页入口并调用既有后端 API。
+  - 不新增后端路由、不修改部署执行逻辑、不创建版本 tag。
+- 验证状态：
+  - 已执行 `pnpm --dir frontend run typecheck`，通过。
+  - 已执行 `pnpm --dir frontend run build`，通过；仅保留既有 chunk size / dynamic import 构建警告。
