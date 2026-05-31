@@ -21,6 +21,10 @@ function shouldKeepAliveRoute(route: RouteLocationNormalizedLoaded) {
   return route.path.startsWith('/admin')
 }
 
+function getRouteViewKey(route: RouteLocationNormalizedLoaded) {
+  return route.path
+}
+
 /**
  * Update favicon dynamically
  * @param logoUrl - URL of the logo to use as favicon
@@ -121,9 +125,9 @@ onMounted(async () => {
   <NavigationProgress />
   <RouterView v-slot="{ Component, route }">
     <KeepAlive :max="ADMIN_VIEW_CACHE_MAX">
-      <component :is="Component" v-if="shouldKeepAliveRoute(route)" />
+      <component :is="Component" v-if="shouldKeepAliveRoute(route)" :key="getRouteViewKey(route)" />
     </KeepAlive>
-    <component :is="Component" v-if="!shouldKeepAliveRoute(route)" />
+    <component :is="Component" v-if="!shouldKeepAliveRoute(route)" :key="getRouteViewKey(route)" />
   </RouterView>
   <Toast />
   <AnnouncementPopup />

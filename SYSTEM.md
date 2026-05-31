@@ -437,3 +437,25 @@
   - 仅影响前端国际化文案，不修改 API、权限、数据结构或后端调度逻辑。
 - 验证状态：
   - 已执行 `pnpm --dir frontend build`，`vue-tsc -b && vite build` 通过。
+
+## 本次后台导航切换错位修正
+
+- 背景：
+  - 后台页面切换时，中间内容区域偶发与左侧当前导航不一致，表现为标题/模块已经切到新页面，但表格或主体内容仍像上一页，体感上还有卡顿。
+  - 左侧导航里的账号健康入口显示 `nav.accountHealth`，说明导航文案缺少对应 i18n key。
+- 修改内容：
+  - `frontend/src/App.vue`
+  - `frontend/src/i18n/locales/zh.ts`
+  - `frontend/src/i18n/locales/en.ts`
+- 修改前后差异：
+  - 修改前：`/admin` 路由统一进入 `KeepAlive`，但 route view component 没有显式 `key`，多个后台页在缓存和快速切换时可能出现实例复用边界不清，造成内容区域与当前路由观感不一致。
+  - 修改后：路由视图统一使用 `route.path` 作为组件 `key`，确保每个后台页面都有独立缓存实例；同一路径 query 变化不强制重建整页。
+  - 修改前：侧边栏使用 `t('nav.accountHealth')`，但中英文 `nav` 均未定义该 key。
+  - 修改后：补齐 `nav.accountHealth` 中英文文案，左侧导航显示为账号健康 / Account Health。
+- 影响范围：
+  - 仅影响前端路由视图缓存边界与侧边栏文案。
+  - 不修改 API、权限、后端逻辑、数据结构或部署流程。
+- 验证状态：
+  - 已执行 `pnpm --dir frontend run typecheck`，通过。
+  - 已执行 `pnpm --dir frontend run build`，通过；仅保留既有 chunk size / dynamic import 构建警告。
+  - 已启动本地前端 `http://127.0.0.1:5173/` 并用浏览器访问 `/admin/account-health`；未登录状态会按预期跳转登录页，因此未能直接进入后台侧栏做人工点击验证。
