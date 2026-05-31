@@ -46,10 +46,9 @@
   - 若屬於應長期保留的能力，必須同步回本地 repo。
   - 若只是一次性排障操作，可只留在伺服器，不必回寫 repo。
 - 發布與服務器更新流程：
-  - GitHub Releases 頁面預期保留版本 tag（如 `v0.1.134`）與固定部署入口 `docker-deploy` 兩類。
-  - 服務器更新只使用固定 `docker-deploy` release 的部署包。
-  - 普通可部署修正不需要新建版本 tag；應提交後推送到 `origin/main`，由 `Deploy Package` workflow 更新 `docker-deploy/sub2api-docker-image.tar`。
-  - 只有使用者明確要求版本化發布時，才建立新的 `v*` tag / version release。
+  - GitHub Releases / 服務器更新只使用固定部署入口 `docker-deploy`。
+  - 普通可部署修正不得新建版本 tag；應提交後推送到 `origin/main`，由 `Deploy Package` workflow 更新 `docker-deploy/sub2api-docker-image.tar`。
+  - 舊的 `v*` tag / version release 視為歷史遺留；後續不要再新增版本 tag。
 - 之後描述問題時必須明確說是哪一層：
   - `Git 倉庫`
   - `伺服器部署目錄`
