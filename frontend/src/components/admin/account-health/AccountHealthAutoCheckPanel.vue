@@ -112,7 +112,23 @@
           <label class="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
             {{ t('admin.accounts.autoCheckInterval') }}
           </label>
-          <Input :model-value="autoIntervalInput" type="number" :placeholder="'60'" @update:model-value="$emit('update:autoIntervalInput', $event)" />
+          <div class="grid grid-cols-[minmax(0,1fr)_112px] gap-2">
+            <Input
+              :model-value="autoIntervalInput"
+              type="number"
+              min="1"
+              :placeholder="autoIntervalUnit === 'hour' ? '1' : '60'"
+              @update:model-value="$emit('update:autoIntervalInput', $event)"
+            />
+            <select
+              :value="autoIntervalUnit"
+              class="input h-10"
+              @change="$emit('update:autoIntervalUnit', ($event.target as HTMLSelectElement).value as 'minute' | 'hour')"
+            >
+              <option value="minute">{{ t('admin.accounts.intervalUnit.minute') }}</option>
+              <option value="hour">{{ t('admin.accounts.intervalUnit.hour') }}</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -201,6 +217,7 @@ const props = defineProps<{
   autoConfig: AccountHealthAutoCheckConfig
   manualModelId: string
   autoIntervalInput: string
+  autoIntervalUnit: 'minute' | 'hour'
   autoLastRunText: string
   healthChecking: boolean
   savingAutoConfig: boolean
@@ -213,6 +230,7 @@ const emit = defineEmits<{
   (e: 'update:autoConfig', value: AccountHealthAutoCheckConfig): void
   (e: 'update:manualModelId', value: string): void
   (e: 'update:autoIntervalInput', value: string): void
+  (e: 'update:autoIntervalUnit', value: 'minute' | 'hour'): void
   (e: 'update:deleteAccountStatuses', value: DeleteAccountStatus[]): void
   (e: 'update:deleteHealthStatuses', value: DeleteHealthStatus[]): void
   (e: 'runHealthCheck'): void

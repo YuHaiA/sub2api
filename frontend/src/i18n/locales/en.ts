@@ -2969,8 +2969,13 @@ export default {
       autoRefreshCountdown: 'Auto refresh: {seconds}s',
       autoCheck: 'Health Check',
       autoCheckEnabled: 'Enable automatic health checks',
-      autoCheckInterval: 'Check interval (minutes)',
+      autoCheckInterval: 'Check interval',
       autoCheckIntervalHint: 'Check account availability on a schedule, or run a manual check at any time.',
+      autoCheckIntervalInvalid: 'Check interval must be a positive whole number',
+      intervalUnit: {
+        minute: 'Minutes',
+        hour: 'Hours'
+      },
       autoCheckModel: 'Auto-check model',
       autoCheckSave: 'Save Settings',
       autoCheckSaved: 'Automatic health check settings saved',

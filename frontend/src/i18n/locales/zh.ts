@@ -3045,8 +3045,13 @@ export default {
       autoRefreshCountdown: '自动刷新：{seconds}s',
       autoCheck: '健康检查',
       autoCheckEnabled: '启用自动健康检查',
-      autoCheckInterval: '检查间隔（分钟）',
+      autoCheckInterval: '检查间隔',
       autoCheckIntervalHint: '按设定间隔自动检测账号可用性；也可以手动立即检测。',
+      autoCheckIntervalInvalid: '检查间隔必须是大于 0 的整数',
+      intervalUnit: {
+        minute: '分钟',
+        hour: '小时'
+      },
       autoCheckModel: '自动检查模型',
       autoCheckSave: '保存设置',
       autoCheckSaved: '自动健康检查设置已保存',

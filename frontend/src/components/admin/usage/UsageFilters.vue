@@ -1,11 +1,9 @@
 <template>
-  <div class="card p-6">
-    <!-- Toolbar: left filters (multi-line) + right actions -->
-    <div class="flex flex-wrap items-end justify-between gap-4">
-      <!-- Left: filters (allowed to wrap to multiple rows) -->
-      <div class="flex flex-1 flex-wrap items-end gap-4">
+  <div class="card p-5">
+    <div class="space-y-4">
+      <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(220px,1.15fr)_minmax(220px,1fr)_minmax(200px,0.95fr)_minmax(200px,0.95fr)] 2xl:grid-cols-[minmax(220px,1.15fr)_minmax(220px,1fr)_minmax(200px,0.95fr)_minmax(200px,0.95fr)_minmax(180px,0.8fr)_minmax(180px,0.8fr)]">
         <!-- User Search -->
-        <div ref="userSearchRef" class="usage-filter-dropdown relative w-full sm:w-auto sm:min-w-[240px]">
+        <div ref="userSearchRef" class="usage-filter-dropdown relative min-w-0">
           <label class="input-label">{{ t('admin.usage.userFilter') }}</label>
           <input
             v-model="userKeyword"
@@ -42,7 +40,7 @@
         </div>
 
         <!-- API Key Search -->
-        <div ref="apiKeySearchRef" class="usage-filter-dropdown relative w-full sm:w-auto sm:min-w-[240px]">
+        <div ref="apiKeySearchRef" class="usage-filter-dropdown relative min-w-0">
           <label class="input-label">{{ t('usage.apiKeyFilter') }}</label>
           <input
             v-model="apiKeyKeyword"
@@ -79,13 +77,13 @@
         </div>
 
         <!-- Model Filter -->
-        <div class="w-full sm:w-auto sm:min-w-[220px]">
+        <div class="min-w-0">
           <label class="input-label">{{ t('usage.model') }}</label>
           <Select v-model="filters.model" :options="modelOptions" searchable @change="emitChange" />
         </div>
 
         <!-- Account Filter -->
-        <div ref="accountSearchRef" class="usage-filter-dropdown relative w-full sm:w-auto sm:min-w-[220px]">
+        <div ref="accountSearchRef" class="usage-filter-dropdown relative min-w-0">
           <label class="input-label">{{ t('admin.usage.account') }}</label>
           <input
             v-model="accountKeyword"
@@ -122,33 +120,31 @@
         </div>
 
         <!-- Request Type Filter -->
-        <div class="w-full sm:w-auto sm:min-w-[180px]">
+        <div class="min-w-0">
           <label class="input-label">{{ t('usage.type') }}</label>
           <Select v-model="filters.request_type" :options="requestTypeOptions" @change="emitChange" />
         </div>
 
         <!-- Billing Type Filter -->
-        <div class="w-full sm:w-auto sm:min-w-[200px]">
+        <div class="min-w-0">
           <label class="input-label">{{ t('admin.usage.billingType') }}</label>
           <Select v-model="filters.billing_type" :options="billingTypeOptions" @change="emitChange" />
         </div>
 
         <!-- Billing Mode Filter -->
-        <div class="w-full sm:w-auto sm:min-w-[200px]">
+        <div class="min-w-0">
           <label class="input-label">{{ t('admin.usage.billingMode') }}</label>
           <Select v-model="filters.billing_mode" :options="billingModeOptions" @change="emitChange" />
         </div>
 
         <!-- Group Filter -->
-        <div class="w-full sm:w-auto sm:min-w-[200px]">
+        <div class="min-w-0">
           <label class="input-label">{{ t('admin.usage.group') }}</label>
           <Select v-model="filters.group_id" :options="groupOptions" searchable @change="emitChange" />
         </div>
-
       </div>
 
-      <!-- Right: actions -->
-      <div v-if="showActions" class="flex w-full flex-wrap items-center justify-end gap-3 sm:w-auto">
+      <div v-if="showActions" class="flex flex-wrap items-center justify-end gap-2 border-t border-gray-100 pt-4 dark:border-dark-700">
         <button type="button" @click="$emit('refresh')" class="btn btn-secondary">
           {{ t('common.refresh') }}
         </button>

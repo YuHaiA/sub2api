@@ -696,3 +696,28 @@
   - 不修改账号 API、分页、排序、删除、测活或任何后端逻辑。
 - 待验证事项：
   - 需执行前端 `typecheck` / `build` 验证 Vue 模板与新增列字段类型。
+
+## 本次健康检查间隔单位与使用记录布局修正
+
+- 背景：
+  - 测活管理页的自动健康检查间隔只显示分钟，实际配置较长周期时不直观，容易误以为只能设置很短的分钟级频率。
+  - 使用记录页筛选项较多，原本使用一整条 flex 换行布局，宽屏下筛选区和操作按钮区比例不稳定，视觉上偏散。
+- 修改内容：
+  - `frontend/src/views/admin/AccountHealthView.vue`
+  - `frontend/src/components/admin/account-health/AccountHealthAutoCheckPanel.vue`
+  - `frontend/src/components/admin/usage/UsageFilters.vue`
+  - `frontend/src/i18n/locales/zh.ts`
+  - `frontend/src/i18n/locales/en.ts`
+  - `.learnings/ERRORS.md`
+- 修改前后差异：
+  - 修改前：自动健康检查间隔只输入分钟值，并直接把输入数字传给后端 `interval_minutes`。
+  - 修改后：前端新增分钟 / 小时单位选择；读取配置时会把可整除 60 的分钟数显示为小时，保存时仍换算为后端既有的 `interval_minutes`，不改 API 结构。
+  - 修改前：使用记录筛选条和操作按钮在同一 flex 区域中自然换行，筛选项过多时布局不够均衡。
+  - 修改后：筛选项改为响应式 grid，操作按钮单独放在带顶部分隔线的工具列，宽屏更平衡，窄屏仍可自然换行。
+- 影响范围：
+  - 仅影响前端展示、输入换算与中文 / 英文文案。
+  - 不修改后端接口、数据库字段、调度逻辑或使用记录查询参数。
+- 流程记录：
+  - 新增 `.learnings/ERRORS.md`，记录 `findstr` 卡住时应立即改用 `rg` + 指定文件片段读取，避免后续继续在低效搜索上耗时。
+- 待验证事项：
+  - 需执行前端 `pnpm run typecheck` 验证 Vue 模板与类型。

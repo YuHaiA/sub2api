@@ -46,6 +46,7 @@
             :auto-config="autoConfig"
             :manual-model-id="manualModelId"
             :auto-interval-input="autoIntervalInput"
+            :auto-interval-unit="autoIntervalUnit"
             :auto-last-run-text="autoLastRunText"
             :health-checking="healthChecking"
             :saving-auto-config="savingAutoConfig"
@@ -55,6 +56,7 @@
             @update:auto-config="applyAutoConfig"
             @update:manual-model-id="manualModelId = $event"
             @update:auto-interval-input="autoIntervalInput = $event"
+            @update:auto-interval-unit="autoIntervalUnit = $event"
             @update:delete-account-statuses="deleteAccountStatuses = $event"
             @update:delete-health-statuses="deleteHealthStatuses = $event"
             @run-health-check="runGlobalHealthCheck"
@@ -113,6 +115,7 @@ const lastObservedAutoRunAt = ref<number | null>(null)
 const lastObservedTokenRunAt = ref<number | null>(null)
 const manualModelId = ref('')
 const autoIntervalInput = ref('60')
+const autoIntervalUnit = ref<'minute' | 'hour'>('minute')
 const tokenIntervalValueInput = ref('1')
 const tokenBatchSizeInput = ref('10')
 const deleteAccountStatuses = ref<DeleteAccountStatus[]>(['disabled', 'error'])
@@ -210,8 +213,18 @@ function applyAutoConfig(cfg: AccountHealthAutoCheckConfig) {
   autoConfig.queue_running = cfg.queue_running ?? ''
   autoConfig.queue_pending = cfg.queue_pending ?? ''
   autoConfig.last_run_at = cfg.last_run_at ?? null
-  autoIntervalInput.value = String(autoConfig.interval_minutes)
+  applyAutoIntervalInput(autoConfig.interval_minutes)
   lastObservedAutoRunAt.value = autoConfig.last_run_at ?? null
+}
+
+function applyAutoIntervalInput(minutes: number) {
+  if (minutes >= 60 && minutes % 60 === 0) {
+    autoIntervalInput.value = String(minutes / 60)
+    autoIntervalUnit.value = 'hour'
+    return
+  }
+  autoIntervalInput.value = String(minutes)
+  autoIntervalUnit.value = 'minute'
 }
 
 function applyTokenConfig(cfg: AccountTokenAutoRefreshConfig) {
@@ -279,17 +292,18 @@ async function runGlobalHealthCheck() {
 async function saveAutoConfig() {
   if (savingAutoConfig.value) return
 
-  const interval = Number(autoIntervalInput.value)
-  if (!Number.isFinite(interval) || interval < 1) {
-    appStore.showError(t('admin.accounts.autoCheckIntervalHint'))
+  const intervalValue = Number(autoIntervalInput.value)
+  if (!Number.isInteger(intervalValue) || intervalValue < 1) {
+    appStore.showError(t('admin.accounts.autoCheckIntervalInvalid'))
     return
   }
+  const intervalMinutes = autoIntervalUnit.value === 'hour' ? intervalValue * 60 : intervalValue
 
   savingAutoConfig.value = true
   try {
     const updated = await adminAPI.accounts.updateAccountHealthAutoCheckConfig({
       enabled: autoConfig.enabled,
-      interval_minutes: interval,
+      interval_minutes: intervalMinutes,
       model_id: autoConfig.model_id.trim(),
     })
     applyAutoConfig(updated)
