@@ -23,6 +23,18 @@
           {{ selectedLabel }}
         </slot>
       </span>
+      <span
+        v-if="clearable && hasValue && !disabled"
+        class="select-clear"
+        role="button"
+        tabindex="-1"
+        aria-label="Clear selection"
+        @click.stop="clearSelection"
+        @mousedown.stop
+        @keydown.enter.stop.prevent="clearSelection"
+      >
+        <Icon name="x" size="sm" />
+      </span>
       <span class="select-icon">
         <Icon
           name="chevronDown"
@@ -137,6 +149,7 @@ interface Props {
   creatable?: boolean
   creatablePrefix?: string
   size?: 'md' | 'sm'
+  clearable?: boolean
 }
 
 interface Emits {
@@ -150,6 +163,7 @@ const props = withDefaults(defineProps<Props>(), {
   searchable: 'auto',
   creatable: false,
   creatablePrefix: '',
+  clearable: false,
   valueKey: 'value',
   labelKey: 'label',
   size: 'md'
@@ -241,6 +255,10 @@ const selectedLabel = computed(() => {
   }
   return placeholderText.value
 })
+
+const hasValue = computed(
+  () => props.modelValue !== null && props.modelValue !== undefined && props.modelValue !== ''
+)
 
 const filteredOptions = computed(() => {
   let opts = props.options as any[]
@@ -358,6 +376,12 @@ const selectOption = (option: any) => {
   triggerRef.value?.focus()
 }
 
+const clearSelection = () => {
+  if (props.disabled) return
+  emit('update:modelValue', null)
+  emit('change', null, null)
+}
+
 // Keyboards
 const onTriggerKeyDown = () => {
   if (!isOpen.value) {
@@ -467,6 +491,12 @@ onUnmounted(() => {
 
 .select-icon {
   @apply flex-shrink-0 text-gray-400 dark:text-dark-400;
+}
+
+.select-clear {
+  @apply flex flex-shrink-0 cursor-pointer items-center justify-center;
+  @apply rounded text-gray-400 transition-colors;
+  @apply hover:text-gray-600 dark:hover:text-gray-200;
 }
 </style>
 

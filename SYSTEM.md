@@ -721,3 +721,30 @@
   - 新增 `.learnings/ERRORS.md`，记录 `findstr` 卡住时应立即改用 `rg` + 指定文件片段读取，避免后续继续在低效搜索上耗时。
 - 待验证事项：
   - 需执行前端 `pnpm run typecheck` 验证 Vue 模板与类型。
+
+## 本次吸收上游更新（v0.1.134）
+
+- 背景：
+  - 本地 `main` 之前已吸收到上游 `f18451e5` 一带的内容，本次继续吸收 `upstream/main` 至 `635ad81c`。
+  - 由于 GitHub 网络不稳定，本次上游抓取先经历 shallow fetch、`shallow.lock` 残留与 HTTPS 连接重置，后续已补充到 `.learnings/ERRORS.md`。
+- 吸收范围：
+  - 上游区间：`f18451e5..635ad81c`
+  - 吸收分支：`absorb-upstream-v0.1.134`
+- 本次上游重点内容：
+  - OpenAI / Responses / Codex / Claude Code 兼容链路继续增强，包括流事件校验、sticky account、failed 透传、图片限流冷却、Codex/Claude 模拟一致性等。
+  - 运维与观测侧新增失败请求展示、用户错误请求视图、TTFT 样本权重修正、错误日志归因补强。
+  - 多实例定时任务引入 leader lock，避免订阅过期提醒、支付订单过期扫表等任务在多实例下重复执行。
+  - 管理端 / 用量页继续演进，新增失败请求相关界面与测试，搜索与筛选能力增强。
+- 本地保留的自定义能力：
+  - 账号物理删除与可按账号状态/健康状态批量删除。
+  - 账号健康检查页与 Token 自动刷新页。
+  - 固定 docker deploy / host-agent 相关的本地部署体系与文档记录。
+- 冲突处理：
+  - `backend/cmd/server/wire_gen.go`
+    - 保留上游新增的 `leader lock` 依赖注入。
+    - 同时保留本地 `ScheduledTestRunnerService` 对 `settingService / accountRepo / tokenRefreshService` 的依赖，以维持自动测活与 token 刷新能力。
+  - `frontend/src/components/common/Select.vue`
+    - 合并保留本地的 `size` 属性与上游的 `clearable` 属性。
+- 验证记录：
+  - `frontend` 已执行 `pnpm run typecheck` 通过。
+  - 本机 Windows 环境仍无 `go`，因此无法在本地执行 `go test`、`go build` 或重跑 `wire` 生成；后端需依赖 CI 或 Linux/Go 工具链环境继续验证。
