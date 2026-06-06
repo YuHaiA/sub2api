@@ -121,3 +121,45 @@ func TestShouldStopOpenAIOAuth429Failover_OnlyDuringStorm(t *testing.T) {
 	require.False(t, svc.ShouldStopOpenAIOAuth429Failover(account, http.StatusInternalServerError, 1))
 	require.False(t, svc.ShouldStopOpenAIOAuth429Failover(account, http.StatusTooManyRequests, 0))
 }
+
+func TestOpenAICloudflareChallenge_ProgressiveCooldownForOAuth(t *testing.T) {
+	svc := &OpenAIGatewayService{}
+	account := &Account{ID: 48, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+	headers := http.Header{
+		"Content-Type": []string{"text/html"},
+		"Cf-Mitigated": []string{"challenge"},
+	}
+	body := []byte("<html>Just a moment</html>")
+
+	now := time.Now()
+	level1, until1 := svc.nextOpenAICloudflareChallengeBackoff(account.ID, now)
+	level2, until2 := svc.nextOpenAICloudflareChallengeBackoff(account.ID, now.Add(time.Minute))
+	level3, until3 := svc.nextOpenAICloudflareChallengeBackoff(account.ID, now.Add(2*time.Minute))
+	level4, until4 := svc.nextOpenAICloudflareChallengeBackoff(account.ID, now.Add(3*time.Minute))
+
+	require.Equal(t, 0, level1)
+	require.WithinDuration(t, now.Add(10*time.Second), until1, time.Second)
+	require.Equal(t, 1, level2)
+	require.WithinDuration(t, now.Add(time.Minute+30*time.Second), until2, time.Second)
+	require.Equal(t, 2, level3)
+	require.WithinDuration(t, now.Add(2*time.Minute+90*time.Second), until3, time.Second)
+	require.Equal(t, 3, level4)
+	require.WithinDuration(t, now.Add(3*time.Minute+120*time.Second), until4, time.Second)
+
+	disabled := svc.handleOpenAIAccountUpstreamError(context.Background(), account, http.StatusForbidden, headers, body)
+	require.False(t, disabled)
+	require.True(t, svc.isOpenAIAccountRuntimeBlocked(account))
+}
+
+func TestOpenAICloudflareChallenge_ResetsAfterIdleWindow(t *testing.T) {
+	svc := &OpenAIGatewayService{}
+	accountID := int64(49)
+	now := time.Now()
+
+	_, _ = svc.nextOpenAICloudflareChallengeBackoff(accountID, now)
+	_, _ = svc.nextOpenAICloudflareChallengeBackoff(accountID, now.Add(time.Minute))
+	level, until := svc.nextOpenAICloudflareChallengeBackoff(accountID, now.Add(openAICloudflareChallengeResetAfter+time.Minute))
+
+	require.Equal(t, 0, level)
+	require.WithinDuration(t, now.Add(openAICloudflareChallengeResetAfter+time.Minute+10*time.Second), until, time.Second)
+}

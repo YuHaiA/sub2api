@@ -814,3 +814,68 @@
 - 验证记录：
   - 本机无 `go` 工具链，无法在当前环境运行 Go 单测或编译验证。
   - 需后续在 CI 或 Linux/Go 环境继续验证。
+
+## 本次吸收外部防风控补丁第三层（Cloudflare challenge 渐进冷却）
+
+- 背景：
+  - 使用者同意继续按低风险思路推进，不直接照搬补丁版 `cloudflare_backoff`，而是改写成兼容当前主链 `runtime block` 的版本。
+  - 当前主链已经有：
+    - `httputil.IsCloudflareChallengeResponse`
+    - `BlockAccountScheduling`
+    - OpenAI OAuth 429 / 403 / 临时不可调度等运行时阻断能力
+  - 因此本次不新增独立大系统，只在现有 fastpath 上加一层 challenge 冷却。
+- 本次实际吸收内容：
+  - 在 `backend/internal/service/openai_account_runtime_block_fastpath.go` 增加 Cloudflare challenge 渐进冷却状态：
+    - 10 秒
+    - 30 秒
+    - 90 秒
+    - 120 秒封顶
+  - 同一账号若连续命中 challenge，会逐级升高；若超过一段空闲窗口未再触发，则回到首档。
+  - 仅对 `PlatformOpenAI + OAuth` 生效，不作用于 API Key 账号。
+- 接入方式：
+  - 复用 `httputil.IsCloudflareChallengeResponse` 做检测。
+  - 复用 `BlockAccountScheduling` 做临时调度阻断。
+  - 不改客户端返回格式，不新增外部配置项，不影响现有 429/image cooldown 链路。
+- 修改文件：
+  - `backend/internal/service/openai_account_runtime_block_fastpath.go`
+  - `backend/internal/service/openai_account_runtime_block_fastpath_test.go`
+  - `backend/internal/service/openai_gateway_service.go`
+- 新增测试覆盖：
+  - OAuth 账号命中 challenge 后会被 runtime block
+  - 连续命中 challenge 的冷却时长会递增
+  - 空闲一段时间后冷却级别会重置
+- 验证记录：
+  - 本机无 `go` 工具链，无法在当前环境运行 Go 单测或编译验证。
+  - 需后续在 CI 或 Linux/Go 环境继续验证。
+
+## 本次吸收外部防风控补丁第三层（Cloudflare 质询渐进冷却）
+
+- 背景：
+  - 使用者同意继续按“低侵入、与当前主链兼容”的方式推进，不直接搬运补丁中的整套 Cloudflare backoff 代码。
+  - 当前主链已存在：
+    - `httputil.IsCloudflareChallengeResponse`
+    - `BlockAccountScheduling`
+    - OpenAI OAuth 账号 runtime block 快路径
+  - 因此本次直接挂接在现有 runtime block 链路上，避免新起一套并行状态机。
+- 本次实际吸收内容：
+  - 在 `backend/internal/service/openai_account_runtime_block_fastpath.go`
+    - 增加 Cloudflare challenge 检测后的渐进冷却
+    - 冷却梯度：`10s -> 30s -> 90s -> 120s`
+    - 若长时间未再次触发，则重新从 `10s` 起步
+  - 在 `backend/internal/service/openai_gateway_service.go`
+    - 新增 `openaiCloudflareChallengeState` 状态表
+  - 新增测试：
+    - `backend/internal/service/openai_account_runtime_block_fastpath_test.go`
+- 生效范围：
+  - 仅对 `PlatformOpenAI + OAuth` 账号生效
+  - 仅在识别到 `Cloudflare challenge` 的上游响应时触发
+  - 不改变客户端错误返回格式，仅影响账号短时调度冷却
+- 明确保留不改动：
+  - API Key 账号不进入该冷却逻辑
+  - 不改现有 429 fallback、image cooldown、temp_unschedulable 规则
+  - 不引入补丁原版中独立的全新 backoff 配置结构
+- 设计原因：
+  - 目标是降低同一 OAuth 账号在短时间内反复撞到 Cloudflare challenge 的概率，同时不重写现有 rate limit / runtime block 架构。
+- 验证记录：
+  - 本机无 `go` 工具链，无法在当前环境运行 Go 单测或编译验证。
+  - 需后续在 CI 或 Linux/Go 环境继续验证。

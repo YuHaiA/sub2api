@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/util/httputil"
 )
 
 const (
@@ -13,7 +15,16 @@ const (
 	openAIOAuth429StormWindow             = 10 * time.Second
 	openAIOAuth429StormThreshold          = 20
 	openAIOAuth429StormMaxAccountSwitches = 1
+	openAICloudflareChallengeInitialBackoff = 10 * time.Second
+	openAICloudflareChallengeMaxBackoff     = 120 * time.Second
+	openAICloudflareChallengeResetAfter     = 15 * time.Minute
 )
+
+type openAICloudflareChallengeState struct {
+	level      int
+	lastHitAt  time.Time
+	cooldownTo time.Time
+}
 
 func openAIAccountStateContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	base := context.Background()
@@ -39,6 +50,9 @@ func (s *OpenAIGatewayService) handleOpenAIAccountUpstreamError(ctx context.Cont
 		if s != nil && s.rateLimitService != nil {
 			_ = s.rateLimitService.HandleOpenAIImageRateLimit(stateCtx, account, statusCode, headers, responseBody)
 		}
+		return false
+	}
+	if s.markOpenAICloudflareChallengeCooldown(account, statusCode, headers, responseBody) {
 		return false
 	}
 
@@ -77,6 +91,58 @@ func (s *OpenAIGatewayService) markOpenAIOAuth429RateLimited(ctx context.Context
 		}
 	}
 	s.BlockAccountScheduling(account, cooldownUntil, "429")
+}
+
+func (s *OpenAIGatewayService) markOpenAICloudflareChallengeCooldown(account *Account, statusCode int, headers http.Header, responseBody []byte) bool {
+	if s == nil || !isOpenAIOAuthAccount(account) {
+		return false
+	}
+	if !httputil.IsCloudflareChallengeResponse(statusCode, headers, responseBody) {
+		return false
+	}
+
+	now := time.Now()
+	level, cooldownUntil := s.nextOpenAICloudflareChallengeBackoff(account.ID, now)
+	s.BlockAccountScheduling(account, cooldownUntil, "cloudflare_challenge")
+	_ = level
+	return true
+}
+
+func (s *OpenAIGatewayService) nextOpenAICloudflareChallengeBackoff(accountID int64, now time.Time) (int, time.Time) {
+	if s == nil || accountID <= 0 {
+		return 0, now.Add(openAICloudflareChallengeInitialBackoff)
+	}
+
+	currentValue, loaded := s.openaiCloudflareChallengeState.Load(accountID)
+	state := openAICloudflareChallengeState{}
+	if loaded {
+		if existing, ok := currentValue.(openAICloudflareChallengeState); ok {
+			state = existing
+		}
+	}
+
+	if state.lastHitAt.IsZero() || now.Sub(state.lastHitAt) > openAICloudflareChallengeResetAfter {
+		state.level = 0
+	} else if state.level < 3 {
+		state.level++
+	}
+
+	cooldown := openAICloudflareChallengeInitialBackoff
+	for i := 0; i < state.level; i++ {
+		cooldown *= 3
+		if cooldown >= openAICloudflareChallengeMaxBackoff {
+			cooldown = openAICloudflareChallengeMaxBackoff
+			break
+		}
+	}
+	if cooldown > openAICloudflareChallengeMaxBackoff {
+		cooldown = openAICloudflareChallengeMaxBackoff
+	}
+
+	state.lastHitAt = now
+	state.cooldownTo = now.Add(cooldown)
+	s.openaiCloudflareChallengeState.Store(accountID, state)
+	return state.level, state.cooldownTo
 }
 
 func (s *OpenAIGatewayService) BlockAccountScheduling(account *Account, until time.Time, reason string) {
