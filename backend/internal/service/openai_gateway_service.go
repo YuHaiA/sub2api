@@ -2635,6 +2635,14 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			bodyModified = false
 			promptCacheKey = requestView.PromptCacheKey
 		}
+		confused := guard.ConfuseCodexMetadataLight(body, account.ID)
+		if !bytes.Equal(confused, body) {
+			body = confused
+			requestView = newOpenAIRequestView(body)
+			reqBody = nil
+			bodyModified = false
+			promptCacheKey = requestView.PromptCacheKey
+		}
 	}
 	if codexImageGenerationBridgeEnabled && applyCodexImageGenerationBridgeInstructions(reqBody) {
 		bodyModified = true

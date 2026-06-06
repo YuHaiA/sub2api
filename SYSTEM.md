@@ -785,3 +785,32 @@
 - 验证记录：
   - 本机无 `go` 工具链，无法在当前环境运行 Go 单测或编译验证。
   - 需后续在 CI 或 Linux/Go 环境继续验证。
+
+## 本次吸收外部防风控补丁第二层（轻量 identity confuse）
+
+- 背景：
+  - 使用者允许在已保存备份与第一层低风险 helper 的基础上，继续吸收一小部分身份隔离逻辑。
+  - 目标是继续增强 OAuth / Codex 元数据的账号隔离，但仍避免引入补丁里那套重型的响应恢复、prompt cache 混淆与 replay cache。
+- 本次实际吸收内容：
+  - 新增 `backend/internal/guard/identity_confuse.go`
+    - 提供 `ConfuseKey`
+    - 提供 `ConfuseCodexMetadataLight`
+  - 轻量混淆范围仅限：
+    - `client_metadata.x-codex-installation-id`
+    - `client_metadata.x-codex-turn-metadata` 中的 `turn_id`
+  - 明确保留不改动：
+    - `prompt_cache_key`
+    - `window_id`
+    - 响应体恢复逻辑
+    - header 级二次混淆
+- 接入位置：
+  - `backend/internal/service/openai_gateway_service.go`
+    - OAuth 请求在发往上游前，对上述 Codex 元数据执行轻量混淆
+- 新增测试：
+  - `backend/internal/guard/identity_confuse_test.go`
+- 设计原因：
+  - 这一步只碰上游可见但客户端通常不依赖回读的元数据字段，风险明显低于直接混淆 `prompt_cache_key` 或对响应体做恢复替换。
+  - 继续避免与当前主链已有的会话隔离、`invalid_encrypted_content` 恢复、自愈和重试链路发生大面积耦合。
+- 验证记录：
+  - 本机无 `go` 工具链，无法在当前环境运行 Go 单测或编译验证。
+  - 需后续在 CI 或 Linux/Go 环境继续验证。
