@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/guard"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
@@ -2625,6 +2626,16 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			promptCacheKey = codexResult.PromptCacheKey
 		}
 	}
+	if account.Type == AccountTypeOAuth && !compatMessagesBridge {
+		sanitized := guard.SanitizeReasoning("codex", body)
+		if !bytes.Equal(sanitized, body) {
+			body = sanitized
+			requestView = newOpenAIRequestView(body)
+			reqBody = nil
+			bodyModified = false
+			promptCacheKey = requestView.PromptCacheKey
+		}
+	}
 	if codexImageGenerationBridgeEnabled && applyCodexImageGenerationBridgeInstructions(reqBody) {
 		bodyModified = true
 		disablePatch()
@@ -4259,6 +4270,9 @@ func (s *OpenAIGatewayService) buildUpstreamRequest(ctx context.Context, c *gin.
 	// Ensure required headers exist
 	if req.Header.Get("content-type") == "" {
 		req.Header.Set("content-type", "application/json")
+	}
+	if account.Type == AccountTypeOAuth && !compatMessagesBridge {
+		guard.ApplySessionGovernance(req.Header, promptCacheKey)
 	}
 
 	return req, nil

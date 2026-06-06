@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/guard"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
@@ -1180,6 +1181,9 @@ func (s *OpenAIGatewayService) buildOpenAIWSHeaders(
 	}
 	if account != nil && account.Type == AccountTypeOAuth && !openai.IsCodexCLIRequest(headers.Get("user-agent")) {
 		headers.Set("user-agent", codexCLIUserAgent)
+	}
+	if account != nil && account.Type == AccountTypeOAuth {
+		guard.ApplySessionGovernance(headers, promptCacheKey)
 	}
 
 	return headers, sessionResolution

@@ -748,3 +748,40 @@
 - 验证记录：
   - `frontend` 已执行 `pnpm run typecheck` 通过。
   - 本机 Windows 环境仍无 `go`，因此无法在本地执行 `go test`、`go build` 或重跑 `wire` 生成；后端需依赖 CI 或 Linux/Go 工具链环境继续验证。
+
+## 本次吸收外部防风控补丁（增量吸收，非整包覆盖）
+
+- 背景：
+  - 使用者提供下载目录中的 `v133.zip` / `v134.zip` 防风控补丁，希望吸收有效代码，但不要整包替换当前项目。
+  - 经比对，补丁中相当一部分能力在当前主链已存在正式实现，例如：
+    - OAuth/Codex 会话隔离
+    - `invalid_encrypted_content` 的恢复重试
+    - 浏览器 UA 改写与 TLS 指纹相关能力
+  - 因此本次采用“只吸收低侵入、可独立落地的 helper 与接线”，避免把旧补丁版主逻辑倒灌回当前主链。
+- 本次实际吸收内容：
+  - 新增 `backend/internal/guard/reasoning_sanitizer.go`
+    - 在请求发往上游前，预清洗结构无效的 `reasoning.encrypted_content`
+    - 目标是减少可避免的 `400 invalid_encrypted_content`
+  - 新增 `backend/internal/guard/session_headers.go`
+    - 规范化 `session_id` 头部变体
+    - 补齐 `X-Client-Request-Id`、`Thread-Id`、`X-Codex-Window-Id`
+    - 在缺失时同步 `conversation_id`
+  - 接入位置：
+    - `backend/internal/service/openai_gateway_service.go`
+      - OAuth 请求在转发前执行 reasoning 预清洗
+      - OAuth HTTP 转发请求头执行 session governance
+    - `backend/internal/service/openai_ws_forwarder.go`
+      - OAuth WS 建连头执行 session governance
+  - 新增单元测试：
+    - `backend/internal/guard/reasoning_sanitizer_test.go`
+    - `backend/internal/guard/session_headers_test.go`
+- 明确未吸收的补丁部分：
+  - `identity_confuse.go`
+  - `codex_reasoning_replay.go`
+  - 对旧版 `openai_gateway_service.go` / `openai_ws_forwarder.go` 的整段响应恢复与 replay 注入逻辑
+- 未吸收原因：
+  - 与当前主链已有的会话隔离、重试、自愈逻辑重叠较多。
+  - 侵入面较大，直接嫁接的回归风险高于当前收益。
+- 验证记录：
+  - 本机无 `go` 工具链，无法在当前环境运行 Go 单测或编译验证。
+  - 需后续在 CI 或 Linux/Go 环境继续验证。
