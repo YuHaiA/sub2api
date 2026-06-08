@@ -54,12 +54,8 @@ export const getConfiguredTableDefaultPageSize = (): number => {
 }
 
 export const getConfiguredTablePageSizeOptions = (): number[] => {
-  const unique = getSanitizedConfiguredOptions()
-  if (unique.length === 0) {
-    return [...DEFAULT_TABLE_PAGE_SIZE_OPTIONS]
-  }
-
-  return unique.length > 0 ? unique : [...DEFAULT_TABLE_PAGE_SIZE_OPTIONS]
+  const configured = getSanitizedConfiguredOptions()
+  return Array.from(new Set([...DEFAULT_TABLE_PAGE_SIZE_OPTIONS, ...configured])).sort((a, b) => a - b)
 }
 
 export const normalizeTablePageSize = (value: unknown): number => {

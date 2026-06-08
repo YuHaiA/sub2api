@@ -991,6 +991,32 @@
   - 本機 `git diff --check` 通過。
   - 最終 Go 單測與 golangci-lint 仍由遠端 GitHub Actions 驗證。
 
+## 本次分页选项与测活状态筛选修正
+
+- 背景：
+  - 账号列表分页下拉仍只显示旧档位，未稳定出现 `100 / 500 / 1000`。
+  - 测活页手动筛选的“检查状态”下拉显示的是账号运行状态（正常、停用、错误、限流中等），与健康状态筛选期望不一致。
+- 根因：
+  - `frontend/src/utils/tablePreferences.ts` 在读到服务端注入的 `table_page_size_options` 后，会完全使用服务端配置；如果服务器数据库仍保存旧配置，新内建分页档位会被覆盖。
+  - `frontend/src/views/admin/AccountHealthView.vue` 手动测活 filters 发送的是 `status`，对应账号状态；后端实际也支持 `health_status` 用于健康状态筛选。
+  - `frontend/src/components/admin/account-health/AccountHealthAutoCheckPanel.vue` 使用原生 `<select>` 渲染状态筛选，视觉上与项目内统一 `Select` 组件不一致。
+- 本次修改：
+  - `frontend/src/utils/tablePreferences.ts`
+    - 将分页选项改为“内建默认档位 + 服务端配置”合并去重排序，确保旧服务端配置也会显示 `100 / 500 / 1000`。
+  - `frontend/src/utils/__tests__/tablePreferences.spec.ts`
+    - 更新分页偏好测试，覆盖旧配置与新内建档位合并行为。
+  - `frontend/src/views/admin/AccountHealthView.vue`
+    - 手动测活筛选从 `status` 改为发送 `health_status`。
+  - `frontend/src/components/admin/account-health/AccountHealthAutoCheckPanel.vue`
+    - 状态下拉改用项目统一 `Select` 组件。
+    - 选项改为：全部健康状态、健康、受限、不可用、未检查。
+- 影响范围：
+  - 不改后端 API；复用既有 `health_status` filter。
+  - 分页组件在存在旧服务端配置时会自动补齐新档位，不需要用户手动进设置页保存一次。
+- 验证记录：
+  - `pnpm --dir frontend run typecheck` 通过。
+  - `pnpm --dir frontend exec vitest run src/utils/__tests__/tablePreferences.spec.ts` 通过，6 个测试全部通过。
+
 ## 本次账号管理批量工具与测活筛选增强
 
 - 背景：

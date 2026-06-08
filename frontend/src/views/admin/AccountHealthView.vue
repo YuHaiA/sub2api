@@ -257,12 +257,12 @@ function applyTokenConfig(cfg: AccountTokenAutoRefreshConfig) {
 }
 
 function buildManualHealthCheckFilters() {
-  const filters: { group?: string; status?: string } = {}
+  const filters: { group?: string; health_status?: string } = {}
   if (manualGroup.value) {
     filters.group = manualGroup.value
   }
   if (manualStatus.value) {
-    filters.status = manualStatus.value
+    filters.health_status = manualStatus.value
   }
   return Object.keys(filters).length > 0 ? filters : undefined
 }

@@ -129,16 +129,13 @@
           <label class="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
             {{ t('admin.accounts.healthCheckStatus') }}
           </label>
-          <select
-            :value="manualStatus"
-            class="input h-10"
+          <Select
+            :model-value="manualStatus"
+            :options="manualStatusOptions"
+            size="sm"
             :disabled="healthChecking"
-            @change="$emit('update:manualStatus', ($event.target as HTMLSelectElement).value)"
-          >
-            <option v-for="option in manualStatusOptions" :key="option.value" :value="option.value">
-              {{ option.label }}
-            </option>
-          </select>
+            @update:model-value="$emit('update:manualStatus', String($event ?? ''))"
+          />
         </div>
         <div>
           <label class="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -242,6 +239,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Input from '@/components/common/Input.vue'
+import Select from '@/components/common/Select.vue'
 import type { AccountHealthAutoCheckConfig, AccountHealthSummary, DeleteAccountStatus, DeleteHealthStatus } from '@/api/admin/accounts'
 import type { AdminGroup } from '@/types'
 
@@ -312,13 +310,11 @@ const healthDeleteOptions = computed<Array<{ value: DeleteHealthStatus; label: s
 ])
 
 const manualStatusOptions = computed(() => [
-  { value: '', label: t('admin.accounts.allStatus') },
-  { value: 'active', label: t('admin.accounts.status.active') },
-  { value: 'inactive', label: t('admin.accounts.status.inactive') },
-  { value: 'error', label: t('admin.accounts.status.error') },
-  { value: 'rate_limited', label: t('admin.accounts.status.rateLimited') },
-  { value: 'temp_unschedulable', label: t('admin.accounts.status.tempUnschedulable') },
-  { value: 'unschedulable', label: t('admin.accounts.status.unschedulable') },
+  { value: '', label: t('admin.accounts.healthStatus.all') },
+  { value: 'healthy', label: t('admin.accounts.healthStatus.healthy') },
+  { value: 'constrained', label: t('admin.accounts.healthStatus.constrained') },
+  { value: 'unavailable', label: t('admin.accounts.healthStatus.unavailable') },
+  { value: 'unchecked', label: t('admin.accounts.healthStatus.unchecked') },
 ])
 
 const deleteDisabled = computed(() => props.deletingUnhealthy || (props.deleteAccountStatuses.length === 0 && props.deleteHealthStatuses.length === 0))
