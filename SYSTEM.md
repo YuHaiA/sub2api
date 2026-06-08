@@ -29,8 +29,21 @@
 ### 2. 伺服器部署目錄層
 
 - 位置：`/home/ec2-user/sub2api-deploy`
-- 對外域名：`https://mysuby.duckdns.org/`
+- 對外域名：
+  - 舊域名：`https://mysuby.duckdns.org/`
+  - Cloudflare 新域名：`https://tupai.cyou/`，`https://www.tupai.cyou/`
 - DNS 解析：`mysuby.duckdns.org -> 3.22.185.140`（AWS EC2）
+- Cloudflare DNS：
+  - `tupai.cyou` 使用 A 記錄代理到源站 `3.22.185.140`
+  - `www.tupai.cyou` 使用 CNAME 指向 `tupai.cyou`
+  - 公共 DNS 會解析到 Cloudflare 邊緣 IP，源站 IP 不直接暴露在瀏覽器解析結果中
+- 源站 Nginx：
+  - 實際配置：`/etc/nginx/conf.d/sub2api.conf`
+  - `server_name` 已包含 `mysuby.duckdns.org tupai.cyou www.tupai.cyou`
+  - 80 端口對三個域名統一 `301` 到 `https://$host$request_uri`
+  - 443 端口沿用既有反向代理到 `127.0.0.1:8080`
+  - 源站證書已切換到 `/etc/letsencrypt/live/tupai.cyou/fullchain.pem`
+  - 該 Let’s Encrypt 證書 SAN 包含 `mysuby.duckdns.org`、`tupai.cyou`、`www.tupai.cyou`，可支援 Cloudflare `Full (strict)` 或源站直連校驗
 - SSH：`ec2-user@mysuby.duckdns.org`；本機需使用已授權私鑰連線，私鑰路徑不寫入項目文檔。
 - 用途：保存伺服器上的 `docker-compose.yml`、`.env`、`bin/deploy-from-package.sh`、資料目錄與運維腳本
 - 特性：它不是正式 Git 倉庫主源，只是遠端運行與部署輔助目錄
@@ -67,6 +80,26 @@
 - 因此前端账号页看到的数量与数据库原始总行数不再因为历史软删除记录而长期背离。
 
 ## 本次變更
+
+### 首 Token 延遲排查與線上調度優化
+
+- 排查對象：
+  - 管理端使用記錄中 `2026/06/08 08:46:26` 的 `首 Token` 約 `4.79s`、總耗時約 `12.88s` 的請求。
+- 查證結論：
+  - `first_token_ms` 不是前端渲染或 Nginx 靜態資源壓縮指標，而是後端網關從接收請求到收到第一個上游流式 token 的 TTFT。
+  - 目標請求為 `gpt-5.5`、`/v1/responses`、stream 請求，`reasoning_effort=high`。
+  - 同時間段 `gpt-5.5` 請求首 Token 在不同帳號間差異明顯，慢帳號平均 TTFT 明顯高於快帳號。
+  - 服務器資料庫中 `settings.openai_advanced_scheduler_enabled` 原為 `false`，因此線上未使用包含 TTFT / 錯誤率 / 負載 / 排隊數的高級 OpenAI 帳號調度。
+- 已執行的線上變更：
+  - 將服務器 `settings.openai_advanced_scheduler_enabled` 更新為 `true`。
+  - 該設定由後端以約 5 秒快取讀取，無需重啟容器即可對新請求生效。
+- 變更前後觀察：
+  - 開啟前窗口：`58` 個樣本，平均 TTFT 約 `4966ms`，P50 約 `3770ms`，P90 約 `6427ms`，最大約 `22505ms`。
+  - 開啟後窗口：`19` 個樣本，平均 TTFT 約 `3406ms`，P50 約 `3232ms`，P90 約 `5682ms`，最大約 `6209ms`。
+  - 開啟後候選帳號切換到較快帳號池，短窗口內首 Token 延遲已有下降。
+- 後續建議：
+  - 若仍出現長 TTFT，優先檢查該筆請求的 `reasoning_effort`、模型、帳號 ID、是否觸發 429 / 測活背景任務。
+  - 若要更精準定位，可後續新增拆分指標，例如 gateway preflight、upstream connect、upstream first token，避免單一 `first_token_ms` 把本地處理與上游等待混在一起。
 
 ### 自動刷新 Token 功能
 
@@ -853,6 +886,37 @@
 - 验证记录：
   - 本机无 `go` 工具链，无法在当前环境运行 Go 单测或编译验证。
   - 需后续在 CI 或 Linux/Go 环境继续验证。
+
+## 本次 GitHub Actions 失敗修復（OpenAI messages bridge 編譯錯）
+
+- 背景：
+  - commit `c4ce65b9 feat: enhance account maintenance tools` 的 GitHub Actions 失敗。
+  - GitHub check annotations 顯示失敗集中在後端相關任務：
+    - `test`
+    - `golangci-lint`
+    - `backend-security`
+    - `publish-deploy-package`
+  - 前端 workflow 已通過。
+- 根因：
+  - `backend/internal/service/openai_gateway_service.go` 在 `buildUpstreamRequest` 內只於 OAuth 分支中使用 `:=` 宣告 `compatMessagesBridge`。
+  - 後續 `guard.ApplySessionGovernance` 在 OAuth 分支外引用該變數，造成 Go 編譯錯：
+    - `undefined: compatMessagesBridge`
+  - 因為 unit test、lint、govulncheck 與 Docker build 都需要編譯後端，所以同一個 scope 錯誤連帶造成多個 workflow 失敗。
+- 本次修改：
+  - 在透傳 header 後、OAuth 分支前先宣告 `compatMessagesBridge := false`。
+  - OAuth 分支內改為賦值 `compatMessagesBridge = ...`。
+  - 保持原行為不變：
+    - 非 OAuth 账号默认不是 messages bridge。
+    - OAuth messages bridge 仍跳过 session governance。
+- 修改文件：
+  - `backend/internal/service/openai_gateway_service.go`
+  - `SYSTEM.md`
+- 影響範圍：
+  - 僅修正變數作用域，不新增 API、schema 或配置。
+  - 預期修復後端編譯失敗，進而解除 CI test/lint/security/deploy 的同源失敗。
+- 驗證記錄：
+  - 已透過 GitHub check annotations 確認原失敗訊息為 `undefined: compatMessagesBridge`。
+  - 當前 Windows 本機無 `go` 工具鏈；Docker Desktop 啟動前不可用，需待 Docker 可用後執行後端編譯/測試或交由 CI 驗證。
 
 ## 本次账号管理批量工具与测活筛选增强
 
