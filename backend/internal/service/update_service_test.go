@@ -52,6 +52,7 @@ func TestUpdateServicePerformUpdateNoUpdateReturnsSentinel(t *testing.T) {
 				Name:    "v0.1.132",
 			},
 		},
+		nil,
 		"0.1.132",
 		"release",
 	)

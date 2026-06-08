@@ -918,6 +918,33 @@
   - 已透過 GitHub check annotations 確認原失敗訊息為 `undefined: compatMessagesBridge`。
   - 當前 Windows 本機無 `go` 工具鏈；Docker Desktop 啟動前不可用，需待 Docker 可用後執行後端編譯/測試或交由 CI 驗證。
 
+## 本次 GitHub Actions 第二輪修復（測試 constructor 參數同步）
+
+- 背景：
+  - 推送 `85333744 fix(openai): repair messages bridge build` 後，遠端 CI 中：
+    - `Security Scan` 通過
+    - `Deploy Package` 通過
+    - `frontend` 通過
+    - `test` / `golangci-lint` 仍失敗
+- 根因：
+  - GitHub check annotations 顯示 Go 編譯仍有測試呼叫參數不足：
+    - `not enough arguments in call to NewUpdateService`
+    - `not enough arguments in call to NewAccountHandler`
+  - `NewAccountHandler` 已包含 `tokenCacheInvalidator` 參數，兩個多行測試 helper 少補最後一個 `nil`。
+  - `NewUpdateService` 已包含 `settingRepo` 參數，單測仍按舊簽名傳入。
+- 本次修改：
+  - `backend/internal/handler/admin/account_handler_passthrough_test.go`
+    - `NewAccountHandler` 測試 helper 補最後一個 `nil`。
+  - `backend/internal/handler/admin/account_data_handler_test.go`
+    - `NewAccountHandler` 測試 helper 補最後一個 `nil`。
+  - `backend/internal/service/update_service_test.go`
+    - `NewUpdateService` 測試補 `settingRepo` 的 `nil` 參數。
+- 影響範圍：
+  - 僅同步測試構造器呼叫，不改正式業務邏輯。
+  - 預期修復 CI 單測與 golangci-lint 的 typecheck 失敗。
+- 驗證記錄：
+  - 本機仍無 Go 工具鏈，將以遠端 GitHub Actions 作為主要驗證來源。
+
 ## 本次账号管理批量工具与测活筛选增强
 
 - 背景：
