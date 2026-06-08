@@ -887,6 +887,34 @@
   - 本机无 `go` 工具链，无法在当前环境运行 Go 单测或编译验证。
   - 需后续在 CI 或 Linux/Go 环境继续验证。
 
+## 本次账号导入支持选择目标分组
+
+- 背景：
+  - 账号导入弹窗此前只能上传导出的 JSON 文件并导入账号/代理，无法在导入时直接指定分组。
+  - 当前导入流程固定传入 `skip_default_group_bind = true`，因此导入后的账号默认不会自动进入平台默认分组。
+- 本次修改：
+  - `frontend/src/components/admin/account/ImportDataModal.vue`
+    - 新增“目标分组”下拉。
+    - 弹窗打开时加载 `adminAPI.groups.getAll()`。
+    - 选中分组后，导入请求会携带 `group_ids`。
+  - `frontend/src/api/admin/accounts.ts`
+    - `importData` payload 增加可选 `group_ids?: number[]`。
+  - `backend/internal/handler/admin/account_data.go`
+    - `DataImportRequest` 增加 `group_ids`。
+    - 导入创建账号时，将 `req.GroupIDs` 传入 `service.CreateAccountInput.GroupIDs`。
+  - `backend/internal/handler/admin/account_data_handler_test.go`
+    - 新增导入时绑定分组的测试覆盖。
+  - `frontend/src/i18n/locales/zh.ts`
+  - `frontend/src/i18n/locales/en.ts`
+    - 补充导入分组相关文案。
+- 影响范围：
+  - 仅影响账号导入弹窗与账号导入接口。
+  - 当前实现为“给本次导入的所有账号统一绑定一个目标分组”，不修改导入文件原始结构。
+  - 仍保留 `skip_default_group_bind = true`，避免额外自动绑定平台默认分组。
+- 验证记录：
+  - `pnpm --dir frontend run typecheck` 通过。
+  - 本机执行 `where.exe go` 未找到 Go，可确认当前环境无 Go 工具链，因此未能在本机运行 `backend/internal/handler/admin` 的导入测试。
+
 ## 本次 GitHub Actions 失敗修復（OpenAI messages bridge 編譯錯）
 
 - 背景：

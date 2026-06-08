@@ -40,6 +40,16 @@
         />
       </div>
 
+      <div>
+        <label class="input-label">{{ t('admin.accounts.dataImportGroup') }}</label>
+        <Select
+          :model-value="selectedGroupId"
+          :options="groupOptions"
+          :disabled="importing"
+          @update:model-value="selectedGroupId = normalizeGroupValue($event)"
+        />
+      </div>
+
       <div
         v-if="result"
         class="space-y-2 rounded-xl border border-gray-200 p-4 dark:border-dark-700"
@@ -88,9 +98,10 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import Select from '@/components/common/Select.vue'
 import { adminAPI } from '@/api/admin'
 import { useAppStore } from '@/stores/app'
-import type { AdminDataImportResult } from '@/types'
+import type { AdminDataImportResult, AdminGroup } from '@/types'
 
 interface Props {
   show: boolean
@@ -110,9 +121,18 @@ const appStore = useAppStore()
 const importing = ref(false)
 const file = ref<File | null>(null)
 const result = ref<AdminDataImportResult | null>(null)
+const groups = ref<AdminGroup[]>([])
+const selectedGroupId = ref<number | null>(null)
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const fileName = computed(() => file.value?.name || '')
+const groupOptions = computed(() => [
+  { value: null, label: t('admin.accounts.dataImportGroupNone') },
+  ...groups.value.map((group) => ({
+    value: group.id,
+    label: group.name
+  }))
+])
 
 const errorItems = computed(() => result.value?.errors || [])
 
@@ -122,12 +142,28 @@ watch(
     if (open) {
       file.value = null
       result.value = null
+      selectedGroupId.value = null
       if (fileInput.value) {
         fileInput.value.value = ''
       }
+      void loadGroups()
     }
   }
 )
+
+const loadGroups = async () => {
+  try {
+    groups.value = await adminAPI.groups.getAll()
+  } catch (error: any) {
+    appStore.showError(error?.message || t('admin.accounts.dataImportLoadGroupsFailed'))
+  }
+}
+
+const normalizeGroupValue = (value: string | number | boolean | null): number | null => {
+  if (value === null || value === '' || typeof value === 'boolean') return null
+  const parsed = Number(value)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null
+}
 
 const openFilePicker = () => {
   fileInput.value?.click()
@@ -174,6 +210,7 @@ const handleImport = async () => {
 
     const res = await adminAPI.accounts.importData({
       data: dataPayload,
+      group_ids: selectedGroupId.value ? [selectedGroupId.value] : undefined,
       skip_default_group_bind: true
     })
 
