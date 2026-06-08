@@ -536,30 +536,3 @@ func (s *UpdateService) executeDeployViaAgent(ctx context.Context, cfg *DeployCo
 	agentResp.Output = trimDeployOutput(agentResp.Output)
 	return &agentResp, nil
 }
-
-func parseDeployImageID(output string) string {
-	return parseDeployResultField(output, "image_id=")
-}
-
-func parseDeployRunningImageID(output string) string {
-	return parseDeployResultField(output, "container_image=")
-}
-
-func parseDeployResultField(output, prefix string) string {
-	for _, line := range strings.Split(output, "\n") {
-		idx := strings.Index(line, prefix)
-		if idx < 0 {
-			continue
-		}
-		field := line[idx+len(prefix):]
-		field = strings.TrimSpace(field)
-		if field == "" {
-			return ""
-		}
-		if cut := strings.IndexAny(field, " \t"); cut >= 0 {
-			field = field[:cut]
-		}
-		return strings.TrimSpace(field)
-	}
-	return ""
-}

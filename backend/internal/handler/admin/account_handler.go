@@ -194,9 +194,9 @@ func (h *AccountHandler) buildAccountResponseWithRuntime(ctx context.Context, ac
 	}
 
 	snapshot := parseStoredAccountHealth(account)
-	item.Account.HealthStatus = snapshot.Status
-	item.Account.HealthResultStatus = snapshot.ResultStatus
-	item.Account.HealthMessage = snapshot.Message
+	item.HealthStatus = snapshot.Status
+	item.HealthResultStatus = snapshot.ResultStatus
+	item.HealthMessage = snapshot.Message
 	item.Account.HealthLatencyMs = snapshot.LatencyMs
 	item.Account.HealthLastCheckedAt = snapshot.LastCheckedAt
 
@@ -440,16 +440,16 @@ func buildAccountsListETag(
 	lite bool,
 ) string {
 	payload := struct {
-		Total       int64                    `json:"total"`
-		Page        int                      `json:"page"`
-		PageSize    int                      `json:"page_size"`
-		Platform    string                   `json:"platform"`
-		AccountType string                   `json:"type"`
-		Status      string                   `json:"status"`
+		Total        int64                    `json:"total"`
+		Page         int                      `json:"page"`
+		PageSize     int                      `json:"page_size"`
+		Platform     string                   `json:"platform"`
+		AccountType  string                   `json:"type"`
+		Status       string                   `json:"status"`
 		HealthStatus string                  `json:"health_status"`
-		Search      string                   `json:"search"`
-		Lite        bool                     `json:"lite"`
-		Items       []AccountWithConcurrency `json:"items"`
+		Search       string                   `json:"search"`
+		Lite         bool                     `json:"lite"`
+		Items        []AccountWithConcurrency `json:"items"`
 	}{
 		Total:       total,
 		Page:        page,

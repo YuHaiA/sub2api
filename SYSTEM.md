@@ -945,6 +945,31 @@
 - 驗證記錄：
   - 本機仍無 Go 工具鏈，將以遠端 GitHub Actions 作為主要驗證來源。
 
+## 本次 GitHub Actions 第三輪修復（lint / gofmt 清理）
+
+- 背景：
+  - 推送測試 constructor 修復後，遠端 CI 中 `Security Scan`、`Deploy Package`、`frontend` 通過。
+  - `CI` 仍失敗，annotations 顯示剩餘問題集中於 golangci-lint 與 Go 測試編譯階段。
+- 根因：
+  - `backend/internal/service/update_deploy.go` 保留了三個未使用 helper：
+    - `parseDeployImageID`
+    - `parseDeployRunningImageID`
+    - `parseDeployResultField`
+  - `backend/internal/handler/admin/account_handler.go` 對嵌入字段使用 `item.Account.Health...`，觸發 staticcheck `QF1008`。
+  - 三個 Go 文件存在 gofmt 對齊問題：
+    - `backend/internal/service/account_test_service.go`
+    - `backend/internal/handler/dto/types.go`
+    - `backend/internal/handler/admin/account_handler.go`
+- 本次修改：
+  - 移除未使用 deploy helper。
+  - 將 `item.Account.HealthStatus / HealthResultStatus / HealthMessage` 改為直接訪問嵌入字段。
+  - 手動調整 CI 指出的 gofmt 對齊區塊。
+- 影響範圍：
+  - 僅清理 lint / 格式問題，不改 API、schema、部署流程或前端行為。
+- 驗證記錄：
+  - 本機可執行 `git diff --check` 且結果乾淨。
+  - 本機無 `gofmt` / Go 工具鏈，最終 gofmt 與單測仍以遠端 GitHub Actions 為準。
+
 ## 本次账号管理批量工具与测活筛选增强
 
 - 背景：
