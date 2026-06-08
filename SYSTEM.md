@@ -29,6 +29,9 @@
 ### 2. 伺服器部署目錄層
 
 - 位置：`/home/ec2-user/sub2api-deploy`
+- 對外域名：`https://mysuby.duckdns.org/`
+- DNS 解析：`mysuby.duckdns.org -> 3.22.185.140`（AWS EC2）
+- SSH：`ec2-user@mysuby.duckdns.org`；本機需使用已授權私鑰連線，私鑰路徑不寫入項目文檔。
 - 用途：保存伺服器上的 `docker-compose.yml`、`.env`、`bin/deploy-from-package.sh`、資料目錄與運維腳本
 - 特性：它不是正式 Git 倉庫主源，只是遠端運行與部署輔助目錄
 - 注意：此目錄下還存在一份 `sub2api-src/` 快照，但它不應被視為正式開發主源
@@ -342,6 +345,42 @@
 - 影響範圍：
   - 僅影響嵌入式前端 `index.html` 的快取策略。
   - 靜態 JS/CSS 資源、API 行為、資料結構與權限邏輯不變。
+
+## 本次服務器 Nginx 靜態資源快取止血
+
+- 背景：
+  - 服務器部署文檔中的 Nginx 注意事項目前只提示 `underscores_in_headers on;`，不包含完整的靜態資源壓縮與瀏覽器快取配置。
+  - `deploy/Caddyfile` 有 `encode` 與 `/assets/*` 長快取示例，但 Docker 部署本身只是把應用暴露到 `8080`；如果服務器前置代理實際使用 Nginx 或直接訪問 `8080`，Caddyfile 中的壓縮與快取策略不會自動生效。
+  - 2026-06-07 外部檢查確認 `https://mysuby.duckdns.org/` 前置代理為 `nginx/1.28.3`。
+  - 線上真實資源如 `/assets/index-krrpSYhQ.js`、`/assets/vendor-vue-Oirx9HYx.js`、`/assets/index-DdNla0ru.css` 返回 `Content-Length`，但未返回 `Content-Encoding` 或 `Cache-Control`，因此瀏覽器重新請求時會重新下載大 JS/CSS。
+- 修改內容：
+  - 服務器 Nginx 站點配置：`/etc/nginx/conf.d/sub2api.conf`
+  - 本地只更新 `SYSTEM.md` 記錄；沒有保留後端代碼改動，避免與 Nginx 職責重複。
+- 修改前後差異：
+  - 修改前：Nginx 只有一個 `location /` 反代到 `127.0.0.1:8080`，未啟用 gzip，也沒有 `/assets/` 專用長快取。
+  - 修改後：Nginx 對 JS/CSS 等文本資源啟用 gzip，並為 `/assets/` 返回 `Cache-Control: public, max-age=31536000, immutable`。
+- 架構與行為影響：
+  - 僅影響服務器 Nginx 反向代理層的靜態資源壓縮與瀏覽器快取 header，不修改 API、資料庫、權限或前端打包流程。
+  - `index.html` 仍維持 `no-store`，避免 CSP nonce HTML 被瀏覽器復用。
+- 驗證狀態：
+  - 使用本機已授權私鑰成功連線 `ec2-user@mysuby.duckdns.org`；主機名為 `ip-172-31-45-171.us-east-2.compute.internal`。
+- 服務器 Nginx 熱修：
+  - 實際站點配置：`/etc/nginx/conf.d/sub2api.conf`
+  - Nginx 服務為 `active`，Caddy 為 `inactive`；容器 `sub2api` 運行鏡像為 `sub2api:rollback`。
+  - 熱修過程曾短暫生成兩個精確配置備份，使用者要求不要保留備份後已刪除：
+    - `/etc/nginx/conf.d/sub2api.conf.bak.20260607143646`
+    - `/etc/nginx/conf.d/sub2api.conf.bak.20260607143808`
+  - 已加入：
+    - `underscores_in_headers on;`
+    - `gzip on; gzip_comp_level 6; gzip_min_length 256; gzip_vary on;`
+    - `gzip_types text/plain text/css text/javascript application/javascript application/json application/xml image/svg+xml;`
+    - `location /assets/` 專用反代，啟用 `proxy_buffering on` 並返回 `Cache-Control: public, max-age=31536000, immutable`
+  - 已執行 `sudo nginx -t`，配置測試成功；已 `sudo systemctl reload nginx`。
+  - 外部驗證：
+    - `https://mysuby.duckdns.org/assets/index-krrpSYhQ.js`
+    - `https://mysuby.duckdns.org/assets/index-DdNla0ru.css`
+    - 均已返回 `Content-Encoding: gzip` 與 `Cache-Control: public, max-age=31536000, immutable`。
+  - 首頁 `https://mysuby.duckdns.org/` 仍返回 `Cache-Control: no-store`，符合 CSP nonce HTML 防白屏策略。
 
 ## 本次吸收上游生圖橋接開關
 
@@ -814,6 +853,44 @@
 - 验证记录：
   - 本机无 `go` 工具链，无法在当前环境运行 Go 单测或编译验证。
   - 需后续在 CI 或 Linux/Go 环境继续验证。
+
+## 本次账号管理批量工具与测活筛选增强
+
+- 背景：
+  - 后端已经存在 `POST /api/v1/admin/accounts/deduplicate` 去重接口，但账号管理页面没有入口。
+  - 分页底层已允许最大 `1000`，但前端与系统默认设置仍只提供到 `100`。
+  - 手动账号健康检查后端已支持 `filters`，但测活管理页只传模型 ID，无法按分组或账号状态缩小范围。
+- 修改内容：
+  - `frontend/src/views/admin/AccountsView.vue`
+    - 在账号管理「更多操作」的数据操作区新增「去除重复账号」按钮。
+    - 点击后会二次确认，并按当前列表筛选条件调用既有去重接口。
+    - 去重完成后清空当前选择、刷新列表，并显示删除数量、命中重复组数与保留账号数。
+  - `frontend/src/views/admin/AccountHealthView.vue`
+  - `frontend/src/components/admin/account-health/AccountHealthAutoCheckPanel.vue`
+    - 手动健康检查新增可选「检查分组」与「检查状态」。
+    - 分组与状态为空时不传过滤条件，保持默认检查全部账号。
+    - 自动健康检查配置仍沿用原逻辑，不受手动筛选影响。
+  - `frontend/src/utils/tablePreferences.ts`
+  - `frontend/src/stores/app.ts`
+  - `frontend/src/views/admin/SettingsView.vue`
+  - `backend/internal/service/setting_service.go`
+    - 默认分页可选条数扩展为 `[10,20,50,100,500,1000]`。
+    - 设置页 placeholder 与 fallback 同步到新默认值。
+  - `frontend/src/i18n/locales/zh.ts`
+  - `frontend/src/i18n/locales/en.ts`
+    - 补充去重、测活筛选和分页设置相关文案。
+  - `frontend/src/utils/__tests__/tablePreferences.spec.ts`
+    - 更新内建分页默认值测试期望。
+- 修改前后差异：
+  - 修改前：账号去重只能通过已有 API 或其它非页面入口触发；分页常规选择到 `100` 为止；手动测活总是检查全部符合后端默认范围的账号。
+  - 修改后：账号页可直接按当前筛选去重；分页组件默认显示 `100 / 500 / 1000`；手动测活可以按指定分组和账号状态执行，不选则默认全部。
+- 影响范围：
+  - 前端新增入口使用既有后端接口，不新增数据库 schema 或新 API。
+  - 去重仍由后端按既有规则执行：按平台、类型、账号名归组，保留每组 ID 最小的账号，删除其它重复项。
+  - 分页默认值变化会影响未配置自定义分页选项的新部署或 fallback 场景；已由后台设置保存的自定义值仍以服务端配置为准。
+- 待验证事项：
+  - 需执行前端 typecheck 与相关单元测试。
+  - 本机若无 Go 工具链，后端默认设置改动无法在本地跑 Go 测试，需依赖 CI 或 Linux/Go 环境验证。
 
 ## 本次吸收外部防风控补丁第三层（Cloudflare challenge 渐进冷却）
 

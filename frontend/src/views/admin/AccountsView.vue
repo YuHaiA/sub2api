@@ -112,6 +112,12 @@
                         {{ t('admin.accounts.selectedCount', { count: selIds.length }) }}
                       </span>
                     </button>
+                    <button class="account-tools-menu-item" @click="handleDeduplicateAccounts">
+                      <span class="account-tools-menu-icon bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-300">
+                        <Icon name="trash" size="sm" />
+                      </span>
+                      <span class="flex-1 text-left">{{ t('admin.accounts.deduplicate') }}</span>
+                    </button>
 
                     <div class="my-2 border-t border-gray-100 dark:border-gray-700"></div>
                     <div class="px-2 py-2">
@@ -993,6 +999,26 @@ const openExportDataDialogFromMenu = () => {
   openExportDataDialog()
 }
 
+const handleDeduplicateAccounts = async () => {
+  closeAccountToolsDropdown()
+  if (!confirm(t('admin.accounts.deduplicateConfirm'))) return
+
+  try {
+    const result = await adminAPI.accounts.deduplicateAccounts({
+      filters: buildAccountQueryFilters()
+    })
+    clearSelection()
+    await reload()
+    appStore.showSuccess(t('admin.accounts.deduplicateSuccess', {
+      deleted: result.deleted_count,
+      groups: result.duplicate_groups,
+      kept: result.kept_count
+    }))
+  } catch (error: any) {
+    appStore.showError(error?.message || t('admin.accounts.deduplicateFailed'))
+  }
+}
+
 const openErrorPassthrough = () => {
   closeAccountToolsDropdown()
   showErrorPassthrough.value = true
@@ -1407,6 +1433,7 @@ const buildAccountQueryFilters = () => ({
   platform: params.platform || '',
   type: params.type || '',
   status: params.status || '',
+  health_status: params.health_status || '',
   group: params.group || '',
   privacy_mode: params.privacy_mode || '',
   search: params.search || '',

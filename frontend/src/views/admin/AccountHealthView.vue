@@ -51,10 +51,15 @@
             :health-checking="healthChecking"
             :saving-auto-config="savingAutoConfig"
             :deleting-unhealthy="deletingUnhealthy"
+            :groups="groups"
+            :manual-group="manualGroup"
+            :manual-status="manualStatus"
             :delete-account-statuses="deleteAccountStatuses"
             :delete-health-statuses="deleteHealthStatuses"
             @update:auto-config="applyAutoConfig"
             @update:manual-model-id="manualModelId = $event"
+            @update:manual-group="manualGroup = $event"
+            @update:manual-status="manualStatus = $event"
             @update:auto-interval-input="autoIntervalInput = $event"
             @update:auto-interval-unit="autoIntervalUnit = $event"
             @update:delete-account-statuses="deleteAccountStatuses = $event"
@@ -120,6 +125,8 @@ const tokenIntervalValueInput = ref('1')
 const tokenBatchSizeInput = ref('10')
 const deleteAccountStatuses = ref<DeleteAccountStatus[]>(['disabled', 'error'])
 const deleteHealthStatuses = ref<DeleteHealthStatus[]>(['unavailable'])
+const manualGroup = ref('')
+const manualStatus = ref('')
 
 const autoConfig = reactive<AccountHealthAutoCheckConfig>({
   enabled: false,
@@ -249,6 +256,17 @@ function applyTokenConfig(cfg: AccountTokenAutoRefreshConfig) {
   lastObservedTokenRunAt.value = tokenConfig.last_run_at ?? null
 }
 
+function buildManualHealthCheckFilters() {
+  const filters: { group?: string; status?: string } = {}
+  if (manualGroup.value) {
+    filters.group = manualGroup.value
+  }
+  if (manualStatus.value) {
+    filters.status = manualStatus.value
+  }
+  return Object.keys(filters).length > 0 ? filters : undefined
+}
+
 async function loadHealthSummary() {
   healthSummary.value = await adminAPI.accounts.getHealthSummary()
 }
@@ -276,6 +294,7 @@ async function runGlobalHealthCheck() {
     const modelID = manualModelId.value.trim() || autoConfig.model_id.trim()
     const result = await adminAPI.accounts.runHealthCheck({
       model_id: modelID || undefined,
+      filters: buildManualHealthCheckFilters(),
     })
     autoConfig.running = true
     autoConfig.current_total = result.total

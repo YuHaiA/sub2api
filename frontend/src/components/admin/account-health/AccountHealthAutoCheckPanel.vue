@@ -110,6 +110,38 @@
         </div>
         <div>
           <label class="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
+            {{ t('admin.accounts.healthCheckGroup') }}
+          </label>
+          <select
+            :value="manualGroup"
+            class="input h-10"
+            :disabled="healthChecking"
+            @change="$emit('update:manualGroup', ($event.target as HTMLSelectElement).value)"
+          >
+            <option value="">{{ t('admin.accounts.allGroups') }}</option>
+            <option value="ungrouped">{{ t('admin.accounts.ungroupedGroup') }}</option>
+            <option v-for="group in groups" :key="group.id" :value="String(group.id)">
+              {{ group.name }}
+            </option>
+          </select>
+        </div>
+        <div>
+          <label class="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
+            {{ t('admin.accounts.healthCheckStatus') }}
+          </label>
+          <select
+            :value="manualStatus"
+            class="input h-10"
+            :disabled="healthChecking"
+            @change="$emit('update:manualStatus', ($event.target as HTMLSelectElement).value)"
+          >
+            <option v-for="option in manualStatusOptions" :key="option.value" :value="option.value">
+              {{ option.label }}
+            </option>
+          </select>
+        </div>
+        <div>
+          <label class="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
             {{ t('admin.accounts.autoCheckInterval') }}
           </label>
           <div class="grid grid-cols-[minmax(0,1fr)_112px] gap-2">
@@ -211,17 +243,21 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Input from '@/components/common/Input.vue'
 import type { AccountHealthAutoCheckConfig, AccountHealthSummary, DeleteAccountStatus, DeleteHealthStatus } from '@/api/admin/accounts'
+import type { AdminGroup } from '@/types'
 
 const props = defineProps<{
   healthSummary: AccountHealthSummary
   autoConfig: AccountHealthAutoCheckConfig
   manualModelId: string
+  manualGroup: string
+  manualStatus: string
   autoIntervalInput: string
   autoIntervalUnit: 'minute' | 'hour'
   autoLastRunText: string
   healthChecking: boolean
   savingAutoConfig: boolean
   deletingUnhealthy: boolean
+  groups: AdminGroup[]
   deleteAccountStatuses: DeleteAccountStatus[]
   deleteHealthStatuses: DeleteHealthStatus[]
 }>()
@@ -229,6 +265,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update:autoConfig', value: AccountHealthAutoCheckConfig): void
   (e: 'update:manualModelId', value: string): void
+  (e: 'update:manualGroup', value: string): void
+  (e: 'update:manualStatus', value: string): void
   (e: 'update:autoIntervalInput', value: string): void
   (e: 'update:autoIntervalUnit', value: 'minute' | 'hour'): void
   (e: 'update:deleteAccountStatuses', value: DeleteAccountStatus[]): void
@@ -271,6 +309,16 @@ const healthDeleteOptions = computed<Array<{ value: DeleteHealthStatus; label: s
   { value: 'unavailable', label: t('admin.accounts.healthStatus.unavailable') },
   { value: 'constrained', label: t('admin.accounts.healthStatus.constrained') },
   { value: 'unchecked', label: t('admin.accounts.healthStatus.unchecked') },
+])
+
+const manualStatusOptions = computed(() => [
+  { value: '', label: t('admin.accounts.allStatus') },
+  { value: 'active', label: t('admin.accounts.status.active') },
+  { value: 'inactive', label: t('admin.accounts.status.inactive') },
+  { value: 'error', label: t('admin.accounts.status.error') },
+  { value: 'rate_limited', label: t('admin.accounts.status.rateLimited') },
+  { value: 'temp_unschedulable', label: t('admin.accounts.status.tempUnschedulable') },
+  { value: 'unschedulable', label: t('admin.accounts.status.unschedulable') },
 ])
 
 const deleteDisabled = computed(() => props.deletingUnhealthy || (props.deleteAccountStatuses.length === 0 && props.deleteHealthStatuses.length === 0))

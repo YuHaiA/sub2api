@@ -626,6 +626,7 @@ export async function deduplicateAccounts(payload?: {
     platform?: string
     type?: string
     status?: string
+    health_status?: string
     group?: string
     privacy_mode?: string
     search?: string
