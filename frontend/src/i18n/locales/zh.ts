@@ -3152,6 +3152,8 @@ export default {
         scopeGroup: '指定分组',
         group: '分组',
         groupPlaceholder: '选择分组',
+        healthStatus: '健康状态',
+        healthStatusAll: '全部状态',
         groupRequired: '请选择要刷新的分组',
         save: '保存设置',
         saved: 'Token 自动刷新设置已保存',

@@ -146,6 +146,7 @@ const tokenConfig = reactive<AccountTokenAutoRefreshConfig>({
   batch_size: 10,
   scope: 'all',
   group_id: 0,
+  health_status: '',
   running: false,
   current_total: 0,
   current_success: 0,
@@ -198,7 +199,8 @@ const healthStatusText = computed(() => {
 const tokenStatusText = computed(() => {
   const base = tokenConfig.enabled ? t('admin.accounts.tokenRefresh.enabled') : t('admin.accounts.tokenRefresh.disabledHint')
   const scope = tokenConfig.scope === 'group' ? `${t('admin.accounts.tokenRefresh.scopeGroup')} · ${tokenGroupName.value || t('admin.accounts.tokenRefresh.groupPlaceholder')}` : t('admin.accounts.tokenRefresh.scopeAll')
-  const status = `${base} · ${scope}`
+  const healthStatus = tokenConfig.health_status ? t(`admin.accounts.healthStatus.${tokenConfig.health_status}`) : ''
+  const status = healthStatus ? `${base} · ${scope} · ${healthStatus}` : `${base} · ${scope}`
   return tokenConfig.last_run_at ? `${status} · ${t('admin.accounts.tokenRefresh.lastRunAt', { time: tokenLastRunText.value })}` : status
 })
 
@@ -241,6 +243,7 @@ function applyTokenConfig(cfg: AccountTokenAutoRefreshConfig) {
   tokenConfig.batch_size = cfg.batch_size || 10
   tokenConfig.scope = cfg.scope === 'group' ? 'group' : 'all'
   tokenConfig.group_id = tokenConfig.scope === 'group' ? (cfg.group_id ?? 0) : 0
+  tokenConfig.health_status = cfg.health_status || ''
   tokenConfig.running = cfg.running ?? false
   tokenConfig.current_total = cfg.current_total ?? 0
   tokenConfig.current_success = cfg.current_success ?? 0
@@ -361,6 +364,7 @@ async function saveTokenConfig() {
       batch_size: batchSize,
       scope: tokenConfig.scope,
       group_id: tokenConfig.scope === 'group' ? tokenConfig.group_id : 0,
+      health_status: tokenConfig.health_status || '',
     })
     applyTokenConfig(updated)
     appStore.showSuccess(t('admin.accounts.tokenRefresh.saved'))
@@ -373,9 +377,31 @@ async function saveTokenConfig() {
 
 async function runTokenRefreshNow() {
   if (runningTokenRefresh.value) return
+  const intervalValue = Number(tokenIntervalValueInput.value)
+  const batchSize = Number(tokenBatchSizeInput.value)
+  if (!Number.isFinite(intervalValue) || intervalValue < 1) {
+    appStore.showError(t('admin.accounts.tokenRefresh.intervalHint'))
+    return
+  }
+  if (!Number.isFinite(batchSize) || batchSize < 1 || batchSize > 50) {
+    appStore.showError(t('admin.accounts.tokenRefresh.batchHint'))
+    return
+  }
+  if (tokenConfig.scope === 'group' && !(tokenConfig.group_id && tokenConfig.group_id > 0)) {
+    appStore.showError(t('admin.accounts.tokenRefresh.groupRequired'))
+    return
+  }
   runningTokenRefresh.value = true
   try {
-    const result = await adminAPI.accounts.runAccountTokenAutoRefreshNow()
+    const result = await adminAPI.accounts.runAccountTokenAutoRefreshNow({
+      enabled: tokenConfig.enabled,
+      interval_value: intervalValue,
+      interval_unit: tokenConfig.interval_unit,
+      batch_size: batchSize,
+      scope: tokenConfig.scope,
+      group_id: tokenConfig.scope === 'group' ? tokenConfig.group_id : 0,
+      health_status: tokenConfig.health_status || '',
+    })
     tokenConfig.running = true
     tokenConfig.current_total = 0
     tokenConfig.current_success = 0

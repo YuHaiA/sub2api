@@ -12,6 +12,7 @@ func TestNormalizeAccountTokenAutoRefreshConfig(t *testing.T) {
 		BatchSize:     0,
 		Scope:         "bad",
 		GroupID:       99,
+		HealthStatus:  "weird",
 	})
 
 	if cfg.IntervalValue != DefaultTokenRefreshIntervalValue {
@@ -28,6 +29,9 @@ func TestNormalizeAccountTokenAutoRefreshConfig(t *testing.T) {
 	}
 	if cfg.GroupID != 0 {
 		t.Fatalf("expected group id reset to 0, got %d", cfg.GroupID)
+	}
+	if cfg.HealthStatus != "" {
+		t.Fatalf("expected health status reset to empty, got %q", cfg.HealthStatus)
 	}
 }
 
@@ -47,6 +51,7 @@ func TestValidateAccountTokenAutoRefreshConfig(t *testing.T) {
 		BatchSize:     10,
 		Scope:         "group",
 		GroupID:       8,
+		HealthStatus:  "constrained",
 	}); err != nil {
 		t.Fatalf("expected valid group config, got %v", err)
 	}
@@ -67,6 +72,16 @@ func TestValidateAccountTokenAutoRefreshConfig(t *testing.T) {
 		GroupID:       0,
 	}); err == nil {
 		t.Fatal("expected group validation error")
+	}
+
+	if err := validateAccountTokenAutoRefreshConfig(&AccountTokenAutoRefreshConfig{
+		IntervalValue: 1,
+		IntervalUnit:  "hour",
+		BatchSize:     10,
+		Scope:         "all",
+		HealthStatus:  "bad",
+	}); err == nil {
+		t.Fatal("expected health status validation error")
 	}
 }
 

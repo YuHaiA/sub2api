@@ -65,7 +65,7 @@ func (s *TokenRefreshService) RunConfiguredBatchRefresh(ctx context.Context, now
 	}
 }
 
-func (s *TokenRefreshService) RunManualBatchRefresh(ctx context.Context) (*AccountTokenAutoRefreshRunResult, error) {
+func (s *TokenRefreshService) RunManualBatchRefresh(ctx context.Context, override *AccountTokenAutoRefreshConfig) (*AccountTokenAutoRefreshRunResult, error) {
 	if s == nil || s.settingService == nil || s.accountRepo == nil {
 		return nil, nil
 	}
@@ -77,6 +77,12 @@ func (s *TokenRefreshService) RunManualBatchRefresh(ctx context.Context) (*Accou
 		cfg = defaultAccountTokenAutoRefreshConfig()
 	}
 	cfg = normalizeAccountTokenAutoRefreshConfig(cfg)
+	if override != nil {
+		cfg = normalizeAccountTokenAutoRefreshConfig(override)
+		if err := validateAccountTokenAutoRefreshConfig(cfg); err != nil {
+			return nil, err
+		}
+	}
 	now := time.Now()
 
 	if !s.manualRunInProgress.CompareAndSwap(false, true) {
@@ -213,7 +219,7 @@ func (s *TokenRefreshService) listAllAccountsForAutoRefresh(ctx context.Context,
 		}
 		page++
 	}
-	return out, nil
+	return filterAccountsByTokenRefreshHealthStatus(out, normalizeAccountTokenAutoRefreshHealthStatus(cfg.HealthStatus)), nil
 }
 
 func (s *TokenRefreshService) runAutoRefreshBatch(ctx context.Context, accounts []Account) accountTokenAutoRefreshRunStats {

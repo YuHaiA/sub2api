@@ -1161,3 +1161,54 @@
 - 验证记录：
   - 本机无 `go` 工具链，无法在当前环境运行 Go 单测或编译验证。
   - 需后续在 CI 或 Linux/Go 环境继续验证。
+
+## 本次 Token 刷新范围增加健康状态筛选
+
+- 背景：
+  - 使用者希望 `Token` 刷新范围和测活一样，除了现有的全部/指定分组外，还能按健康状态缩小范围。
+  - 旧实现里 `account_token_auto_refresh_config` 只支持：
+    - `scope=all`
+    - `scope=group + group_id`
+  - 手动「立即刷新」也只读取已保存配置，无法像测活一样直接按当前面板条件执行。
+- 本次修改：
+  - 后端配置模型 `backend/internal/service/account_token_auto_refresh_config.go`
+    - 为 `AccountTokenAutoRefreshConfig` 新增 `health_status`
+    - 支持值：`healthy / constrained / unavailable / unchecked / ""`
+    - `normalize` 与 `validate` 同步补齐
+  - 后端执行逻辑：
+    - `backend/internal/service/account_token_auto_refresh_filters.go`
+      - 新增 token 刷新用的健康状态解析与过滤逻辑
+      - 从账号 `extra.health_check` 读取最近测活快照，并兼容旧状态别名
+    - `backend/internal/service/account_token_auto_refresh_runner.go`
+      - 自动批量刷新在拉取账号后，按 `health_status` 再做一次过滤
+      - `RunManualBatchRefresh` 改为支持传入临时 override 配置
+    - `backend/internal/handler/admin/setting_auto_account_handler.go`
+      - `POST /api/v1/admin/settings/account-token-auto-refresh/run`
+      - 支持可选请求体，手动刷新可直接使用当前面板配置，而不是只能吃数据库中已保存的旧值
+  - 前端：
+    - `frontend/src/components/admin/account-health/AccountTokenAutoRefreshPanel.vue`
+      - 在 Token 刷新面板新增「健康状态」下拉框
+      - 范围说明文案会展示当前分组/状态组合
+    - `frontend/src/views/admin/AccountHealthView.vue`
+      - 保存配置时提交 `health_status`
+      - 「立即刷新」时直接提交当前面板配置，和测活页手动执行行为对齐
+    - `frontend/src/api/admin/accounts.ts`
+      - Token 自动刷新配置类型与 `run-now` API payload 同步新增 `health_status`
+    - `frontend/src/i18n/locales/zh.ts`
+    - `frontend/src/i18n/locales/en.ts`
+      - 新增 Token 刷新状态筛选文案
+- 修改前后差异：
+  - 修改前：
+    - Token 刷新只能按全部账号或指定分组
+    - 手动立即刷新不吃当前面板未保存的范围条件
+  - 修改后：
+    - Token 刷新可按分组 + 健康状态共同缩小范围
+    - 手动立即刷新可直接按当前面板条件执行
+    - 自动定时刷新也会沿用已保存的健康状态范围
+- 影响范围：
+  - 仅影响账号 Token 刷新任务选取范围，不改变测活分类规则本身
+  - 依赖 `extra.health_check` 中最近一次测活快照；未测活账号默认归类为 `unchecked`
+- 验证记录：
+  - `frontend pnpm typecheck` 通过
+  - 本机无 `go` 工具链，且本机 Docker 不可用，当前环境无法独立执行 Go 编译/单测
+  - 已补充后端配置与健康状态过滤相关单测文件，需后续由 CI 或可用 Go 环境继续验证

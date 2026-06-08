@@ -32,6 +32,7 @@ type AccountTokenAutoRefreshConfig struct {
 	BatchSize      int    `json:"batch_size"`
 	Scope          string `json:"scope,omitempty"`
 	GroupID        int64  `json:"group_id,omitempty"`
+	HealthStatus   string `json:"health_status,omitempty"`
 	Running        bool   `json:"running,omitempty"`
 	CurrentTotal   int    `json:"current_total,omitempty"`
 	CurrentSuccess int    `json:"current_success,omitempty"`
@@ -84,6 +85,7 @@ func normalizeAccountTokenAutoRefreshConfig(cfg *AccountTokenAutoRefreshConfig) 
 	if out.Scope != "group" {
 		out.GroupID = 0
 	}
+	out.HealthStatus = normalizeAccountTokenAutoRefreshHealthStatus(out.HealthStatus)
 	return &out
 }
 
@@ -105,6 +107,9 @@ func validateAccountTokenAutoRefreshConfig(cfg *AccountTokenAutoRefreshConfig) e
 	}
 	if cfg.Scope == "group" && cfg.GroupID <= 0 {
 		return errors.New("group_id must be positive when scope is group")
+	}
+	if cfg.HealthStatus != "" && normalizeAccountTokenAutoRefreshHealthStatus(cfg.HealthStatus) == "" {
+		return errors.New("health_status must be healthy, constrained, unavailable, unchecked, or empty")
 	}
 	return nil
 }

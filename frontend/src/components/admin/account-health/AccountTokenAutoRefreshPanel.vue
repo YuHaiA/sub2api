@@ -148,26 +148,58 @@
         </div>
       </div>
 
-      <div v-if="tokenConfig.scope === 'group'">
-        <label class="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
-          {{ t('admin.accounts.tokenRefresh.group') }}
-        </label>
-        <select
-          :value="tokenConfig.group_id ?? 0"
-          class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
-          @change="
-            updateTokenConfig({
-              group_id: Number(($event.target as HTMLSelectElement).value),
-            })
-          "
-        >
-          <option :value="0">
-            {{ t('admin.accounts.tokenRefresh.groupPlaceholder') }}
-          </option>
-          <option v-for="group in groups" :key="group.id" :value="group.id">
-            {{ group.name }}
-          </option>
-        </select>
+      <div class="grid gap-4 sm:grid-cols-2">
+        <div v-if="tokenConfig.scope === 'group'">
+          <label class="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
+            {{ t('admin.accounts.tokenRefresh.group') }}
+          </label>
+          <select
+            :value="tokenConfig.group_id ?? 0"
+            class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+            @change="
+              updateTokenConfig({
+                group_id: Number(($event.target as HTMLSelectElement).value),
+              })
+            "
+          >
+            <option :value="0">
+              {{ t('admin.accounts.tokenRefresh.groupPlaceholder') }}
+            </option>
+            <option v-for="group in groups" :key="group.id" :value="group.id">
+              {{ group.name }}
+            </option>
+          </select>
+        </div>
+        <div :class="tokenConfig.scope === 'group' ? '' : 'sm:col-span-2'">
+          <label class="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
+            {{ t('admin.accounts.tokenRefresh.healthStatus') }}
+          </label>
+          <select
+            :value="tokenConfig.health_status ?? ''"
+            class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+            @change="
+              updateTokenConfig({
+                health_status: ($event.target as HTMLSelectElement).value as AccountTokenAutoRefreshConfig['health_status'],
+              })
+            "
+          >
+            <option value="">
+              {{ t('admin.accounts.tokenRefresh.healthStatusAll') }}
+            </option>
+            <option value="healthy">
+              {{ t('admin.accounts.healthStatus.healthy') }}
+            </option>
+            <option value="constrained">
+              {{ t('admin.accounts.healthStatus.constrained') }}
+            </option>
+            <option value="unavailable">
+              {{ t('admin.accounts.healthStatus.unavailable') }}
+            </option>
+            <option value="unchecked">
+              {{ t('admin.accounts.healthStatus.unchecked') }}
+            </option>
+          </select>
+        </div>
       </div>
 
       <div class="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:bg-slate-900/70 dark:text-slate-300">
@@ -242,10 +274,14 @@ const selectedGroupName = computed(() => {
 })
 
 const scopeDescription = computed(() => {
+  const healthStatus = props.tokenConfig.health_status
+  const healthText = healthStatus ? t(`admin.accounts.healthStatus.${healthStatus}`) : ''
   if (props.tokenConfig.scope === 'group') {
-    return selectedGroupName.value || t('admin.accounts.tokenRefresh.scopeGroup')
+    const groupText = selectedGroupName.value || t('admin.accounts.tokenRefresh.scopeGroup')
+    return healthText ? `${groupText} · ${healthText}` : groupText
   }
-  return t('admin.accounts.tokenRefresh.scopeAll')
+  const scopeText = t('admin.accounts.tokenRefresh.scopeAll')
+  return healthText ? `${scopeText} · ${healthText}` : scopeText
 })
 
 const completedCount = computed(() => {

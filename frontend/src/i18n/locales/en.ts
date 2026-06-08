@@ -3076,6 +3076,8 @@ export default {
         scopeGroup: 'Specific group',
         group: 'Group',
         groupPlaceholder: 'Select group',
+        healthStatus: 'Health status',
+        healthStatusAll: 'All statuses',
         groupRequired: 'Please select a group to refresh',
         save: 'Save Settings',
         saved: 'Token refresh settings saved',

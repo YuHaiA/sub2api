@@ -477,6 +477,7 @@ export interface AccountTokenAutoRefreshConfig {
   batch_size: number
   scope?: 'all' | 'group'
   group_id?: number
+  health_status?: '' | 'healthy' | 'constrained' | 'unavailable' | 'unchecked'
   running?: boolean
   current_total?: number
   current_success?: number
@@ -611,13 +612,22 @@ export async function updateAccountTokenAutoRefreshConfig(payload: {
   batch_size: number
   scope?: 'all' | 'group'
   group_id?: number
+  health_status?: '' | 'healthy' | 'constrained' | 'unavailable' | 'unchecked'
 }): Promise<AccountTokenAutoRefreshConfig> {
   const { data } = await apiClient.put<AccountTokenAutoRefreshConfig>('/admin/settings/account-token-auto-refresh', payload)
   return data
 }
 
-export async function runAccountTokenAutoRefreshNow(): Promise<AccountTokenAutoRefreshRunResult> {
-  const { data } = await apiClient.post<AccountTokenAutoRefreshRunResult>('/admin/settings/account-token-auto-refresh/run')
+export async function runAccountTokenAutoRefreshNow(payload?: {
+  enabled?: boolean
+  interval_value?: number
+  interval_unit?: 'hour' | 'day'
+  batch_size?: number
+  scope?: 'all' | 'group'
+  group_id?: number
+  health_status?: '' | 'healthy' | 'constrained' | 'unavailable' | 'unchecked'
+}): Promise<AccountTokenAutoRefreshRunResult> {
+  const { data } = await apiClient.post<AccountTokenAutoRefreshRunResult>('/admin/settings/account-token-auto-refresh/run', payload)
   return data
 }
 

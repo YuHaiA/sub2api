@@ -1,6 +1,8 @@
 package admin
 
 import (
+	"errors"
+	"io"
 	"net/http"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
@@ -58,9 +60,30 @@ func (h *SettingHandler) RunAccountTokenAutoRefreshNow(c *gin.Context) {
 		response.Error(c, http.StatusServiceUnavailable, "token refresh service is unavailable")
 		return
 	}
-	result, err := h.tokenRefreshService.RunManualBatchRefresh(c.Request.Context())
+	var override *service.AccountTokenAutoRefreshConfig
+	var cfg service.AccountTokenAutoRefreshConfig
+	if err := c.ShouldBindJSON(&cfg); err != nil && !errors.Is(err, io.EOF) {
+		response.Error(c, http.StatusBadRequest, err.Error())
+		return
+	} else if err == nil && hasAccountTokenAutoRefreshOverride(&cfg) {
+		override = &cfg
+	}
+	result, err := h.tokenRefreshService.RunManualBatchRefresh(c.Request.Context(), override)
 	if response.ErrorFrom(c, err) {
 		return
 	}
 	response.Success(c, result)
+}
+
+func hasAccountTokenAutoRefreshOverride(cfg *service.AccountTokenAutoRefreshConfig) bool {
+	if cfg == nil {
+		return false
+	}
+	return cfg.IntervalValue > 0 ||
+		cfg.IntervalUnit != "" ||
+		cfg.BatchSize > 0 ||
+		cfg.Scope != "" ||
+		cfg.GroupID > 0 ||
+		cfg.HealthStatus != "" ||
+		cfg.Enabled
 }
