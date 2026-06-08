@@ -197,8 +197,8 @@ func (h *AccountHandler) buildAccountResponseWithRuntime(ctx context.Context, ac
 	item.HealthStatus = snapshot.Status
 	item.HealthResultStatus = snapshot.ResultStatus
 	item.HealthMessage = snapshot.Message
-	item.Account.HealthLatencyMs = snapshot.LatencyMs
-	item.Account.HealthLastCheckedAt = snapshot.LastCheckedAt
+	item.HealthLatencyMs = snapshot.LatencyMs
+	item.HealthLastCheckedAt = snapshot.LastCheckedAt
 
 	if h.concurrencyService != nil {
 		if counts, err := h.concurrencyService.GetAccountConcurrencyBatch(ctx, []int64{account.ID}); err == nil {
@@ -389,11 +389,11 @@ func (h *AccountHandler) List(c *gin.Context) {
 			CurrentConcurrency: concurrencyCounts[acc.ID],
 		}
 		snapshot := parseStoredAccountHealth(acc)
-		item.Account.HealthStatus = snapshot.Status
-		item.Account.HealthResultStatus = snapshot.ResultStatus
-		item.Account.HealthMessage = snapshot.Message
-		item.Account.HealthLatencyMs = snapshot.LatencyMs
-		item.Account.HealthLastCheckedAt = snapshot.LastCheckedAt
+		item.HealthStatus = snapshot.Status
+		item.HealthResultStatus = snapshot.ResultStatus
+		item.HealthMessage = snapshot.Message
+		item.HealthLatencyMs = snapshot.LatencyMs
+		item.HealthLastCheckedAt = snapshot.LastCheckedAt
 
 		// 添加窗口费用（仅当启用时）
 		if windowCosts != nil {
@@ -446,21 +446,21 @@ func buildAccountsListETag(
 		Platform     string                   `json:"platform"`
 		AccountType  string                   `json:"type"`
 		Status       string                   `json:"status"`
-		HealthStatus string                  `json:"health_status"`
+		HealthStatus string                   `json:"health_status"`
 		Search       string                   `json:"search"`
 		Lite         bool                     `json:"lite"`
 		Items        []AccountWithConcurrency `json:"items"`
 	}{
-		Total:       total,
-		Page:        page,
-		PageSize:    pageSize,
-		Platform:    platform,
-		AccountType: accountType,
-		Status:      status,
+		Total:        total,
+		Page:         page,
+		PageSize:     pageSize,
+		Platform:     platform,
+		AccountType:  accountType,
+		Status:       status,
 		HealthStatus: healthStatus,
-		Search:      search,
-		Lite:        lite,
-		Items:       items,
+		Search:       search,
+		Lite:         lite,
+		Items:        items,
 	}
 	raw, err := json.Marshal(payload)
 	if err != nil {
@@ -825,33 +825,33 @@ type TestAccountRequest struct {
 }
 
 const (
-	accountHealthStatusUnchecked          = "unchecked"
-	accountHealthStatusHealthy            = "healthy"
-	accountHealthStatusConstrained        = "constrained"
-	accountHealthStatusUnavailable        = "unavailable"
-	accountHealthCheckExtraKey            = "health_check"
-	defaultAccountHealthCheckConcurrency  = 4
-	defaultAccountHealthCheckBatchSize    = 10
-	accountHealthCheckBatchPause          = 2 * time.Second
-	defaultAccountHealthFetchPageSize     = 200
+	accountHealthStatusUnchecked         = "unchecked"
+	accountHealthStatusHealthy           = "healthy"
+	accountHealthStatusConstrained       = "constrained"
+	accountHealthStatusUnavailable       = "unavailable"
+	accountHealthCheckExtraKey           = "health_check"
+	defaultAccountHealthCheckConcurrency = 4
+	defaultAccountHealthCheckBatchSize   = 10
+	accountHealthCheckBatchPause         = 2 * time.Second
+	defaultAccountHealthFetchPageSize    = 200
 )
 
 type AccountHealthCheckFilters struct {
-	Platform    string `json:"platform"`
-	Type        string `json:"type"`
-	Status      string `json:"status"`
+	Platform     string `json:"platform"`
+	Type         string `json:"type"`
+	Status       string `json:"status"`
 	HealthStatus string `json:"health_status"`
-	Group       string `json:"group"`
-	Search      string `json:"search"`
-	PrivacyMode string `json:"privacy_mode"`
-	SortBy      string `json:"sort_by"`
-	SortOrder   string `json:"sort_order"`
+	Group        string `json:"group"`
+	Search       string `json:"search"`
+	PrivacyMode  string `json:"privacy_mode"`
+	SortBy       string `json:"sort_by"`
+	SortOrder    string `json:"sort_order"`
 }
 
 type AccountHealthCheckRequest struct {
-	AccountIDs []int64                  `json:"account_ids"`
+	AccountIDs []int64                    `json:"account_ids"`
 	Filters    *AccountHealthCheckFilters `json:"filters"`
-	ModelID    string                   `json:"model_id"`
+	ModelID    string                     `json:"model_id"`
 }
 
 type DeduplicateAccountsRequest struct {
@@ -881,24 +881,24 @@ type AccountHealthAutoConfigRequest struct {
 }
 
 type AccountHealthSummary struct {
-	TotalAccounts                   int    `json:"total_accounts"`
-	HealthyAccounts                 int    `json:"healthy_accounts"`
-	ConstrainedAccounts             int    `json:"constrained_accounts"`
-	UnavailableAccounts             int    `json:"unavailable_accounts"`
-	UncheckedAccounts               int    `json:"unchecked_accounts"`
-	LastCheckedAt                   string `json:"last_checked_at,omitempty"`
+	TotalAccounts       int    `json:"total_accounts"`
+	HealthyAccounts     int    `json:"healthy_accounts"`
+	ConstrainedAccounts int    `json:"constrained_accounts"`
+	UnavailableAccounts int    `json:"unavailable_accounts"`
+	UncheckedAccounts   int    `json:"unchecked_accounts"`
+	LastCheckedAt       string `json:"last_checked_at,omitempty"`
 }
 
 type AccountHealthCheckItem struct {
-	AccountID      int64  `json:"account_id"`
-	Name           string `json:"name"`
-	Platform       string `json:"platform"`
-	Type           string `json:"type"`
-	HealthStatus   string `json:"health_status"`
-	ResultStatus   string `json:"result_status"`
-	Message        string `json:"message,omitempty"`
-	LatencyMs      int64  `json:"latency_ms"`
-	LastCheckedAt  string `json:"last_checked_at"`
+	AccountID     int64  `json:"account_id"`
+	Name          string `json:"name"`
+	Platform      string `json:"platform"`
+	Type          string `json:"type"`
+	HealthStatus  string `json:"health_status"`
+	ResultStatus  string `json:"result_status"`
+	Message       string `json:"message,omitempty"`
+	LatencyMs     int64  `json:"latency_ms"`
+	LastCheckedAt string `json:"last_checked_at"`
 }
 
 type AccountHealthCheckRunResult struct {
@@ -1344,15 +1344,15 @@ func (h *AccountHandler) persistAccountHealthSnapshot(ctx context.Context, accou
 // GET /api/v1/admin/accounts/health-summary
 func (h *AccountHandler) GetHealthSummary(c *gin.Context) {
 	filters := normalizeAccountHealthFilters(&AccountHealthCheckFilters{
-		Platform:    strings.TrimSpace(c.Query("platform")),
-		Type:        strings.TrimSpace(c.Query("type")),
-		Status:      strings.TrimSpace(c.Query("status")),
+		Platform:     strings.TrimSpace(c.Query("platform")),
+		Type:         strings.TrimSpace(c.Query("type")),
+		Status:       strings.TrimSpace(c.Query("status")),
 		HealthStatus: strings.TrimSpace(c.Query("health_status")),
-		Group:       strings.TrimSpace(c.Query("group")),
-		Search:      strings.TrimSpace(c.Query("search")),
-		PrivacyMode: strings.TrimSpace(c.Query("privacy_mode")),
-		SortBy:      strings.TrimSpace(c.Query("sort_by")),
-		SortOrder:   strings.TrimSpace(c.Query("sort_order")),
+		Group:        strings.TrimSpace(c.Query("group")),
+		Search:       strings.TrimSpace(c.Query("search")),
+		PrivacyMode:  strings.TrimSpace(c.Query("privacy_mode")),
+		SortBy:       strings.TrimSpace(c.Query("sort_by")),
+		SortOrder:    strings.TrimSpace(c.Query("sort_order")),
 	})
 
 	accounts, err := h.listAccountsForHealthFilters(c.Request.Context(), filters)

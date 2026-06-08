@@ -32,7 +32,7 @@ import (
 var sseDataPrefix = regexp.MustCompile(`^data:\s*`)
 
 const (
-	testClaudeAPIURL                    = "https://api.anthropic.com/v1/messages?beta=true"
+	testClaudeAPIURL                   = "https://api.anthropic.com/v1/messages?beta=true"
 	chatgptCodexAPIURL                 = "https://chatgpt.com/backend-api/codex/responses"
 	defaultOpenAIBatchHealthCheckModel = "gpt-5.4"
 )

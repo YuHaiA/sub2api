@@ -970,6 +970,27 @@
   - 本機可執行 `git diff --check` 且結果乾淨。
   - 本機無 `gofmt` / Go 工具鏈，最終 gofmt 與單測仍以遠端 GitHub Actions 為準。
 
+## 本次 GitHub Actions 第四輪修復（官方 gofmt 與剩餘 staticcheck）
+
+- 背景：
+  - 第三輪提交後，遠端 CI 中 `Security Scan`、`Deploy Package`、`frontend` 繼續通過。
+  - `golangci-lint` 仍指出剩餘 staticcheck selector 與 gofmt 格式問題。
+- 根因：
+  - `AccountWithConcurrency` 嵌入了 `*dto.Account`，仍有部分健康欄位透過 `item.Account...` 訪問，觸發 `QF1008`。
+  - 手動空格對齊未完全等同官方 `gofmt`。
+- 本次修改：
+  - 將剩餘 `item.Account.HealthLatencyMs`、`item.Account.HealthLastCheckedAt` 以及列表構建處的健康欄位訪問改為直接訪問嵌入字段。
+  - 使用 Go 官方格式化接口對以下文件執行格式化：
+    - `backend/internal/handler/admin/account_handler.go`
+    - `backend/internal/handler/dto/types.go`
+    - `backend/internal/service/account_test_service.go`
+  - 清除 PowerShell 寫檔引入的 UTF-8 BOM，保留無 BOM UTF-8。
+- 影響範圍：
+  - 僅格式化與 lint 清理，不改功能邏輯。
+- 驗證記錄：
+  - 本機 `git diff --check` 通過。
+  - 最終 Go 單測與 golangci-lint 仍由遠端 GitHub Actions 驗證。
+
 ## 本次账号管理批量工具与测活筛选增强
 
 - 背景：
