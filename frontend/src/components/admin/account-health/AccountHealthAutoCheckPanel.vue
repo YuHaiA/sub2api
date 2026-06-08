@@ -75,6 +75,47 @@
           </div>
         </div>
       </div>
+
+      <div class="mt-4 space-y-3 rounded-2xl border border-rose-200 bg-rose-50/80 p-4 dark:border-rose-900/40 dark:bg-rose-950/20">
+        <div>
+          <p class="text-sm font-semibold text-rose-800 dark:text-rose-200">
+            {{ t('admin.accounts.deleteStatusTitle') }}
+          </p>
+          <p class="mt-1 text-xs leading-5 text-rose-700/80 dark:text-rose-300/80">
+            {{ t('admin.accounts.deleteStatusHint') }}
+          </p>
+        </div>
+
+        <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <label v-for="option in accountDeleteOptions" :key="option.value" class="flex items-center gap-2 text-sm text-rose-800 dark:text-rose-100">
+            <input
+              type="checkbox"
+              class="h-4 w-4 rounded border-rose-300 text-rose-600 focus:ring-rose-500"
+              :checked="deleteAccountStatuses.includes(option.value)"
+              @change="toggleDeleteAccountStatus(option.value, ($event.target as HTMLInputElement).checked)"
+            />
+            {{ option.label }}
+          </label>
+        </div>
+
+        <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <label v-for="option in healthDeleteOptions" :key="option.value" class="flex items-center gap-2 text-sm text-rose-800 dark:text-rose-100">
+            <input
+              type="checkbox"
+              class="h-4 w-4 rounded border-rose-300 text-rose-600 focus:ring-rose-500"
+              :checked="deleteHealthStatuses.includes(option.value)"
+              @change="toggleDeleteHealthStatus(option.value, ($event.target as HTMLInputElement).checked)"
+            />
+            {{ option.label }}
+          </label>
+        </div>
+
+        <div class="flex justify-end border-t border-rose-200/70 pt-3 dark:border-rose-900/50">
+          <button class="btn btn-danger w-full sm:w-auto" :disabled="deleteDisabled || healthChecking" @click="$emit('deleteUnhealthy')">
+            {{ deletingUnhealthy ? t('admin.accounts.deleteUnhealthyRunning') : t('admin.accounts.deleteUnhealthy') }}
+          </button>
+        </div>
+      </div>
     </div>
 
     <div class="space-y-4 rounded-[24px] border border-slate-200 bg-white/90 p-6 backdrop-blur xl:flex xl:h-full xl:flex-col dark:border-slate-700 dark:bg-slate-800/75">
@@ -185,45 +226,7 @@
         </div>
       </div>
 
-      <div class="space-y-3 rounded-2xl border border-rose-200 bg-rose-50/80 p-4 dark:border-rose-900/40 dark:bg-rose-950/20">
-        <div>
-          <p class="text-sm font-semibold text-rose-800 dark:text-rose-200">
-            {{ t('admin.accounts.deleteStatusTitle') }}
-          </p>
-          <p class="mt-1 text-xs leading-5 text-rose-700/80 dark:text-rose-300/80">
-            {{ t('admin.accounts.deleteStatusHint') }}
-          </p>
-        </div>
-
-        <div class="grid gap-3 sm:grid-cols-2">
-          <label v-for="option in accountDeleteOptions" :key="option.value" class="flex items-center gap-2 text-sm text-rose-800 dark:text-rose-100">
-            <input
-              type="checkbox"
-              class="h-4 w-4 rounded border-rose-300 text-rose-600 focus:ring-rose-500"
-              :checked="deleteAccountStatuses.includes(option.value)"
-              @change="toggleDeleteAccountStatus(option.value, ($event.target as HTMLInputElement).checked)"
-            />
-            {{ option.label }}
-          </label>
-        </div>
-
-        <div class="grid gap-3 sm:grid-cols-2">
-          <label v-for="option in healthDeleteOptions" :key="option.value" class="flex items-center gap-2 text-sm text-rose-800 dark:text-rose-100">
-            <input
-              type="checkbox"
-              class="h-4 w-4 rounded border-rose-300 text-rose-600 focus:ring-rose-500"
-              :checked="deleteHealthStatuses.includes(option.value)"
-              @change="toggleDeleteHealthStatus(option.value, ($event.target as HTMLInputElement).checked)"
-            />
-            {{ option.label }}
-          </label>
-        </div>
-      </div>
-
-      <div class="grid gap-3 border-t border-slate-200 pt-3 sm:grid-cols-3 xl:mt-auto dark:border-slate-700">
-        <button class="btn btn-danger w-full" :disabled="deleteDisabled || healthChecking" @click="$emit('deleteUnhealthy')">
-          {{ deletingUnhealthy ? t('admin.accounts.deleteUnhealthyRunning') : t('admin.accounts.deleteUnhealthy') }}
-        </button>
+      <div class="grid gap-3 border-t border-slate-200 pt-3 sm:grid-cols-2 xl:mt-auto dark:border-slate-700">
         <button class="btn btn-secondary w-full" :disabled="healthChecking" @click="$emit('runHealthCheck')">
           {{ healthChecking ? t('admin.accounts.healthCheckRunning') : t('admin.accounts.healthCheckAll') }}
         </button>

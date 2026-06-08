@@ -1017,6 +1017,20 @@
   - `pnpm --dir frontend run typecheck` 通过。
   - `pnpm --dir frontend exec vitest run src/utils/__tests__/tablePreferences.spec.ts` 通过，6 个测试全部通过。
 
+## 本次测活页批量删除布局调整
+
+- 背景：
+  - 账号健康检查页右侧自动测活配置栏同时包含“批量删除范围”，导致右栏高度过高。
+- 本次修改：
+  - `frontend/src/components/admin/account-health/AccountHealthAutoCheckPanel.vue`
+    - 将“批量删除范围”卡片从右侧配置栏移动到左侧健康统计卡片下方。
+    - 将“删除异常账号”按钮随批量删除卡片一起移动到左侧，保持删除范围与删除动作相邻。
+    - 右侧配置栏底部仅保留“立即检测”和“保存配置”两个按钮，降低右栏高度。
+- 影响范围：
+  - 仅调整页面布局，不改变删除 API、测活 API、筛选参数或状态逻辑。
+- 验证记录：
+  - `pnpm --dir frontend run typecheck` 通过。
+
 ## 本次账号管理批量工具与测活筛选增强
 
 - 背景：
