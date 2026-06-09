@@ -1,11 +1,15 @@
 package service
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestFilterAccountsByTokenRefreshHealthStatus(t *testing.T) {
+	resetAt := time.Now().Add(5 * time.Minute)
 	accounts := []Account{
 		{ID: 1, Extra: map[string]any{"health_check": map[string]any{"status": "healthy"}}},
-		{ID: 2, Extra: map[string]any{"health_check": map[string]any{"status": "constrained"}}},
+		{ID: 2, RateLimitResetAt: &resetAt, Extra: map[string]any{"health_check": map[string]any{"status": "healthy"}}},
 		{ID: 3, Extra: map[string]any{"health_check": map[string]any{"status": "banned_or_exhausted", "message": "account banned"}}},
 		{ID: 4},
 	}

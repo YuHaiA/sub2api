@@ -2,6 +2,7 @@ package admin
 
 import (
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/stretchr/testify/require"
@@ -113,4 +114,22 @@ func TestSummarizeAccountHealthSnapshots_UsesNewBuckets(t *testing.T) {
 	require.Equal(t, 1, summary.ConstrainedAccounts)
 	require.Equal(t, 1, summary.UnavailableAccounts)
 	require.Equal(t, 1, summary.UncheckedAccounts)
+}
+
+func TestParseStoredAccountHealth_RuntimeRateLimitOverridesHealthySnapshot(t *testing.T) {
+	t.Parallel()
+
+	resetAt := time.Now().Add(10 * time.Minute)
+	account := &service.Account{
+		RateLimitResetAt: &resetAt,
+		Extra: map[string]any{
+			accountHealthCheckExtraKey: map[string]any{
+				"status":  accountHealthStatusHealthy,
+				"message": "",
+			},
+		},
+	}
+
+	snapshot := parseStoredAccountHealth(account)
+	require.Equal(t, accountHealthStatusConstrained, snapshot.Status)
 }

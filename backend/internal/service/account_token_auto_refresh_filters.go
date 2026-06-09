@@ -1,6 +1,9 @@
 package service
 
-import "strings"
+import (
+	"strings"
+	"time"
+)
 
 const (
 	accountTokenHealthStatusUnchecked   = "unchecked"
@@ -35,7 +38,13 @@ func filterAccountsByTokenRefreshHealthStatus(accounts []Account, healthStatus s
 }
 
 func accountTokenRefreshStoredHealthStatus(account *Account) string {
-	if account == nil || account.Extra == nil {
+	if account == nil {
+		return accountTokenHealthStatusUnchecked
+	}
+	if runtimeStatus := currentTokenRefreshRuntimeHealthStatus(account); runtimeStatus != "" {
+		return runtimeStatus
+	}
+	if account.Extra == nil {
 		return accountTokenHealthStatusUnchecked
 	}
 	raw, ok := account.Extra["health_check"]
@@ -97,4 +106,21 @@ func classifyAccountTokenRefreshHealthFromMessage(message string) string {
 	default:
 		return accountTokenHealthStatusUnavailable
 	}
+}
+
+func currentTokenRefreshRuntimeHealthStatus(account *Account) string {
+	if account == nil {
+		return ""
+	}
+	now := time.Now()
+	if account.RateLimitResetAt != nil && now.Before(*account.RateLimitResetAt) {
+		return accountTokenHealthStatusConstrained
+	}
+	if account.OverloadUntil != nil && now.Before(*account.OverloadUntil) {
+		return accountTokenHealthStatusConstrained
+	}
+	if account.TempUnschedulableUntil != nil && now.Before(*account.TempUnschedulableUntil) {
+		return accountTokenHealthStatusConstrained
+	}
+	return ""
 }

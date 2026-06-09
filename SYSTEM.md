@@ -1212,3 +1212,39 @@
   - `frontend pnpm typecheck` 通过
   - 本机无 `go` 工具链，且本机 Docker 不可用，当前环境无法独立执行 Go 编译/单测
   - 已补充后端配置与健康状态过滤相关单测文件，需后续由 CI 或可用 Go 环境继续验证
+
+## 本次健康状态改为优先反映运行时限流
+
+- 背景：
+  - 之前账号健康状态主要读取 `extra.health_check` 里的最近一次测活快照。
+  - 如果账号先测活成功被记为 `healthy`，之后又在真实请求路径上被打成 `429` / `temp_unschedulable` / `529 overload`，页面上会出现：
+    - 状态区显示 `429`
+    - 健康状态仍显示 `健康`
+  - 这种组合容易误导运维判断，也不利于后续按健康状态筛选清理问题账号。
+- 本次修改：
+  - `backend/internal/handler/admin/account_handler.go`
+    - `parseStoredAccountHealth` 新增运行时状态优先逻辑
+    - 若账号当前存在以下任一运行时阻断，则直接覆盖健康状态为 `constrained`
+      - `rate_limit_reset_at > now()`
+      - `overload_until > now()`
+      - `temp_unschedulable_until > now()`
+  - `backend/internal/service/account_token_auto_refresh_filters.go`
+    - Token 自动刷新使用的健康状态过滤同步采用相同规则
+    - 避免面板筛选与账号健康页列表出现状态语义不一致
+  - 测试补充：
+    - `backend/internal/handler/admin/account_handler_health_summary_test.go`
+    - `backend/internal/service/account_token_auto_refresh_filters_test.go`
+- 修改前后差异：
+  - 修改前：
+    - 健康状态偏向“最近一次测活结果”
+    - 运行时已经 429 的账号仍可能显示 `健康`
+  - 修改后：
+    - 健康状态优先反映“当前是否正在被运行时限制”
+    - 账号只要当前正在限流/过载/临时不可调度，就显示 `受限`
+- 影响范围：
+  - 账号列表健康徽标
+  - 健康汇总统计
+  - 按健康状态过滤的测活、删除异常账号、Token 刷新范围
+- 验证记录：
+  - 本机无 `go` 工具链，无法在当前环境运行 Go 单测或编译验证
+  - 已补充定向测试，需在 CI 或可用 Go 环境继续确认

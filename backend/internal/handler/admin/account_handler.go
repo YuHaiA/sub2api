@@ -1238,7 +1238,13 @@ func buildAccountHealthSnapshot(result *service.ScheduledTestResult) accountHeal
 }
 
 func parseStoredAccountHealth(account *service.Account) accountHealthSnapshot {
-	if account == nil || account.Extra == nil {
+	if account == nil {
+		return accountHealthSnapshot{Status: accountHealthStatusUnchecked}
+	}
+	if runtimeStatus := currentRuntimeAccountHealthStatus(account); runtimeStatus != "" {
+		return accountHealthSnapshot{Status: runtimeStatus}
+	}
+	if account.Extra == nil {
 		return accountHealthSnapshot{Status: accountHealthStatusUnchecked}
 	}
 	raw, ok := account.Extra[accountHealthCheckExtraKey]
@@ -1273,6 +1279,23 @@ func parseStoredAccountHealth(account *service.Account) accountHealthSnapshot {
 		LatencyMs:     latencyMs,
 		LastCheckedAt: lastCheckedAt,
 	}
+}
+
+func currentRuntimeAccountHealthStatus(account *service.Account) string {
+	if account == nil {
+		return ""
+	}
+	now := time.Now()
+	if account.RateLimitResetAt != nil && now.Before(*account.RateLimitResetAt) {
+		return accountHealthStatusConstrained
+	}
+	if account.OverloadUntil != nil && now.Before(*account.OverloadUntil) {
+		return accountHealthStatusConstrained
+	}
+	if account.TempUnschedulableUntil != nil && now.Before(*account.TempUnschedulableUntil) {
+		return accountHealthStatusConstrained
+	}
+	return ""
 }
 
 func summarizeAccountHealthSnapshots(snapshots []accountHealthSnapshot) AccountHealthSummary {
