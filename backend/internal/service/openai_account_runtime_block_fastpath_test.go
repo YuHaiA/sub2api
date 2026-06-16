@@ -163,3 +163,14 @@ func TestOpenAICloudflareChallenge_ResetsAfterIdleWindow(t *testing.T) {
 	require.Equal(t, 0, level)
 	require.WithinDuration(t, now.Add(openAICloudflareChallengeResetAfter+time.Minute+10*time.Second), until, time.Second)
 }
+
+func TestShouldStopOpenAIOAuth429Failover_StopsGrokAfterFirst429Switch(t *testing.T) {
+	svc := &OpenAIGatewayService{}
+	account := &Account{ID: 44, Platform: PlatformGrok, Type: AccountTypeOAuth}
+	apiKeyAccount := &Account{ID: 45, Platform: PlatformGrok, Type: AccountTypeAPIKey}
+
+	require.True(t, svc.ShouldStopOpenAIOAuth429Failover(account, http.StatusTooManyRequests, 1))
+	require.False(t, svc.ShouldStopOpenAIOAuth429Failover(account, http.StatusTooManyRequests, 0))
+	require.False(t, svc.ShouldStopOpenAIOAuth429Failover(apiKeyAccount, http.StatusTooManyRequests, 1))
+	require.False(t, svc.ShouldStopOpenAIOAuth429Failover(account, http.StatusInternalServerError, 1))
+}
