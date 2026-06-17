@@ -127,6 +127,14 @@ func ProvideOpenAIQuotaService(
 	return NewOpenAIQuotaService(accountRepo, proxyRepo, tokenProvider, privacyClientFactory)
 }
 
+func ProvideGrokQuotaService(
+	accountRepo AccountRepository,
+	tokenProvider *GrokTokenProvider,
+	httpUpstream HTTPUpstream,
+) *GrokQuotaService {
+	return NewGrokQuotaService(accountRepo, tokenProvider, httpUpstream)
+}
+
 // ProvideGeminiTokenProvider creates GeminiTokenProvider with OAuthRefreshAPI injection
 func ProvideGeminiTokenProvider(
 	accountRepo AccountRepository,
@@ -570,6 +578,7 @@ var ProviderSet = wire.NewSet(
 	ProvideGrokTokenProvider,
 	ProvideOpenAITokenProvider,
 	ProvideOpenAIQuotaService,
+	ProvideGrokQuotaService,
 	ProvideClaudeTokenProvider,
 	NewAntigravityGatewayService,
 	ProvideRateLimitService,
