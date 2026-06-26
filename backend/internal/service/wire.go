@@ -129,10 +129,11 @@ func ProvideOpenAIQuotaService(
 
 func ProvideGrokQuotaService(
 	accountRepo AccountRepository,
+	proxyRepo ProxyRepository,
 	tokenProvider *GrokTokenProvider,
 	httpUpstream HTTPUpstream,
 ) *GrokQuotaService {
-	return NewGrokQuotaService(accountRepo, tokenProvider, httpUpstream)
+	return NewGrokQuotaService(accountRepo, proxyRepo, tokenProvider, httpUpstream)
 }
 
 // ProvideGeminiTokenProvider creates GeminiTokenProvider with OAuthRefreshAPI injection
@@ -173,7 +174,7 @@ func ProvideGrokTokenProvider(
 	refreshAPI *OAuthRefreshAPI,
 	tempUnschedCache TempUnschedCache,
 ) *GrokTokenProvider {
-	p := NewGrokTokenProvider(accountRepo, tokenCache, grokOAuthService)
+	p := NewGrokTokenProvider(accountRepo, tokenCache)
 	executor := NewGrokTokenRefresher(grokOAuthService)
 	p.SetRefreshAPI(refreshAPI, executor)
 	p.SetRefreshPolicy(AntigravityProviderRefreshPolicy())
