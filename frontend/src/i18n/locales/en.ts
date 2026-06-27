@@ -7131,6 +7131,7 @@ export default {
       failed: 'Failed',
       refund_requested: 'Refund Requested',
       refunding: 'Refunding',
+      refund_pending: 'Refund Pending',
       refunded: 'Refunded',
       partially_refunded: 'Partially Refunded',
       refund_failed: 'Refund Failed',
