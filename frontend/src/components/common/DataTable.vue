@@ -36,6 +36,8 @@
         v-for="(row, index) in sortedData"
         :key="resolveRowKey(row, index)"
         class="rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900"
+        :class="{ 'cursor-pointer': clickableRows }"
+        @click="clickableRows && emit('rowClick', row)"
       >
         <div class="space-y-3">
           <div
@@ -167,6 +169,8 @@
             :data-index="virtualRow.index"
             :ref="measureElement"
             class="table-row hover:bg-slate-50/80 dark:hover:bg-dark-800"
+            :class="{ 'cursor-pointer': clickableRows }"
+            @click="clickableRows && emit('rowClick', sortedData[virtualRow.index])"
           >
             <td
               v-for="(column, colIndex) in columns"
@@ -216,6 +220,7 @@ const isDesktopViewport = ref(
 
 const emit = defineEmits<{
   sort: [key: string, order: 'asc' | 'desc']
+  rowClick: [row: any]
 }>()
 
 // 表格容器引用
@@ -383,6 +388,8 @@ interface Props {
    * will emit 'sort' events instead of performing client-side sorting.
    */
   serverSideSort?: boolean
+  /** Emit 'rowClick' on row/card click and show pointer cursor (interactive cells should @click.stop) */
+  clickableRows?: boolean
   /** Estimated row height in px for the virtualizer (default 56) */
   estimateRowHeight?: number
   /** Number of rows to render beyond the visible area (default 5) */
