@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ARCHIVE_URL="${ARCHIVE_URL:-https://github.com/YuHaiA/sub2api/releases/download/docker-deploy/sub2api-docker-image.tar}"
+ARCHIVE_SHA_URL="${ARCHIVE_SHA_URL:-${ARCHIVE_URL}.sha256}"
 LOADED_IMAGE="${LOADED_IMAGE:-sub2api-gha:docker-deploy}"
 IMAGE_TAG="${IMAGE_TAG:-sub2api:rollback}"
 COMPOSE_PROJECT_DIR="${COMPOSE_PROJECT_DIR:-/home/ec2-user/sub2api-deploy}"
@@ -12,6 +13,7 @@ COMPOSE_BINARY="${COMPOSE_BINARY:-docker-compose}"
 ARCHIVE_PATH="${ARCHIVE_PATH:-$COMPOSE_PROJECT_DIR/deploy-update.tar}"
 METADATA_DIR="${METADATA_DIR:-$COMPOSE_PROJECT_DIR/.deploy-state}"
 ARCHIVE_ETAG_FILE="${ARCHIVE_ETAG_FILE:-$METADATA_DIR/archive.etag}"
+ARCHIVE_SHA_FILE="${ARCHIVE_SHA_FILE:-$METADATA_DIR/archive.sha256}"
 KEEP_BACKUPS="${KEEP_BACKUPS:-1}"
 HEALTH_WAIT_SECONDS="${HEALTH_WAIT_SECONDS:-120}"
 HEALTH_POLL_INTERVAL="${HEALTH_POLL_INTERVAL:-5}"
@@ -40,9 +42,19 @@ fetch_archive_etag() {
   curl -fsSLI "$ARCHIVE_URL" | awk -F': ' 'tolower($1)=="etag" {gsub("\r","",$2); print $2}' | tail -n 1
 }
 
+fetch_archive_sha() {
+  curl -fsSL "$ARCHIVE_SHA_URL" | awk '{print $1}' | tr -d '\r\n'
+}
+
 load_cached_archive_etag() {
   if [[ -f "$ARCHIVE_ETAG_FILE" ]]; then
     tr -d '\r\n' < "$ARCHIVE_ETAG_FILE"
+  fi
+}
+
+load_cached_archive_sha() {
+  if [[ -f "$ARCHIVE_SHA_FILE" ]]; then
+    tr -d '\r\n' < "$ARCHIVE_SHA_FILE"
   fi
 }
 
@@ -51,6 +63,14 @@ save_cached_archive_etag() {
   if [[ -n "$etag" ]]; then
     mkdir -p "$METADATA_DIR"
     printf '%s\n' "$etag" > "$ARCHIVE_ETAG_FILE"
+  fi
+}
+
+save_cached_archive_sha() {
+  local sha="$1"
+  if [[ -n "$sha" ]]; then
+    mkdir -p "$METADATA_DIR"
+    printf '%s\n' "$sha" > "$ARCHIVE_SHA_FILE"
   fi
 }
 
@@ -113,7 +133,14 @@ archive_matches_running() {
 }
 
 release_unchanged() {
-  local current_etag cached_etag
+  local current_sha cached_sha current_etag cached_etag
+  current_sha="$(fetch_archive_sha || true)"
+  cached_sha="$(load_cached_archive_sha || true)"
+  if [[ -n "$current_sha" && -n "$cached_sha" ]]; then
+    [[ "$current_sha" == "$cached_sha" ]]
+    return
+  fi
+
   current_etag="$(fetch_archive_etag || true)"
   cached_etag="$(load_cached_archive_etag || true)"
   [[ -n "$current_etag" && -n "$cached_etag" && "$current_etag" == "$cached_etag" ]]
@@ -197,6 +224,7 @@ main() {
 
   if archive_matches_running; then
     log "already up to date; skip deploy"
+    save_cached_archive_sha "$(fetch_archive_sha || true)"
     save_cached_archive_etag "$(fetch_archive_etag || true)"
     prune_old_backups
     prune_unused_images
@@ -215,6 +243,7 @@ main() {
   compose_up
 
   wait_for_health
+  save_cached_archive_sha "$(fetch_archive_sha || true)"
   save_cached_archive_etag "$(fetch_archive_etag || true)"
   prune_old_backups
   prune_unused_images
