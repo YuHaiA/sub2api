@@ -24,7 +24,7 @@
             ? 'border-primary-400 bg-primary-50/70 dark:border-primary-500 dark:bg-primary-900/20'
             : 'border-gray-300 bg-gray-50 dark:border-dark-600 dark:bg-dark-800'"
           @dragenter.prevent="handleDragEnter"
-          @dragover.prevent="handleDragOver"
+          @dragover.prevent
           @dragleave.prevent="handleDragLeave"
           @drop.prevent="handleDrop"
         >
@@ -112,7 +112,7 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
 import { adminAPI } from '@/api/admin'
 import { useAppStore } from '@/stores/app'
-import type { AdminDataImportResult, AdminGroup } from '@/types'
+import type { AdminDataImportResult, AdminDataPayload, AdminGroup } from '@/types'
 
 interface Props {
   show: boolean
@@ -131,8 +131,9 @@ const appStore = useAppStore()
 
 const importing = ref(false)
 const files = ref<File[]>([])
-const dragActive = ref(false)
 const dragDepth = ref(0)
+const dragActive = computed(() => dragDepth.value > 0)
+const hasCreatedData = ref(false)
 const result = ref<AdminDataImportResult | null>(null)
 const groups = ref<AdminGroup[]>([])
 const selectedGroupId = ref<number | null>(null)
@@ -159,8 +160,8 @@ watch(
   (open) => {
     if (open) {
       files.value = []
-      dragActive.value = false
       dragDepth.value = 0
+      hasCreatedData.value = false
       result.value = null
       selectedGroupId.value = null
       if (fileInput.value) {
@@ -192,10 +193,15 @@ const openFilePicker = () => {
 const handleFileChange = (event: Event) => {
   const target = event.target as HTMLInputElement
   setSelectedFiles(target.files)
+  target.value = ''
 }
 
 const handleClose = () => {
   if (importing.value) return
+  if (hasCreatedData.value) {
+    hasCreatedData.value = false
+    emit('imported')
+  }
   emit('close')
 }
 
@@ -206,11 +212,16 @@ const isJsonFile = (sourceFile: File) => {
 
 const setSelectedFiles = (sourceFiles: FileList | File[] | null | undefined) => {
   if (importing.value) return
-  const picked = Array.from(sourceFiles || []).filter(isJsonFile)
+  const incoming = Array.from(sourceFiles || [])
+  const picked = incoming.filter(isJsonFile)
   if (!picked.length) {
-    files.value = []
     appStore.showError(t('admin.accounts.dataImportSelectFile'))
     return
+  }
+  if (picked.length < incoming.length) {
+    appStore.showWarning(
+      t('admin.accounts.dataImportIgnoredFiles', { count: incoming.length - picked.length })
+    )
   }
   files.value = picked
   result.value = null
@@ -219,26 +230,15 @@ const setSelectedFiles = (sourceFiles: FileList | File[] | null | undefined) => 
 const handleDragEnter = () => {
   if (importing.value) return
   dragDepth.value += 1
-  dragActive.value = true
-}
-
-const handleDragOver = () => {
-  if (importing.value) return
-  dragActive.value = true
 }
 
 const handleDragLeave = () => {
-  if (importing.value) return
   dragDepth.value = Math.max(0, dragDepth.value - 1)
-  if (dragDepth.value === 0) {
-    dragActive.value = false
-  }
 }
 
 const handleDrop = (event: DragEvent) => {
-  if (importing.value) return
   dragDepth.value = 0
-  dragActive.value = false
+  if (importing.value) return
   setSelectedFiles(event.dataTransfer?.files)
 }
 
@@ -260,17 +260,43 @@ const readFileAsText = async (sourceFile: File): Promise<string> => {
   })
 }
 
-const mergeDataPayloads = (payloads: any[]) => {
-  if (payloads.length === 1) return payloads[0]
+const SUPPORTED_DATA_TYPES = ['sub2api-data', 'sub2api-bundle']
+const SUPPORTED_DATA_VERSION = 1
+
+// 与后端 validateDataHeader 对齐:合并前逐文件校验,避免坏文件混入合并 payload 后
+// 报错无法定位来源,或绕过后端本会对单文件做的 type/version 检查。
+const isValidDataPayload = (payload: unknown): payload is AdminDataPayload => {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return false
+  const candidate = payload as Record<string, unknown>
+  if (
+    candidate.type !== undefined &&
+    candidate.type !== '' &&
+    !SUPPORTED_DATA_TYPES.includes(candidate.type as string)
+  ) {
+    return false
+  }
+  if (
+    candidate.version !== undefined &&
+    candidate.version !== 0 &&
+    candidate.version !== SUPPORTED_DATA_VERSION
+  ) {
+    return false
+  }
+  return Array.isArray(candidate.proxies) && Array.isArray(candidate.accounts)
+}
+
+const mergeDataPayloads = (payloads: AdminDataPayload[]): AdminDataPayload => {
+  const [firstPayload] = payloads
+  if (payloads.length === 1 && firstPayload) return firstPayload
 
   return {
-    type: payloads.find((item) => typeof item?.type === 'string')?.type,
-    version: payloads.find((item) => typeof item?.version === 'number')?.version,
+    type: payloads.find((item) => typeof item.type === 'string')?.type,
+    version: payloads.find((item) => typeof item.version === 'number')?.version,
     exported_at: new Date().toISOString(),
-    proxies: payloads.flatMap((item) => Array.isArray(item?.proxies) ? item.proxies : []),
-    accounts: payloads.flatMap((item) => Array.isArray(item?.accounts) ? item.accounts : []),
+    proxies: payloads.flatMap((item) => item.proxies),
+    accounts: payloads.flatMap((item) => item.accounts),
     skipped_shadows: payloads.reduce((sum, item) => {
-      const count = Number(item?.skipped_shadows || 0)
+      const count = Number(item.skipped_shadows || 0)
       return Number.isFinite(count) ? sum + count : sum
     }, 0)
   }
@@ -284,10 +310,22 @@ const handleImport = async () => {
 
   importing.value = true
   try {
-    const dataPayloads = []
+    const dataPayloads: AdminDataPayload[] = []
     for (const sourceFile of files.value) {
-      const text = await readFileAsText(sourceFile)
-      dataPayloads.push(JSON.parse(text))
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(await readFileAsText(sourceFile))
+      } catch {
+        appStore.showError(
+          t('admin.accounts.dataImportParseFailedFile', { name: sourceFile.name })
+        )
+        return
+      }
+      if (!isValidDataPayload(parsed)) {
+        appStore.showError(t('admin.accounts.dataImportInvalidFile', { name: sourceFile.name }))
+        return
+      }
+      dataPayloads.push(parsed)
     }
     const dataPayload = mergeDataPayloads(dataPayloads)
 
@@ -307,17 +345,17 @@ const handleImport = async () => {
       proxy_failed: res.proxy_failed,
     }
     if (res.account_failed > 0 || res.proxy_failed > 0) {
+      // 部分成功也创建了数据;弹窗关闭时通过 imported 通知父组件刷新列表
+      if (res.account_created > 0 || res.proxy_created > 0) {
+        hasCreatedData.value = true
+      }
       appStore.showError(t('admin.accounts.dataImportCompletedWithErrors', msgParams))
     } else {
       appStore.showSuccess(t('admin.accounts.dataImportSuccess', msgParams))
       emit('imported')
     }
   } catch (error: any) {
-    if (error instanceof SyntaxError) {
-      appStore.showError(t('admin.accounts.dataImportParseFailed'))
-    } else {
-      appStore.showError(error?.message || t('admin.accounts.dataImportFailed'))
-    }
+    appStore.showError(error?.message || t('admin.accounts.dataImportFailed'))
   } finally {
     importing.value = false
   }
