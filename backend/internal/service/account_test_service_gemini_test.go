@@ -38,6 +38,26 @@ func TestCreateGeminiTestPayload_ImageModel(t *testing.T) {
 	require.Equal(t, "1:1", parsed.GenerationConfig.ImageConfig.AspectRatio)
 }
 
+func TestCreateGeminiTestPayload_DefaultTextPromptUsesProbePool(t *testing.T) {
+	t.Parallel()
+
+	payload := createGeminiTestPayload("gemini-2.5-flash", "")
+
+	var parsed struct {
+		Contents []struct {
+			Parts []struct {
+				Text string `json:"text"`
+			} `json:"parts"`
+		} `json:"contents"`
+	}
+
+	require.NoError(t, json.Unmarshal(payload, &parsed))
+	require.Len(t, parsed.Contents, 1)
+	require.Len(t, parsed.Contents[0].Parts, 1)
+	require.Contains(t, defaultTextTestPromptPool, parsed.Contents[0].Parts[0].Text)
+	require.NotContains(t, []string{"hi", "hello", "你好"}, parsed.Contents[0].Parts[0].Text)
+}
+
 func TestProcessGeminiStream_EmitsImageEvent(t *testing.T) {
 	t.Parallel()
 	gin.SetMode(gin.TestMode)

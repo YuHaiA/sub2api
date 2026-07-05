@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -52,10 +53,18 @@ type TestEvent struct {
 }
 
 const (
-	defaultGeminiTextTestPrompt  = "hi"
+	defaultTextTestPrompt        = "Return the text probe-ok."
+	defaultGeminiTextTestPrompt  = defaultTextTestPrompt
 	defaultGeminiImageTestPrompt = "Generate a cute orange cat astronaut sticker on a clean pastel background."
 	defaultOpenAIImageTestPrompt = "Generate a cute orange cat astronaut sticker on a clean pastel background."
 )
+
+var defaultTextTestPromptPool = []string{
+	"What time is it?",
+	"Busy today?",
+	"What are you doing?",
+	"Any plans later?",
+}
 
 // isOpenAIImageModel checks if the model is an OpenAI image generation model (e.g. gpt-image-2).
 func isOpenAIImageModel(model string) bool {
@@ -126,12 +135,38 @@ func generateSessionString() (string, error) {
 	return FormatMetadataUserID(hex64, "", sessionUUID, uaVersion), nil
 }
 
+func pickRandomTextTestPrompt() string {
+	if len(defaultTextTestPromptPool) == 0 {
+		return defaultTextTestPrompt
+	}
+
+	n, err := rand.Int(rand.Reader, big.NewInt(int64(len(defaultTextTestPromptPool))))
+	if err != nil {
+		return defaultTextTestPromptPool[0]
+	}
+
+	idx := int(n.Int64())
+	if idx < 0 || idx >= len(defaultTextTestPromptPool) {
+		return defaultTextTestPromptPool[0]
+	}
+	return defaultTextTestPromptPool[idx]
+}
+
+func resolveTextTestPrompt(prompt string) string {
+	if trimmed := strings.TrimSpace(prompt); trimmed != "" {
+		return trimmed
+	}
+	return pickRandomTextTestPrompt()
+}
+
 // createTestPayload creates a Claude Code style test request payload
-func createTestPayload(modelID string) (map[string]any, error) {
+func createTestPayload(modelID string, prompt string) (map[string]any, error) {
 	sessionID, err := generateSessionString()
 	if err != nil {
 		return nil, err
 	}
+
+	testPrompt := resolveTextTestPrompt(prompt)
 
 	return map[string]any{
 		"model": modelID,
@@ -141,7 +176,7 @@ func createTestPayload(modelID string) (map[string]any, error) {
 				"content": []map[string]any{
 					{
 						"type": "text",
-						"text": "hi",
+						"text": testPrompt,
 						"cache_control": map[string]string{
 							"type": "ephemeral",
 						},
@@ -261,7 +296,7 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 	c.Writer.Flush()
 
 	// Create Claude Code style payload (same for all account types)
-	payload, err := createTestPayload(testModelID)
+	payload, err := createTestPayload(testModelID, "")
 	if err != nil {
 		return s.sendErrorAndEnd(c, "Failed to create test payload")
 	}
@@ -334,7 +369,7 @@ func (s *AccountTestService) testClaudeVertexServiceAccountConnection(c *gin.Con
 	c.Writer.Header().Set("X-Accel-Buffering", "no")
 	c.Writer.Flush()
 
-	payload, err := createTestPayload(testModelID)
+	payload, err := createTestPayload(testModelID, "")
 	if err != nil {
 		return s.sendErrorAndEnd(c, "Failed to create test payload")
 	}
@@ -414,7 +449,7 @@ func (s *AccountTestService) testBedrockAccountConnection(c *gin.Context, ctx co
 				"content": []map[string]any{
 					{
 						"type": "text",
-						"text": "hi",
+						"text": resolveTextTestPrompt(""),
 					},
 				},
 			},
@@ -1119,10 +1154,7 @@ func createGeminiTestPayload(modelID string, prompt string) []byte {
 		return bytes
 	}
 
-	textPrompt := strings.TrimSpace(prompt)
-	if textPrompt == "" {
-		textPrompt = defaultGeminiTextTestPrompt
-	}
+	textPrompt := resolveTextTestPrompt(prompt)
 
 	payload := map[string]any{
 		"contents": []map[string]any{
@@ -1226,6 +1258,8 @@ func (s *AccountTestService) processGeminiStream(c *gin.Context, body io.Reader)
 
 // createOpenAITestPayload creates a test payload for OpenAI Responses API
 func createOpenAITestPayload(modelID string, isOAuth bool) map[string]any {
+	testPrompt := resolveTextTestPrompt("")
+
 	payload := map[string]any{
 		"model": modelID,
 		"input": []map[string]any{
@@ -1234,7 +1268,7 @@ func createOpenAITestPayload(modelID string, isOAuth bool) map[string]any {
 				"content": []map[string]any{
 					{
 						"type": "input_text",
-						"text": "hi",
+						"text": testPrompt,
 					},
 				},
 			},
@@ -1254,10 +1288,7 @@ func createOpenAITestPayload(modelID string, isOAuth bool) map[string]any {
 }
 
 func createOpenAIChatCompletionsTestPayload(modelID string, prompt string) map[string]any {
-	testPrompt := strings.TrimSpace(prompt)
-	if testPrompt == "" {
-		testPrompt = "hi"
-	}
+	testPrompt := resolveTextTestPrompt(prompt)
 
 	return map[string]any{
 		"model": modelID,

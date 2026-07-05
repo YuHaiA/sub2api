@@ -4,6 +4,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -479,4 +480,43 @@ func TestAccountTestService_OpenAIChatCompletionsPathRejectsNonJSONStream(t *tes
 	require.Contains(t, err.Error(), "Invalid Chat Completions response from /v1/chat/completions")
 	require.Contains(t, recorder.Body.String(), "/v1/chat/completions")
 	require.NotContains(t, recorder.Body.String(), `"success":true`)
+}
+
+func TestCreateOpenAITestPayload_DefaultTextPromptUsesProbePool(t *testing.T) {
+	t.Parallel()
+
+	payload := createOpenAITestPayload("gpt-5.4", false)
+	text := gjson.GetBytes(mustMarshalJSON(t, payload), "input.0.content.0.text").String()
+
+	require.Contains(t, defaultTextTestPromptPool, text)
+	require.NotContains(t, []string{"hi", "hello", "你好"}, text)
+}
+
+func TestCreateOpenAIChatCompletionsTestPayload_DefaultTextPromptUsesProbePool(t *testing.T) {
+	t.Parallel()
+
+	payload := createOpenAIChatCompletionsTestPayload("gpt-5.4", "")
+	text := gjson.GetBytes(mustMarshalJSON(t, payload), "messages.0.content").String()
+
+	require.Contains(t, defaultTextTestPromptPool, text)
+	require.NotContains(t, []string{"hi", "hello", "你好"}, text)
+}
+
+func TestCreateTestPayload_DefaultTextPromptUsesProbePool(t *testing.T) {
+	t.Parallel()
+
+	payload, err := createTestPayload("claude-sonnet-4-5", "")
+	require.NoError(t, err)
+
+	text := gjson.GetBytes(mustMarshalJSON(t, payload), "messages.0.content.0.text").String()
+	require.Contains(t, defaultTextTestPromptPool, text)
+	require.NotContains(t, []string{"hi", "hello", "你好"}, text)
+}
+
+func mustMarshalJSON(t *testing.T, value any) []byte {
+	t.Helper()
+
+	data, err := json.Marshal(value)
+	require.NoError(t, err)
+	return data
 }
