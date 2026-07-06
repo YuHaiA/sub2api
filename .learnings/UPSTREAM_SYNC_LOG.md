@@ -14,3 +14,14 @@
 - Merge notes:
   - Resolved local conflicts by preserving existing fork-specific Codex/OpenAI mappings
   - Kept local `gpt-5.3-codex-spark-*` mappings and merged upstream `gpt-5.5-pro` / `gpt-5.6-*` support
+
+### Absorbed upstream commit `7c2a828c`
+
+- Source: `Wei-Shaw/sub2api`
+- Title: `fix(frontend): add compact probe mode to admin account test modal`
+- Scope:
+  - Synced the admin account test modal so OpenAI account tests can pass `mode: compact`
+  - Synced upstream test coverage for Grok default model selection and OpenAI compact probe payloads
+- Merge notes:
+  - Kept the local fixed `/api/v1` request path instead of importing a missing `buildApiUrl` helper
+  - Preserved the existing admin modal structure while merging the upstream request body behavior
