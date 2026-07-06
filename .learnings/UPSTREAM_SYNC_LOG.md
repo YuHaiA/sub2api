@@ -25,3 +25,14 @@
 - Merge notes:
   - Kept the local fixed `/api/v1` request path instead of importing a missing `buildApiUrl` helper
   - Preserved the existing admin modal structure while merging the upstream request body behavior
+
+### Absorbed upstream commit `1c0ccb47`
+
+- Source: `Wei-Shaw/sub2api`
+- Title: `fix: add missing Codex CLI headers for OAuth account test`
+- Scope:
+  - Synced the OAuth account test path so ChatGPT/Codex test requests send the required Codex CLI headers
+  - Added `OpenAI-Beta`, `Originator`, and `User-Agent` headers to the non-compact OAuth test flow
+- Merge notes:
+  - The upstream patch referenced a local helper that does not exist in this fork snapshot
+  - Resolved by applying the equivalent headers directly and preserving the existing `chatgpt-account-id` behavior
