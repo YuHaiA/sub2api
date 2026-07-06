@@ -310,7 +310,7 @@ describe('PaymentView subscription confirmation amounts', () => {
         currency: 'CNY',
       },
       plan: {
-        price: 9.99,
+        price: 7.99,
       },
     })
 
