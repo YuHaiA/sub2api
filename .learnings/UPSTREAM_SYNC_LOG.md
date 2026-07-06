@@ -36,3 +36,14 @@
 - Merge notes:
   - The upstream patch referenced a local helper that does not exist in this fork snapshot
   - Resolved by applying the equivalent headers directly and preserving the existing `chatgpt-account-id` behavior
+
+### Absorbed upstream commit `cb151e36`
+
+- Source: `Wei-Shaw/sub2api`
+- Title: `fix: respect custom User-Agent in OAuth account test`
+- Scope:
+  - Synced the OAuth account test path so a configured custom OpenAI `user_agent` credential takes precedence
+  - Keeps the default Codex CLI `User-Agent` only as a fallback
+- Merge notes:
+  - Reused the current fork's `account.GetOpenAIUserAgent()` access path
+  - Preserved the already merged Codex CLI headers and `chatgpt-account-id` behavior
