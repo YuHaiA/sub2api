@@ -172,3 +172,35 @@
   - Exposed account IDs in the admin account list
 - Merge notes:
   - Resolved `frontend/src/views/admin/AccountsView.vue` by preserving local column width settings and adding the upstream `id` column after `name`
+
+### Absorbed upstream batch `2026-07-07-f`
+
+- Source: `Wei-Shaw/sub2api`
+- Commits:
+  - `ab9987b2` `fix(gateway): fail over on non-JSON 2xx responses`
+  - `b63b4116` `fix: remove unused billing attribution helper`
+  - `bbd97024` `fix(frontend): bump form-data to >=4.0.6 via pnpm override`
+  - `8b698ff4` `fix account list parameter limit`
+  - `b0579c48` `fix: move user wait queue accounting off hot path`
+  - `74199b6a` `fix: reduce token refresh retry amplification`
+  - `9b270f11` `refactor: inline token refresh retry reason prefix`
+  - `34e66ec0` `fix: outbox scheduler snapshot coalesce`
+  - `3ef70b04` `fix: safely coalesce scheduler outbox events`
+  - `60cf89ae` `fix: recover scheduler outbox invalid dedup index`
+  - `b3ec6288` `fix: release scheduler outbox dedup on claim`
+  - `1fdbe52f` `chore(migrations): renumber scheduler outbox dedup migrations 151/152 -> 152/153`
+  - `cb14935e` `fix: cleanup consumed scheduler outbox rows`
+  - `31dc8913` `chore(outbox-cleanup): add 10s grace to defend against id-vs-commit race`
+  - `acaffe29` `fix(account-repo): refresh candidates SQL excluded healthy accounts; fix CI build`
+  - `f069c9ae` `fix(outbox-dedup): buildSchedulerGroupPayload typed-nil broke dedup_key consistency`
+  - `b88f8e4c` `fix(openai-probe): /responses 能力探测增加工具调用校验`
+  - `b8169492` `feat(openai-quota): query + reset rate-limit credits for OpenAI accounts`
+  - `56c62c59` `fix(auth): include client ip in acl denial message`
+  - `b8a482e1` `fix(ci): unblock main after recent merges`
+- Scope:
+  - Synced gateway non-JSON failover, account list parameter limit, wait-queue accounting, and token refresh retry reductions
+  - Synced scheduler outbox dedup/coalescing/cleanup migrations and repository/service coverage
+  - Added OpenAI responses probe tool-call validation and OpenAI quota query/reset support
+  - Synced frontend dependency override and CI fixes
+- Merge notes:
+  - Batch applied cleanly with no manual conflict resolution
