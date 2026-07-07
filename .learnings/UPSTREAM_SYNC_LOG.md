@@ -97,3 +97,25 @@
 - Merge notes:
   - Resolved `backend/internal/handler/dto/types.go` by merging upstream proxy fallback origin fields with local account health status fields
   - Preserved the local `credentials_status,omitempty` response tag
+
+### Absorbed upstream batch `2026-07-07-c`
+
+- Source: `Wei-Shaw/sub2api`
+- Commits:
+  - `0aad6030` `chore: sync VERSION to 0.1.135 [skip ci]`
+  - `d251487d` `fix(openai): propagate prompt cache key for chat completions`
+  - `acbcb50d` `chore: update README`
+  - `b7cfe246` `chore: update README`
+  - `be017445` `chore: update sponsors`
+  - `329414ea` `feat(admin): /admin/users 新增按用户 API Key 所在分组过滤`
+  - `a67b10f4` `fix(gateway): anchor responses fallback to input`
+  - `da30c599` `fix(openai): fail over image server errors`
+  - `63d95b4e` `chore: updeta sponsors`
+  - `c10598df` `fix idempotency response utf8 truncation`
+- Scope:
+  - Synced version/readme/sponsor updates, including upstream README_CN removal
+  - Synced prompt cache key propagation for OpenAI chat completions and idempotency UTF-8 truncation fix
+  - Added admin user filtering by API-key group and related backend/frontend tests
+  - Synced OpenAI responses fallback anchoring and image server-error failover coverage
+- Merge notes:
+  - Batch applied cleanly with no manual conflict resolution
