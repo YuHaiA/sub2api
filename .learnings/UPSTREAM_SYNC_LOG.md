@@ -390,3 +390,18 @@
   - Synced payment display fixes and user API key column settings/reactivation behavior
 - Merge notes:
   - Batch applied cleanly with no manual conflict resolution
+
+### Absorbed upstream batch `2026-07-08-e`
+
+- Source: `Wei-Shaw/sub2api`
+- Commits:
+  - `82553c4d` `fix(openai): preserve quota platform in usage billing`
+  - `d86e8325` `fix: allow five platform quota updates`
+  - `709cf618` `修复 OpenAI GPT-5.5 的 Codex 指令选择`
+  - `7cbf82ed` `修复 OpenAI 上下文窗口错误误触发账号切换`
+  - `4a7148e2` `fix: support grok cli compatibility routes`
+- Scope:
+  - Synced OpenAI quota-platform billing preservation, five-platform quota settings, GPT-5.5 Codex instruction selection, and context-window error handling
+  - Added Grok CLI compatibility routes and related account-test coverage
+- Merge notes:
+  - Resolved `frontend/src/components/admin/account/__tests__/AccountTestModal.spec.ts` by preserving local OpenAI compact probe coverage and adding upstream Grok account modal test support
