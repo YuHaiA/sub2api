@@ -330,3 +330,15 @@
   - Synced frontend direct request URL construction through configured API base
 - Merge notes:
   - Resolved `frontend/src/components/admin/account/AccountTestModal.vue` by preserving local compact test request body and switching the URL to `buildApiUrl`
+
+### Absorbed upstream batch `2026-07-08-b`
+
+- Source: `Wei-Shaw/sub2api`
+- Commits:
+  - `c9f42e1f` `fix(lint): gofmt token_refresh_service.go after refresh_token_invalidated addition`
+  - `39be1ec9` `feat: add grok subscription support`
+- Scope:
+  - Synced token refresh lint cleanup
+  - Added Grok subscription/OAuth/quota/token refresh/gateway support across backend, admin routes, frontend account setup, and model metadata
+- Merge notes:
+  - Resolved Wire conflicts by preserving local `settingService` injection and adding upstream `grokOAuthService` injection in both `backend/internal/service/wire.go` and generated `backend/cmd/server/wire_gen.go`
