@@ -47,3 +47,13 @@
 - Merge notes:
   - Reused the current fork's `account.GetOpenAIUserAgent()` access path
   - Preserved the already merged Codex CLI headers and `chatgpt-account-id` behavior
+
+### Absorbed upstream commit `f881ff7c`
+
+- Source: `Wei-Shaw/sub2api`
+- Title: `fix(models): support non-v1 OpenAI models URLs`
+- Scope:
+  - Synced OpenAI upstream model discovery so model listing works for custom base URLs that do not end with `/v1`
+  - Synced upstream unit tests covering those URL shapes
+- Merge notes:
+  - Applied cleanly with no local conflict
