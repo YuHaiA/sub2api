@@ -40,6 +40,9 @@ func (s *OpenAIGatewayService) forwardResponsesViaRawChatCompletions(
 	clientStream := responsesReq.Stream
 	reasoningEffort := extractOpenAIReasoningEffortFromBody(body, originalModel)
 	serviceTier := extractOpenAIServiceTierFromBody(body)
+	// custom 工具（如 codex 的 exec）降级为 function 工具转发，回程需按名字还原为
+	// custom_tool_call 项，先记下名字集合。
+	customTools := apicompat.CustomToolNames(responsesReq.Tools)
 
 	chatReq, err := apicompat.ResponsesToChatCompletionsRequest(&responsesReq)
 	if err != nil {
@@ -100,15 +103,16 @@ func (s *OpenAIGatewayService) forwardResponsesViaRawChatCompletions(
 	}
 
 	if clientStream {
-		return s.streamChatCompletionsAsResponses(c, resp, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
+		return s.streamChatCompletionsAsResponses(c, resp, originalModel, customTools, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
 	}
-	return s.bufferChatCompletionsAsResponses(c, resp, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
+	return s.bufferChatCompletionsAsResponses(c, resp, originalModel, customTools, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
 }
 
 func (s *OpenAIGatewayService) bufferChatCompletionsAsResponses(
 	c *gin.Context,
 	resp *http.Response,
 	originalModel string,
+	customTools map[string]bool,
 	billingModel string,
 	upstreamModel string,
 	reasoningEffort *string,
@@ -120,7 +124,7 @@ func (s *OpenAIGatewayService) bufferChatCompletionsAsResponses(
 	if err != nil {
 		return nil, err
 	}
-	responsesResp := apicompat.ChatCompletionsResponseToResponses(ccResp, originalModel)
+	responsesResp := apicompat.ChatCompletionsResponseToResponses(ccResp, originalModel, customTools)
 
 	if s.responseHeaderFilter != nil {
 		responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
@@ -144,6 +148,7 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsResponses(
 	c *gin.Context,
 	resp *http.Response,
 	originalModel string,
+	customTools map[string]bool,
 	billingModel string,
 	upstreamModel string,
 	reasoningEffort *string,
@@ -154,6 +159,7 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsResponses(
 	writeStreamHeaders := s.newStreamHeaderWriter(c, resp.Header)
 
 	state := apicompat.NewChatCompletionsToResponsesStreamState(originalModel)
+	state.CustomTools = customTools
 	clientDisconnected := false
 
 	writeEvents := func(events []apicompat.ResponsesStreamEvent) {
