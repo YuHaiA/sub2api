@@ -119,3 +119,27 @@
   - Synced OpenAI responses fallback anchoring and image server-error failover coverage
 - Merge notes:
   - Batch applied cleanly with no manual conflict resolution
+
+### Absorbed upstream batch `2026-07-07-d`
+
+- Source: `Wei-Shaw/sub2api`
+- Commits:
+  - `2c45f91d` `fix openai failover model body replacement`
+  - `46bd7968` `fix: reuse OpenAI failover error body`
+  - `914c059f` `fix: avoid double-writing error frame on non-stream upstream errors`
+  - `6c886316` `fix(gateway): prevent double-write on error passthrough responses`
+  - `20f3f204` `fix(gateway): complete MarkResponseCommitted coverage for all platforms`
+  - `bf28a009` `fix(bedrock): filter unsupported top-level fields and fix beta token cleanup`
+  - `12962bab` `refactor(bedrock): merge header filtering into ApplyBedrockCCCompat`
+  - `72c11216` `fix(frontend): bedrock_cc_compat toggle not persisting on reload`
+  - `448936d9` `fix(ci): fix gofmt, errcheck, and test for supported context-management beta token`
+  - `30c00a91` `优化账号分组调度索引`
+  - `2c27548b` `优化调度日志循环开销`
+  - `d662c973` `feat: claude-fable-5`
+  - `0acf00c4` `Add admin compliance acknowledgement gate`
+- Scope:
+  - Synced OpenAI failover body reuse, non-stream double-write protection, and response-commit coverage
+  - Synced Bedrock compatibility cleanup, scheduler index/log optimizations, and Claude Fable 5 support
+  - Added admin compliance acknowledgement gate with backend middleware/service, legal docs, frontend dialog, and store
+- Merge notes:
+  - Resolved `frontend/src/App.vue` by keeping local admin route keep-alive behavior and adding upstream admin compliance store initialization
