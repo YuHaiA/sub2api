@@ -405,3 +405,39 @@
   - Added Grok CLI compatibility routes and related account-test coverage
 - Merge notes:
   - Resolved `frontend/src/components/admin/account/__tests__/AccountTestModal.spec.ts` by preserving local OpenAI compact probe coverage and adding upstream Grok account modal test support
+
+### Absorbed upstream batch `2026-07-08-f`
+
+- Source: `Wei-Shaw/sub2api`
+- Commits:
+  - `10e623f6` `fix: allow grok messages compatibility`
+  - `438510d2` `fix: sanitize grok codex responses payloads`
+  - `a0a3d0c3` `fix: show privacy setting result accurately`
+  - `260fda19` `feat: fix OAuth email completion flow`
+  - `7316d830` `fix(payment): 区分退款 pending 并收敛匿名查单`
+  - `93a3bf30` `Fix refund pending finalization gaps`
+  - `901958ba` `feat(openai-ws): add http_bridge ingress mode and account ws selector`
+  - `0476b5c9` `fix(openai-ws): allow http_bridge accounts in ws ingress selection`
+  - `56543213` `fix(frontend): enable ws mode editing for openai setup-token accounts`
+  - `906be3f7` `fix(openai-ws): honor explicit http_bridge ingress mode`
+  - `185f9c99` `fix(auth-signup): 平台配额快照脱离注册事务 + grok 补入 CHECK 约束`
+  - `bf4f0067` `fix: 修复用户列表使用时间排序冲突`
+  - `6c46c2cb` `test: update platform quota contract for grok`
+  - `345d5c6b` `chore: update sponsors`
+  - `915c60b1` `feat(group): 订阅分组新增可选的高峰时段倍率，以支持智谱等coding plan的高峰时段`
+  - `89b2d63e` `chore: sync VERSION to 0.1.140 [skip ci]`
+  - `cafc95c3` `feat: align user usage analytics with admin`
+  - `93032611` `fix: 修复订阅支付金额显示错误`
+  - `dc1bc154` `chore: sync VERSION to 0.1.141 [skip ci]`
+  - `6e547765` `fix: localize English UI strings`
+  - `73de2ea7` `fix(openai): preserve encrypted reasoning across turns on codex OAuth path`
+  - `b4f38b09` `fix: preserve zh locale in i18n cleanup`
+  - `41bb15d3` `fix: remove remaining English fallbacks`
+  - `1158cf31` `fix: require localized interval validation`
+  - `03727ac3` `fix(subscription): 修复订阅撤销软删除失效`
+  - `b28a2233` `fix(openai): 保留 GPT-5.5 Pro Codex 模型名`
+- Scope:
+  - Synced Grok messages/codex payload compatibility, OpenAI WS `http_bridge` ingress mode, OAuth email completion, refund/payment fixes, platform quota signup behavior, and group peak-rate multiplier
+  - Synced user usage analytics alignment, localization cleanup, encrypted reasoning preservation, subscription revoke fix, and GPT-5.5 Pro Codex model-name retention
+- Merge notes:
+  - Resolved `backend/internal/service/billing_service.go` and `backend/internal/service/openai_model_alias.go` by preserving local GPT-5.6 sol/terra/luna pricing/alias logic while adding upstream GPT-5.5 Pro retention behavior
