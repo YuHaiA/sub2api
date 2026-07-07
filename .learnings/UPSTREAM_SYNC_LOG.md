@@ -295,3 +295,38 @@
   - Synced subscription exchange-rate payment conversion and Codex personal access token authentication support
 - Merge notes:
   - Resolved `backend/internal/service/account_test_service.go` by preserving local Codex CLI headers/custom User-Agent behavior and adding upstream `setOpenAIChatGPTAccountHeaders`
+
+### Absorbed upstream batch `2026-07-08-a`
+
+- Source: `Wei-Shaw/sub2api`
+- Commits:
+  - `147c1879` `fix(payment): support plural subscription validity units`
+  - `9491de0a` `fix(images): pass content-moderation refusals through as 400 instead of retrying`
+  - `28e7adef` `fix(keys): add CLAUDE_CODE_ATTRIBUTION_HEADER=0 to Claude Code terminal templates`
+  - `ae5e980d` `fix(gateway): enforce codex_cli_only restriction on /v1/chat/completions`
+  - `9707dedc` `fix(ops): prevent monitoring trend cards from growing unbounded`
+  - `82576e0a` `fix(auth): stop swallowing email auth identity create error via shadowed err`
+  - `65fa7289` `fix(openai): fail over on chat transport errors`
+  - `a2cf297d` `feat: 新增 OpenAI quota headroom 调度权重`
+  - `30adee43` `feat(admin/accounts): confirm before OpenAI weekly limit reset`
+  - `a1560ae7` `chore: update sponsors`
+  - `063454ae` `fix(admin/usage): populate cache creation/read token breakdown in stats`
+  - `4567f658` `test(admin/usage): update sqlmock rows for cache breakdown columns`
+  - `dbdbfb11` `fix: avoid default codex instructions for chat bridge`
+  - `00d68ff6` `feat(openai): add GPT-5.5 codex instructions and use as latest fallback`
+  - `0a97a5f4` `fix(token-refresh): treat refresh_token_invalidated as non-retryable`
+  - `2b49d662` `fix(openai): dedupe passthrough function call args`
+  - `55242ffa` `fix(admin): 订单金额币种符号读取 currency 字段`
+  - `650c50e3` `fix(antigravity): add project fallback for standard tier`
+  - `01127820` `fix(gateway-openai): codex spark 剥离 image_generation 工具，修复 502`
+  - `cc7612bd` `Detect OpenAI overloaded error codes`
+  - `5bd9368a` `fix claude oauth token exchange payload`
+  - `65ad7df4` `fix(payment): 修复后端返回空supported_types时支付提供商卡片消失的问题`
+  - `29122e30` `fix(apicompat): avoid doubling tool_call arguments from single-chunk upstreams`
+  - `2a58a57a` `fix(frontend): use configured API base for direct requests`
+- Scope:
+  - Synced payment/order/currency fixes, admin usage cache stats, OpenAI quota headroom scheduling, and weekly limit reset confirmation
+  - Synced Codex-only chat restriction, GPT-5.5 Codex instructions, token refresh handling, OpenAI chat failover, overloaded error detection, and Codex Spark image tool stripping
+  - Synced frontend direct request URL construction through configured API base
+- Merge notes:
+  - Resolved `frontend/src/components/admin/account/AccountTestModal.vue` by preserving local compact test request body and switching the URL to `buildApiUrl`
