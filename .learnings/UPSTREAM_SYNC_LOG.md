@@ -235,3 +235,19 @@
   - Synced SSE error body preservation and CI workflow updates
 - Merge notes:
   - Batch applied cleanly with no manual conflict resolution
+
+### Absorbed upstream batch `2026-07-07-h`
+
+- Source: `Wei-Shaw/sub2api`
+- Commits:
+  - `8c4a43cf` `fix(gemini): satisfy schema cleanup test lint`
+  - `31640363` `fix(deploy): add :Z SELinux labels to bind mounts`
+  - `bab8a9a9` `fix(openai): log /v1/chat/completions upstream endpoint for chat-only API-key accounts`
+  - `df51edfb` `Preserve OAuth instructions while keeping developer input`
+  - `952be871` `fix(frontend): refresh custom page document title`
+- Scope:
+  - Synced Gemini lint fix, deploy SELinux bind-mount labels, and OpenAI chat endpoint logging
+  - Synced OAuth instruction preservation in Codex transform flow
+  - Synced custom-page document title refresh behavior
+- Merge notes:
+  - Resolved `frontend/src/App.vue` by keeping local admin keep-alive helpers and adding upstream admin settings store plus dynamic document title refresh
