@@ -277,3 +277,21 @@
   - Synced Vertex Anthropic beta filtering, Claude Code mimicry update, and OpenAI image incomplete soft-failure logging
 - Merge notes:
   - `69366878` was skipped as empty because the equivalent WriteString lint fix was already present after `f4b51b0f`
+
+### Absorbed upstream batch `2026-07-07-j`
+
+- Source: `Wei-Shaw/sub2api`
+- Commits:
+  - `7c2fee6c` `fix(billing): dedup fallback pricing warn to stop per-request log spam (#3394)`
+  - `6239e395` `i18n(channel): explain case-insensitive matching in pricing conflict messages (#3394)`
+  - `d430343f` `chore: sync VERSION to 0.1.138 [skip ci]`
+  - `e5f38a6f` `chore: update sponsors`
+  - `9f5b57fc` `fix(billing): 防止余额计费持续透支`
+  - `c6f375d3` `fix(payment): 订阅订单应用充值汇率换算`
+  - `85a3b122` `chore: update sponsors`
+  - `32df33a1` `feat: add codex personal access token auth`
+- Scope:
+  - Synced fallback pricing warning deduplication, pricing conflict i18n, version/sponsor updates, and balance overdraft prevention
+  - Synced subscription exchange-rate payment conversion and Codex personal access token authentication support
+- Merge notes:
+  - Resolved `backend/internal/service/account_test_service.go` by preserving local Codex CLI headers/custom User-Agent behavior and adding upstream `setOpenAIChatGPTAccountHeaders`
