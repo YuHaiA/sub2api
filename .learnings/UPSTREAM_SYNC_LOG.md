@@ -342,3 +342,15 @@
   - Added Grok subscription/OAuth/quota/token refresh/gateway support across backend, admin routes, frontend account setup, and model metadata
 - Merge notes:
   - Resolved Wire conflicts by preserving local `settingService` injection and adding upstream `grokOAuthService` injection in both `backend/internal/service/wire.go` and generated `backend/cmd/server/wire_gen.go`
+
+### Absorbed upstream batch `2026-07-08-c`
+
+- Source: `Wei-Shaw/sub2api`
+- Commits:
+  - `b3a07aea` `fix: align grok oauth exchange with xai`
+  - `b2e2c7e6` `fix: harden grok oauth gateway paths`
+  - `f29ccc7d` `fix: reduce grok oauth account-risk paths`
+- Scope:
+  - Synced Grok OAuth exchange alignment, hardened gateway paths, and reduced account-risk handling
+- Merge notes:
+  - Resolved `backend/internal/service/openai_account_runtime_block_fastpath_test.go` by preserving local OpenAI Cloudflare cooldown tests and adding upstream Grok 429 failover coverage
