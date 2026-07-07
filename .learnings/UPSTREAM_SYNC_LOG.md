@@ -204,3 +204,34 @@
   - Synced frontend dependency override and CI fixes
 - Merge notes:
   - Batch applied cleanly with no manual conflict resolution
+
+### Absorbed upstream batch `2026-07-07-g`
+
+- Source: `Wei-Shaw/sub2api`
+- Commits:
+  - `6c2db4f4` `fix(gemini): clean unsupported tool schema fields`
+  - `c906bf00` `feat(billing): add DeepSeek V4 Pro / Flash fallback pricing`
+  - `27e26a3a` `chore: fix gofmt alignment`
+  - `5a593a51` `test(billing): tighten DeepSeek V4 fallback assertions; clarify branch comments`
+  - `f597d98b` `test(openai): use unpriced model in usage test`
+  - `a4ce7339` `feat(billing): add GLM / Kimi / MiniMax fallback pricing for Chinese LLM providers`
+  - `c90089c8` `fix(billing): address Copilot review feedback`
+  - `4f5f2788` `fix(billing): add kimi-for-coding fallback pricing`
+  - `262fe123` `feat(billing): 为 doubao-embedding-vision 添加图文差别兜底定价`
+  - `142d8c36` `fix(gateway): normalize DeepSeek reasoning_effort 'max' to 'xhigh'`
+  - `34b1e56e` `test: add 'max' → 'xhigh' test cases for reasoning effort normalization`
+  - `6baf00d7` `fix(gateway): protocol-aware thinking-block filtering for Anthropic-compatible upstreams`
+  - `efbf6d20` `fix(test): update FilterThinkingBlocksForRetry call to use mappedModel param`
+  - `56c6325d` `fix(gateway): rewrite thinking.type=enabled to adaptive for MiniMax M-series`
+  - `5c528397` `doc(thinking-protocol): clarify mappedModel vs originalModel semantics per call path`
+  - `a05d9e87` `feat(billing): 国产模型 thinking-enabled 自动填充 reasoning_effort 默认值`
+  - `6c7203d8` `fix(gateway): preserve SSE event:error body so ops logs reflect real upstream errors`
+  - `4a5665da` `chore: sync VERSION to 0.1.137 [skip ci]`
+  - `abc203a3` `chore: update pnpm action setup`
+  - `369f53a7` `chore: force node24 for cla action`
+- Scope:
+  - Synced Gemini schema cleanup and OpenAI/Gemini thinking-block protocol compatibility
+  - Added DeepSeek/GLM/Kimi/MiniMax/Doubao fallback pricing and reasoning_effort normalization behavior
+  - Synced SSE error body preservation and CI workflow updates
+- Merge notes:
+  - Batch applied cleanly with no manual conflict resolution
