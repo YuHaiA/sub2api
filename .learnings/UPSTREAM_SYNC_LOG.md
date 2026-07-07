@@ -78,3 +78,22 @@
   - Added upstream Sub2API admin skill documentation/scripts and Select dropdown height fix
 - Merge notes:
   - Batch applied cleanly with no manual conflict resolution
+
+### Absorbed upstream batch `2026-07-07-b`
+
+- Source: `Wei-Shaw/sub2api`
+- Commits:
+  - `16bc8769` `fix(usage): sync 5h ResetsAt to SessionWindowEnd and zero expired window`
+  - `9a0e4398` `fix(openai): 跨组会话失配保护移到生效的 WSv2 路径并补测`
+  - `1a86c6ce` `fix: enforce exclusive group access for api keys`
+  - `217f8599` `fix(openai): /responses 传输层错误转 failover + 持久故障临时摘除账号`
+  - `f20e6bf7` `feat(ops): 新增 account_temp_unscheduled_count 告警指标`
+  - `af19d443` `feat(proxies): 代理有效期与失败回退`
+- Scope:
+  - Synced usage session-window reset handling and related API contract coverage
+  - Synced OpenAI WSv2 cross-group session protection and transport-error failover handling
+  - Added exclusive API-key group access enforcement and temporary unscheduled account ops metric
+  - Added proxy expiry, proxy fallback, migration, backend services, and frontend proxy UI support
+- Merge notes:
+  - Resolved `backend/internal/handler/dto/types.go` by merging upstream proxy fallback origin fields with local account health status fields
+  - Preserved the local `credentials_status,omitempty` response tag
