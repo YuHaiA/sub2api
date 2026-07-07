@@ -354,3 +354,39 @@
   - Synced Grok OAuth exchange alignment, hardened gateway paths, and reduced account-risk handling
 - Merge notes:
   - Resolved `backend/internal/service/openai_account_runtime_block_fastpath_test.go` by preserving local OpenAI Cloudflare cooldown tests and adding upstream Grok 429 failover coverage
+
+### Absorbed upstream batch `2026-07-08-d`
+
+- Source: `Wei-Shaw/sub2api`
+- Commits:
+  - `e7a4f3f4` `test: fix grok oauth validation suite`
+  - `1b9645ca` `fix: allow grok scheduler capability routing`
+  - `0d286421` `feat: add grok quota probe parity`
+  - `939905b8` `fix: refine grok quota pause behavior`
+  - `8a87a658` `test: cover grok readiness paths`
+  - `2a804958` `docs: clarify grok public route scope`
+  - `720db898` `test: harden grok quota readiness`
+  - `815bc6c9` `feat(risk-control): record matched keyword in keyword-block logs`
+  - `8a7269f5` `fix: sanitize verbose OpenAI response failed events`
+  - `40c82527` `fix(apicompat): 规范化 custom 工具 schema`
+  - `ac6e36f9` `feat(cli): sub2api-admin 支持 SUB2API_JWT 认证回退`
+  - `44f502ba` `fix: address grok review feedback`
+  - `98feeccb` `docs: note admin account wizard requirement in source-compile install`
+  - `fcd3bc12` `fix: return 404 model_not_found instead of 503 when no account supports the model`
+  - `f93a6c50` `fix: repair CI build & lint regressions on main`
+  - `819fda34` `feat(codex-detect): codex_cli_only 检测加固 + 引擎指纹统一信号列表 + 账号级 app-server`
+  - `9a0fbcc8` `chore: update sponsors`
+  - `c2754222` `chore: sync VERSION to 0.1.139 [skip ci]`
+  - `7a38c662` `Bridge OpenAI count_tokens to responses input_tokens`
+  - `e5f7836b` `fix(openai): set tool_choice auto for Codex image bridge`
+  - `88ca0c1d` `fix(payment): 显示订阅 CNY 换算实付金额`
+  - `bad87ff5` `feat(ops): add api key filter to system logs`
+  - `b244f850` `feat(keys): add column settings`
+  - `b1403e8b` `fix(payment): keep subscription price as direct pay amount`
+  - `da810c3b` `fix(keys): reactivate exhausted keys set to unlimited`
+- Scope:
+  - Synced Grok quota/readiness hardening, risk-control matched keyword logging, custom tool schema normalization, and admin CLI JWT fallback
+  - Synced model-not-found 404 handling, codex_cli_only detection hardening, OpenAI count_tokens bridge, Codex image bridge tool_choice, and ops API-key log filtering
+  - Synced payment display fixes and user API key column settings/reactivation behavior
+- Merge notes:
+  - Batch applied cleanly with no manual conflict resolution
