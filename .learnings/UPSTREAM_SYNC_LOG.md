@@ -251,3 +251,29 @@
   - Synced custom-page document title refresh behavior
 - Merge notes:
   - Resolved `frontend/src/App.vue` by keeping local admin keep-alive helpers and adding upstream admin settings store plus dynamic document title refresh
+
+### Absorbed upstream batch `2026-07-07-i`
+
+- Source: `Wei-Shaw/sub2api`
+- Commits:
+  - `51d72290` `fix(usage): 显示缓存 Token 明细`
+  - `89cfe24a` `fix(openai): normalize glm reasoning effort`
+  - `e3e31bd4` `fix(gateway): auto mode recognize Claude Code IDE clients via any cc_entrypoint`
+  - `510adf70` `feat(scheduling): add opt-in "prefer soonest reset" account selection`
+  - `2dc1387b` `fix(promo): allow clearing promo code expiry on edit`
+  - `d3dfa28f` `Update CC Switch OpenAI default model`
+  - `0fa604ba` `feat: apply affiliate rebate to subscription payments`
+  - `ecedc7c8` `fix(auth): enforce email bind suffix whitelist`
+  - `40e1cc14` `fix(gateway): filter anthropic-beta on the Vertex Anthropic path (#3358)`
+  - `efffd5d7` `test(gateway): Vertex anthropic-beta filtering`
+  - `6cfb7898` `fix(claude-mimicry): drop the cch sign to match new Claude Code CLI`
+  - `5cb8cdd3` `test(claude-code): detection recognizes the new-CLI billing block (no cch)`
+  - `b0d5592a` `fix(images): 识别 response.incomplete + 记录软失败上游响应`
+  - `f4b51b0f` `fix(lint): check WriteString return value in summarizeOpenAIImagesNoOutputBody`
+  - `69366878` `fix(lint): check WriteString return in summarizeOpenAIImagesNoOutputBody` (`already present / empty`)
+- Scope:
+  - Synced usage cache token details, GLM reasoning normalization, Claude Code IDE recognition, and prefer-soonest-reset scheduling
+  - Synced promo expiry clearing, CC Switch default model, affiliate rebate payment handling, and email bind suffix whitelist enforcement
+  - Synced Vertex Anthropic beta filtering, Claude Code mimicry update, and OpenAI image incomplete soft-failure logging
+- Merge notes:
+  - `69366878` was skipped as empty because the equivalent WriteString lint fix was already present after `f4b51b0f`
