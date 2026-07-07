@@ -143,3 +143,32 @@
   - Added admin compliance acknowledgement gate with backend middleware/service, legal docs, frontend dialog, and store
 - Merge notes:
   - Resolved `frontend/src/App.vue` by keeping local admin route keep-alive behavior and adding upstream admin compliance store initialization
+
+### Absorbed upstream batch `2026-07-07-e`
+
+- Source: `Wei-Shaw/sub2api`
+- Commits:
+  - `fa8f1749` `fix: treat invalid_refresh_token as non-retryable / 将 invalid_refresh_token 判定为不可重试`
+  - `e34ad2b1` `chore: sync VERSION to 0.1.136 [skip ci]`
+  - `ad135854` `fix(docker): ship docs/legal in build context for admin-compliance gate`
+  - `727ac3f6` `fix: add app_session_terminated to non-retryable refresh errors / 将 app_session_terminated 添加到不可重试的刷新错误中`
+  - `0da1fe28` `fix(openai): prevent false image billing on text-only /v1/responses requests`
+  - `6bf6722b` `chore: gofmt test file`
+  - `65559ac5` `fix(antigravity): merge system role messages`
+  - `f8c80bf0` `fix(auth): apply promo codes to oauth signups`
+  - `b256f911` `fix(gateway): intercept max_tokens=1 haiku probes for streaming requests too`
+  - `e4c255a7` `fix：account expiry autopause index`
+  - `b62b573f` `feat(openai): cyber_policy 硬阻断全链路透传、审计与计费`
+  - `f6e0ebc6` `fix: preserve Anthropic window cooldowns`
+  - `edfd5e37` `fix(apicompat): default tool strict to false`
+  - `c1c28ac7` `fix(gateway): 解压 zstd 上游响应体`
+  - `c70c6a26` `feat(渠道监控): 检测间隔支持正负随机抖动配置`
+  - `8ce7b9a8` `feat: configure Claude OAuth system prompt blocks`
+  - `25a9762a` `feat: show account id in account list`
+- Scope:
+  - Synced refresh-token non-retryable error classification, Docker legal-doc packaging, OpenAI false image billing fix, and Antigravity system-role merge
+  - Added promo-code OAuth signup handling, streaming Haiku probe interception, account expiry autopause index, zstd response decompression, and channel monitor jitter
+  - Added OpenAI cyber policy passthrough/blocking/audit/billing flow and Claude OAuth system prompt block settings
+  - Exposed account IDs in the admin account list
+- Merge notes:
+  - Resolved `frontend/src/views/admin/AccountsView.vue` by preserving local column width settings and adding the upstream `id` column after `name`
