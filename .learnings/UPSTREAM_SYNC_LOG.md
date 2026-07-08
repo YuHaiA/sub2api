@@ -441,3 +441,26 @@
   - Synced user usage analytics alignment, localization cleanup, encrypted reasoning preservation, subscription revoke fix, and GPT-5.5 Pro Codex model-name retention
 - Merge notes:
   - Resolved `backend/internal/service/billing_service.go` and `backend/internal/service/openai_model_alias.go` by preserving local GPT-5.6 sol/terra/luna pricing/alias logic while adding upstream GPT-5.5 Pro retention behavior
+
+### Absorbed upstream batch `2026-07-08-g`
+
+- Source: `Wei-Shaw/sub2api`
+- Commits:
+  - `59e9356c` `feat: 抹除 Anthropic OAuth 请求中客户端 dateline 隐写指纹`
+  - `db041423` `feat: 适配 sonnet5`
+  - `605b6f66` `fix(test): resolve oauth passthrough unit build errors`
+  - `3b5d812f` `fix: route grok media endpoints`
+  - `2fe756e` `fix: recognize grok media models`
+  - `c3e86060` `fix: include official grok media model ids`
+  - `e28b11ad` `fix(test): align compact passthrough expectation`
+  - `bdf7ead1` `feat(spark-shadow): OpenAI Spark 链接型影子账号`
+- Scope:
+  - Synced Anthropic OAuth dateline fingerprint stripping, Sonnet 5 model adaptation, OAuth passthrough test build fixes, Grok media endpoint/model ID support, and compact passthrough expectation updates
+  - Added OpenAI Spark linked shadow accounts, including schema migrations, parent account enrichment, credential passthrough, Spark quota isolation, scheduler routing, admin UI affordances, and related backend/frontend tests
+- Merge notes:
+  - Resolved `backend/internal/handler/admin/account_handler.go` by enriching shadow parent account data before list ETag calculation while preserving local `healthStatus` ETag input
+  - Resolved `backend/internal/service/account_test_service.go` by applying upstream shadow credential resolution while preserving local compact Codex probe headers, custom OpenAI user agent, and ChatGPT account header injection
+  - Resolved `backend/internal/service/openai_codex_transform.go` by keeping fork-specific GPT-5.6 sol/terra/luna and GPT-5.3 Codex Spark mappings while absorbing upstream Spark shadow support
+  - Resolved `frontend/src/views/admin/AccountsView.vue` by using upstream `accountDisplayEmail(row)` for shadow parent email display while preserving local compact truncation styling
+- Validation:
+  - Not run locally: this Windows environment currently has neither `go` nor `make` on PATH, so backend batch validation must be run in the server/CI environment
