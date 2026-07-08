@@ -464,3 +464,26 @@
   - Resolved `frontend/src/views/admin/AccountsView.vue` by using upstream `accountDisplayEmail(row)` for shadow parent email display while preserving local compact truncation styling
 - Validation:
   - Not run locally: this Windows environment currently has neither `go` nor `make` on PATH, so backend batch validation must be run in the server/CI environment
+
+### Absorbed upstream batch `2026-07-08-h`
+
+- Source: `Wei-Shaw/sub2api`
+- Commits:
+  - `96c9166b` `fix(usage): 用户使用记录默认显示推理强度列`
+  - `de64b026` `fix: resolve build version from release tag`
+  - `e998f804` `fix: ci`
+  - `fd004bdd` `fix(account-repo): Clone query before Count to prevent state pollution`
+  - `ebd83dc0` `fix: 触发ci`
+  - `a34d4967` `feat: add LLM media tester`
+  - `42e471f5` `fix: harden grok media routing`
+  - `c9fb221a` `fix: satisfy grok media lint`
+  - `8c2d9b9a` `chore(openai): remove gpt-5.3-codex from OpenAI default model list`
+  - `f77cf6b4` `Revert "feat: add LLM media tester"`
+- Scope:
+  - Synced usage record column defaults, release-tag version resolution, CI fixes, account repository query cloning before Count, and Grok media routing/lint hardening
+  - Followed upstream by absorbing the LLM media tester addition and its later revert in order, leaving the final tree aligned with upstream
+  - Removed `gpt-5.3-codex` from the OpenAI default model list while preserving fork-specific Codex/Spark mappings outside the default-list change
+- Merge notes:
+  - Batch applied cleanly with no manual conflict resolution
+- Validation:
+  - Not run locally: this Windows environment currently has neither `go` nor `make` on PATH
