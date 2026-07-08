@@ -623,3 +623,31 @@
   - Resolved `frontend/src/composables/useModelWhitelist.ts` by preserving already-absorbed Antigravity Gemini 3.1 `Pro-Agent` routing semantics while localizing the passthrough label to `透传`
 - Validation:
   - Not run locally: this Windows environment currently has neither `go` nor `make` on PATH
+
+### Absorbed upstream batch `2026-07-08-n`
+
+- Source: `Wei-Shaw/sub2api`
+- Commits:
+  - `a3c5cc45` `test: add batch image QA reports`
+  - `d8e96f0f` `fix: bound batch image settlement retries`
+  - `202c6989` `fix: preserve immutable initial migration`
+  - `d73fa8ea` `fix: keep image generation migration immutable`
+  - `d56e94b8` `feat(payment): 订阅 CNY 换算改为独立汇率配置的显式 opt-in`
+  - `ba1bb0a3` `Revert "fix(payment): 订阅确认页显示换算后 CNY 金额 + 邀请返利按 USD price 计算"`
+  - `bf76168b` `feat: add custom easypay payment methods`
+  - `0dc6e56a` `fix: harden easypay custom method validation`
+  - `a5a2fea0` `Polish EasyPay custom method UI`
+  - `b197ba61` `test: align antigravity mapping preset label`
+  - `22ec77b5` `fix: match built-in payment methods exactly`
+  - `27cb485d` `fix: share built-in payment method matching`
+  - `616cf17d` `fix: hide batch image entry without allowed key`
+  - `0b729496` `fix: center batch image empty state`
+  - `76bb7b03` `chore: sync VERSION to 0.1.145 [skip ci]`
+- Scope:
+  - Synced batch image QA reports, settlement retry bound, immutable migration preservation, batch image access/empty-state fixes, and VERSION 0.1.145
+  - Synced subscription CNY independent exchange-rate opt-in, reverted the older balance-multiplier based subscription conversion, and added custom EasyPay payment methods with validation/UI polish and shared built-in payment matching
+- Merge notes:
+  - Resolved payment revert conflicts by preserving the new `subscription_usd_to_cny_rate` opt-in conversion path while ensuring the reverted balance recharge multiplier conversion remains removed
+  - Resolved affected backend/frontend payment tests to cover configured-rate conversion, disabled-rate direct price behavior, non-CNY direct price behavior, and fee calculation after conversion
+- Validation:
+  - Not run locally: this Windows environment currently has neither `go` nor `make` on PATH
