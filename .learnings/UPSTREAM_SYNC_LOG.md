@@ -578,3 +578,25 @@
   - Resolved `backend/cmd/server/wire_gen.go` by preserving existing scheduler/account/concurrency initialization order, adding batch image repository/queue/download limiter providers, and removing a stale duplicate `tokenRefreshService` initialization in favor of the current `grokOAuthService` signature
 - Validation:
   - Not run locally: this Windows environment currently has neither `go` nor `make` on PATH
+
+### Absorbed upstream batch `2026-07-08-l`
+
+- Source: `Wei-Shaw/sub2api`
+- Commits:
+  - `dec709fb` `chore: update sponsors`
+  - `cbe0c466` `chore: update readme`
+  - `b650bdd6` `chore: sync VERSION to 0.1.144 [skip ci]`
+  - `20008264` `feat: 点击侧边栏 Logo/站点名返回首页`
+  - `498f010e` `fix(部署): 统一 Docker 部署 URL 安全默认值为开发友好模式`
+  - `cbfeab96` `fix(antigravity): default gateway forward base URL to the production endpoint`
+  - `e76e0499` `fix: sanitize payment response NUL bytes`
+  - `b23475ac` `fix(antigravity): refresh server-invalidated tokens`
+  - `41cdd438` `fix(gateway): honor Anthropic custom models list`
+  - `aee9a7ba` `fix(usage): add UTF-8 BOM to CSV export`
+- Scope:
+  - Synced sponsors/readme/version updates, sidebar logo/site-name home navigation, Docker URL safe defaults, Antigravity gateway forward base URL default, payment response NUL-byte sanitization, Anthropic custom model list handling, and UTF-8 BOM CSV export
+  - Added Antigravity server-invalidated token refresh recovery handling
+- Merge notes:
+  - Resolved `backend/internal/service/token_refresh_service.go` by preserving local successful-refresh account recovery and health snapshot restoration while adding upstream Antigravity force-refresh marker cleanup on success/non-retryable outcomes
+- Validation:
+  - Not run locally: this Windows environment currently has neither `go` nor `make` on PATH
