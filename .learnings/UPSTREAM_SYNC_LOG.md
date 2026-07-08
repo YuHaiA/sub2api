@@ -488,6 +488,43 @@
 - Validation:
   - Not run locally: this Windows environment currently has neither `go` nor `make` on PATH
 
+### Absorbed upstream batch `2026-07-08-o`
+
+- Source: `Wei-Shaw/sub2api`
+- Commits:
+  - `a42e9e3f` `feat: add Grok image pricing controls`
+  - `a23a2635` `feat(subscription): preview CNY pay amount in plan editor`
+  - `6b4c3c6e` `test: cover Grok video media unit billing`
+  - `95717a7e` `test: clarify Grok video media billing name`
+  - `de31e573` `docs: document Grok video media billing unit`
+  - `4b321142` `fix: update codex version gate wording`
+  - `ec7b2064` `feat: support API key account header override`
+  - `31b6e0d9` `fix: address header override audit findings`
+  - `5089c303` `优化 Redis SCAN 清理架构`
+  - `3c43fdec` `docs: add batch image PR readiness notes`
+  - `89edba80` `fix: restrict batch image groups to gemini`
+  - `a564051f` `chore: renew expired xlsx audit exceptions to 2026-10-06`
+  - `7c8e1320` `style: replace interface{} with any per golangci-lint gofmt rewrite rules`
+  - `7650cce5` `fix(redis-index): harden index-driven cleanup introduced in #3762`
+  - `2fb212b7` `fix(openai): 区分 responses compact 入站端点`
+  - `75e30894` `fix: normalize inbound endpoints from raw request path`
+  - `ddd63a84` `test: cover endpoint wildcard edge cases`
+  - `aff14816` `fix: address batch image ci failures`
+  - `c34db70a` `fix: bridge grok composer image inputs`
+  - `9d5f1b73` `chore: sync VERSION to 0.1.146 [skip ci]`
+- Scope:
+  - Synced Grok image pricing controls, Grok video media billing tests/docs, Codex version gate wording, API key account header override support, and header override audit hardening
+  - Synced Redis active-index cleanup architecture/hardening, user message queue Redis cleanup support, compact responses inbound endpoint distinction, endpoint normalization/wildcard coverage, batch image CI fixes, and VERSION 0.1.146
+  - Synced batch image PR readiness notes, Gemini-only batch image group restriction, xlsx audit exception renewal, `interface{}` to `any` style cleanup, and Grok composer image input bridge
+- Merge notes:
+  - Resolved `backend/internal/repository/concurrency_cache.go` by keeping upstream index-driven account/user startup cleanup, expired-index hardening, and one-time legacy wait sweep while preserving the fork's API key slot startup cleanup as a narrow `concurrency:api_key:*` scan using the single-key cleanup script
+  - Resolved `backend/internal/repository/concurrency_cache_integration_test.go` by covering both fork API key cleanup and upstream protection for unindexed account slots/wait keys
+  - Resolved `.github/audit-exceptions.yml` by preserving the already-renewed `xlsx` exception expiry date `2026-10-06` instead of reverting to `2026-08-06`
+  - Resolved `deploy/Dockerfile` by keeping upstream's lockfile-compatible `pnpm@9.15.9` pin for reproducible Docker builds
+- Validation:
+  - `git diff --check` passed during conflict resolution
+  - Not run locally: this Windows environment currently has neither `go` nor `make` on PATH
+
 ### Absorbed upstream batch `2026-07-08-i`
 
 - Source: `Wei-Shaw/sub2api`
