@@ -600,3 +600,26 @@
   - Resolved `backend/internal/service/token_refresh_service.go` by preserving local successful-refresh account recovery and health snapshot restoration while adding upstream Antigravity force-refresh marker cleanup on success/non-retryable outcomes
 - Validation:
   - Not run locally: this Windows environment currently has neither `go` nor `make` on PATH
+
+### Absorbed upstream batch `2026-07-08-m`
+
+- Source: `Wei-Shaw/sub2api`
+- Commits:
+  - `f26ca566` `feat: add OpenAI advanced scheduler controls`
+  - `728bb1bc` `feat(frontend): 支持账号数据拖拽和批量导入`
+  - `83455a3f` `fix(frontend): harden account data batch import`
+  - `2d2b6f03` `Update revokeDesc to allow subscription recovery`
+  - `ee90246a` `Modify revokeDesc for subscription termination`
+  - `6752cdc8` `fix(i18n): 用量页费用明细提示将面向用户的"成本"措辞统一为"费用"`
+  - `b408edf9` `fix(payment): convert subscription CNY pay amount`
+  - `0fd2e921` `fix(scheduler): 修复 OpenAI 高级调度器审计发现的正确性与性能问题`
+  - `8fab6369` `feat: complete batch image workflow`
+  - `5553d836` `fix: localize antigravity image mapping labels`
+- Scope:
+  - Synced OpenAI advanced scheduler controls and audit fixes, account data drag-and-drop/batch import hardening, subscription revoke wording updates, user-facing usage fee terminology, subscription CNY payment conversion, and full batch image workflow
+  - Synced Antigravity image mapping label localization
+- Merge notes:
+  - Resolved `frontend/src/components/admin/account/ImportDataModal.vue` by preserving local import target group selection while absorbing upstream multi-file drag/drop import, per-file validation, ignored-file warnings, and import refresh behavior
+  - Resolved `frontend/src/composables/useModelWhitelist.ts` by preserving already-absorbed Antigravity Gemini 3.1 `Pro-Agent` routing semantics while localizing the passthrough label to `透传`
+- Validation:
+  - Not run locally: this Windows environment currently has neither `go` nor `make` on PATH
