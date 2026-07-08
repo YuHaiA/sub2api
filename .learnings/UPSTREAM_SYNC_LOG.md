@@ -488,6 +488,36 @@
 - Validation:
   - Not run locally: this Windows environment currently has neither `go` nor `make` on PATH
 
+### Absorbed upstream batch `2026-07-08-q`
+
+- Source: `Wei-Shaw/sub2api`
+- Commits:
+  - `6ae5fc31` `fix(admin): gate scheduler score calculation`
+  - `a4f942d8` `fix(deps): 升级 AWS SDK 修复 govulncheck 报告的 GO-2026-5764`
+  - `d9e514f9` `refactor(i18n): 拆分 zh/en 语言包为域模块（深比较等价校验通过）`
+  - `084d26cb` `refactor(service): 纯移动拆分 gateway_service.go（7294→1289行）`
+  - `50043b11` `refactor(service): 纯移动拆分 setting_service.go（5471→263行）`
+  - `4d23ad4b` `refactor(service): 纯移动拆分 openai_gateway_service.go（4872→1095行）`
+  - `db3bd997` `refactor(repository): 纯移动拆分 usage_log_repo.go（4701→212行）`
+  - `d0f66933` `refactor(service): 纯移动拆分 openai_ws_forwarder.go（4675→399行）`
+  - `2a4c28e8` `refactor(service): 纯移动拆分 antigravity_gateway_service.go（4664→639行）`
+  - `f013bc11` `refactor(service): 纯移动拆分 admin_service.go（4409→642行）`
+  - `bb5d2e84` `refactor(handler): 纯移动拆分 setting_handler.go（3957→468行）`
+  - `d0bcaa8b` `test(i18n): 新增语言包 spread 组装键冲突守卫测试`
+  - `a56eb5b4` `fix(compact): body-signal 提升上移到 handler 层并对齐 path-based 链路`
+- Scope:
+  - Synced scheduler score opt-in gate, AWS SDK eventstream vulnerability fix, and compact body-signal handler-layer routing alignment
+  - Synced large pure-move file splits for i18n, gateway, settings, OpenAI gateway, usage logs, OpenAI WS forwarder, Antigravity gateway, admin service, and setting handler
+  - Added upstream i18n spread key-collision guard test
+- Merge notes:
+  - Resolved i18n split conflicts by migrating local account health/token refresh/bulk delete/import group/deploy tab/table page-size placeholder keys into the new `en/zh` domain modules; verified old full-object and new spread-object equality with a local Node deep-flatten comparison (`missing=0`, `changed=0` for both languages)
+  - Resolved `setting_service.go`, `openai_gateway_service.go`, and `openai_ws_forwarder.go` pure-move conflicts by adopting the slim split files after confirming moved logic exists in the new companion files
+  - Preserved fork-specific OpenAI guard behavior by migrating `guard.SanitizeReasoning`, `guard.ConfuseCodexMetadataLight`, and `guard.ApplySessionGovernance` into `backend/internal/service/openai_gateway_forward.go`
+- Validation:
+  - `git diff --check` passed during conflict resolution
+  - Local Node i18n object comparison passed for `en` and `zh`
+  - Not run locally: this Windows environment currently has neither `go` nor `make` on PATH
+
 ### Absorbed upstream batch `2026-07-08-o`
 
 - Source: `Wei-Shaw/sub2api`
