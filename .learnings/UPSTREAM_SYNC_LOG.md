@@ -487,3 +487,36 @@
   - Batch applied cleanly with no manual conflict resolution
 - Validation:
   - Not run locally: this Windows environment currently has neither `go` nor `make` on PATH
+
+### Absorbed upstream batch `2026-07-08-i`
+
+- Source: `Wei-Shaw/sub2api`
+- Commits:
+  - `aac3261c` `fix: convert grok image edit uploads`
+  - `71c16b72` `fix(test): correct passthrough failover assertions`
+  - `1034f576` `fix: 高峰倍率全链路透传、计费术语修正与边界处理`
+  - `a0eaf12a` `fix: test`
+  - `f5b29612` `fix: Handle invalid arguments correctly for Gemini reasoning models`
+  - `be26e6ff` `fix: test`
+  - `60da9ba1` `fix(frontend): refine grok icon, palette and i18n`
+  - `45be32b2` `fix: remove space lines`
+  - `e236bff1` `fix: aggregate user model stats by requested model`
+  - `98be187d` `chore: update sponsors`
+  - `7dc7cfce` `chore: sync VERSION to 0.1.142 [skip ci]`
+  - `0435417f` `fix: enable grok media generation groups`
+  - `9934bd25` `fix: default grok group media generation`
+  - `0ff93aca` `feat: add usage IP geolocation lookup`
+  - `b26dcc3d` `feat(subscription): 支持恢复已撤销订阅`
+  - `a5781fe3` `fix Claude Code stream keepalive stalls`
+  - `7869b7fe` `fix(anthropic): 支持 API Key Bearer 认证方式`
+  - `c797159b` `fix(openai): skip Codex image bridge injections for /responses/compact`
+  - `c4128580` `fix: handle OpenAI OAuth count_tokens scope errors`
+  - `dfb36e45` `show reset credit expiration`
+- Scope:
+  - Synced Grok image edit upload conversion, media generation group defaults, frontend Grok icon/palette/i18n polish, and requested-model usage aggregation
+  - Synced peak-rate full-path propagation and billing terminology fixes, Gemini reasoning invalid-argument handling, OpenAI compact response image-bridge skip, and count_tokens scope-error handling
+  - Added usage IP geolocation lookup, revoked subscription restoration, reset credit expiration display, Claude Code stream keepalive stability, and Anthropic API Key Bearer auth support
+- Merge notes:
+  - Batch applied cleanly with no manual conflict resolution
+- Validation:
+  - Not run locally: this Windows environment currently has neither `go` nor `make` on PATH
