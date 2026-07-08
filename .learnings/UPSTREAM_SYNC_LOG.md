@@ -553,3 +553,28 @@
   - Batch applied cleanly with no manual conflict resolution
 - Validation:
   - Not run locally: this Windows environment currently has neither `go` nor `make` on PATH
+
+### Absorbed upstream batch `2026-07-08-k`
+
+- Source: `Wei-Shaw/sub2api`
+- Commits:
+  - `a1b2b32e` `fix: prevent silent usage_logs drops under queue overflow (#3656)`
+  - `f385cdce` `feat: add Codex image tool strip policy`
+  - `ebbdc703` `feat(usage): 错误请求对齐用量明细(UI/排序/筛选/列设置)`
+  - `df2cedee` `fix: normalize antigravity gemini 3.1 pro routing`
+  - `e5dc1f59` `添加 token_expired 刷新不可重试判断`
+  - `a994fbd7` `feat: add batch image MVP`
+  - `b3f79697` `feat(anthropic): treat 7d_oi (Fable) window 429 as model-level rate limit`
+  - `be297b90` `refactor(frontend): merge Codex image bridge and tool policy into one four-state control`
+  - `6bd248fd` `fix(admin): avoid merging Codex access-only imports`
+  - `4dd3aee5` `fix(openai): use mapped billing model for responses`
+- Scope:
+  - Synced usage log queue overflow handling, Codex image tool strip policy, error-request usage detail alignment, Antigravity Gemini 3.1 Pro routing normalization, and non-retry handling for `token_expired`
+  - Added batch image MVP foundation, including Ent schema, migrations, services, queue/download limiter, handler wiring, cleanup/worker runtime, and documentation
+  - Synced Fable `7d_oi` model-level rate-limit handling, frontend Codex image control refactor, Codex access-only import protection, and mapped billing model use for OpenAI responses
+- Merge notes:
+  - Resolved `frontend/src/components/admin/usage/UsageFilters.vue` by keeping local compact grid classes while adding upstream `errors` mode visibility rules and error-specific filters
+  - Resolved `frontend/src/components/common/DataTable.vue` by preserving local `table-row`/slate hover styling while adding upstream clickable row cursor and `rowClick` emission
+  - Resolved `backend/cmd/server/wire_gen.go` by preserving existing scheduler/account/concurrency initialization order, adding batch image repository/queue/download limiter providers, and removing a stale duplicate `tokenRefreshService` initialization in favor of the current `grokOAuthService` signature
+- Validation:
+  - Not run locally: this Windows environment currently has neither `go` nor `make` on PATH
