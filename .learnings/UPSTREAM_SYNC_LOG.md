@@ -520,3 +520,36 @@
   - Batch applied cleanly with no manual conflict resolution
 - Validation:
   - Not run locally: this Windows environment currently has neither `go` nor `make` on PATH
+
+### Absorbed upstream batch `2026-07-08-j`
+
+- Source: `Wei-Shaw/sub2api`
+- Commits:
+  - `5fe4ee1d` `style(test): gofmt oauth passthrough tests`
+  - `d0b8760e` `fix: preserve OpenAI plan type from inactive workspaces`
+  - `df59b8b9` `fix: persist OpenAI subscription expiration`
+  - `5436d0bf` `feat(admin): add group column settings`
+  - `99a8d8ad` `fix: normalize grok imagine image alias`
+  - `089a7b7f` `feat(keys): add api key concurrency stats`
+  - `11a3da65` `fix(group): harden peak-rate config handling and label peak windows with server timezone`
+  - `fa70a721` `test(keys): update api key contract concurrency field`
+  - `41af8e8e` `chore: update sponsors`
+  - `0b8e5eec` `chore: sync VERSION to 0.1.143 [skip ci]`
+  - `37243632` `修复邀请码普通兑换错误`
+  - `3f2ef604` `fix: optimize ops realtime account stats`
+  - `72ccd1b1` `fix: batch group capacity summaries`
+  - `a5638a4e` `fix: match Codex session imports by chatgpt_user_id before shared account id`
+  - `36d5f4e4` `feat: make setup migration timeout configurable`
+  - `2b462b07` `fix: preserve configured Grok OAuth concurrency`
+  - `d0a1443a` `fix(antigravity): allow oauth 401 auto recovery`
+  - `c620ad6a` `fix: align group capacity SQL with target schema`
+  - `b2687b22` `fix(frontend): edit grok oauth model mapping`
+  - `f3a3a08` `优化并发槽位清理`
+- Scope:
+  - Synced OpenAI plan/subscription persistence, group column settings, API key concurrency stats, peak-rate server-timezone labeling, and Grok image alias/model-mapping fixes
+  - Synced redeem code ordinary redemption fix, ops realtime account stats optimization, batched group capacity summaries, configurable setup migration timeout, Antigravity OAuth 401 auto-recovery, and concurrency slot cleanup
+  - Synced Codex session import matching by `chatgpt_user_id` before shared account id
+- Merge notes:
+  - Batch applied cleanly with no manual conflict resolution
+- Validation:
+  - Not run locally: this Windows environment currently has neither `go` nor `make` on PATH
