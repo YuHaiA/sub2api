@@ -315,9 +315,9 @@ describe('PaymentView subscription confirmation amounts', () => {
     })
 
     const text = wrapper.text()
-    const convertedPrice = formatPaymentAmount(71.43, 'CNY')
-    const fee = formatPaymentAmount(1.79, 'CNY')
-    const total = formatPaymentAmount(73.22, 'CNY')
+    const convertedPrice = formatPaymentAmount(57.13, 'CNY')
+    const fee = formatPaymentAmount(1.43, 'CNY')
+    const total = formatPaymentAmount(58.56, 'CNY')
 
     expect(text).toContain(convertedPrice)
     expect(text).toContain(fee)
