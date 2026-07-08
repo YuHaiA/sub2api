@@ -525,6 +525,40 @@
   - `git diff --check` passed during conflict resolution
   - Not run locally: this Windows environment currently has neither `go` nor `make` on PATH
 
+### Absorbed upstream batch `2026-07-08-p`
+
+- Source: `Wei-Shaw/sub2api`
+- Commits:
+  - `83d7b0e4` `fix: isolate duplicate item integration test`
+  - `438f17be` `fix(openai): avoid compact usage loss from json sse heuristic`
+  - `867616fc` `fix(websearch): 剥离历史消息中上游不接受的 web search 块`
+  - `40c563c4` `fix(gateway): 记录请求体解析失败的真实原因，不再吞错`
+  - `156e1733` `chore: update sponsors`
+  - `e979990b` `add force priority fast policy action`
+  - `17b6481f` `chore: update sponsors`
+  - `fd64d07e` `fix(codex): 剥离续链 function_call item 的非法 item_* id`
+  - `c10ae9f9` `chore: remove batch image draft reports`
+  - `3b209935` `fix: route text-only grok video requests`
+  - `a02700c1` `fix(image): 识别 Codex namespace image_gen 工具声明以拦截生图请求`
+  - `5c0e580f` `fix(messages): /v1/messages 入站支持不兼容 Responses API 的 OpenAI 上游`
+  - `69d02d20` `fix: 补齐 failover 路径的 appendOpsUpstreamError 日志`
+  - `80a229bc` `fix(batch-image): 修复审计发现的计费死锁、状态机与队列原子性缺陷`
+  - `b5604afd` `test(batch-image): 集成测试适配 ReplaceBatchImageItemsForJob 的 indexing 状态守卫`
+  - `dad92488` `fix(messages): 修复 /v1/messages CC 回退的错误处理旁路并补齐流式测试`
+  - `c7e44a83` `fix(frontend): 路由切换后保持侧边栏滚动位置`
+  - `a86c534c` `test: 补充侧边栏滚动位置持久化的前端测试`
+  - `2dd2be99` `fix(compact): 识别 /v1/responses body 中的 compaction_trigger 信号`
+  - `d754be0d` `refactor(gateway): 抽取 CC forwarder 公共管线并拆分两大 service 文件`
+- Scope:
+  - Synced compact usage preservation, compact body signal routing, web-search block filtering, request body parse error logging, force-priority fast policy action, and Codex function_call/image namespace handling
+  - Synced Grok text-only video routing, OpenAI `/v1/messages` chat fallback support, failover upstream-error logging, frontend sidebar scroll position persistence, and sponsor/report maintenance
+  - Synced batch image audit hardening around billing deadlocks, state machine/queue atomicity, and indexing-status integration tests
+  - Synced gateway CC forwarder common pipeline extraction and service file split
+- Merge notes:
+  - No manual conflicts in this batch; all commits cherry-picked cleanly or auto-merged by Git
+- Validation:
+  - Not run locally: this Windows environment currently has neither `go` nor `make` on PATH
+
 ### Absorbed upstream batch `2026-07-08-i`
 
 - Source: `Wei-Shaw/sub2api`
