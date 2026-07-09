@@ -1,5 +1,5 @@
 <template>
-  <div class="card p-5">
+  <div :class="flat ? 'p-4 sm:p-6' : 'card p-5'">
     <div class="space-y-4">
       <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(220px,1.15fr)_minmax(220px,1fr)_minmax(200px,0.95fr)_minmax(200px,0.95fr)] 2xl:grid-cols-[minmax(220px,1.15fr)_minmax(220px,1fr)_minmax(200px,0.95fr)_minmax(200px,0.95fr)_minmax(180px,0.8fr)_minmax(180px,0.8fr)]">
         <!-- User Search -->
@@ -131,8 +131,8 @@
           <Select v-model="filters.billing_type" :options="billingTypeOptions" @change="emitChange" />
         </div>
 
-        <!-- Billing Mode Filter (usage only) -->
-        <div v-if="mode !== 'errors'" class="min-w-0">
+        <!-- Billing Mode Filter (usage only；用户排行的 user-breakdown 接口不支持该维度) -->
+        <div v-if="mode === 'usage'" class="min-w-0">
           <label class="input-label">{{ t('admin.usage.billingMode') }}</label>
           <Select v-model="filters.billing_mode" :options="billingModeOptions" @change="emitChange" />
         </div>
@@ -170,7 +170,7 @@
           {{ t('common.reset') }}
         </button>
         <slot name="after-reset" />
-        <template v-if="mode !== 'errors'">
+        <template v-if="mode === 'usage'">
           <button type="button" @click="$emit('cleanup')" class="btn btn-danger">
             {{ t('admin.usage.cleanup.button') }}
           </button>
@@ -200,13 +200,19 @@ interface Props {
   endDate: string
   showActions?: boolean
   modelOptions?: string[]
-  /** errors 模式:隐藏用量专属字段/按钮,显示错误类型+状态码(错误请求 tab 用) */
-  mode?: 'usage' | 'errors'
+  /**
+   * errors 模式:隐藏用量专属字段/按钮,显示错误类型+状态码(错误请求 tab 用)
+   * ranking 模式:同 usage 但隐藏计费模式筛选与清理/导出按钮(用户排行 tab 用)
+   */
+  mode?: 'usage' | 'errors' | 'ranking'
+  /** 嵌入统一卡片内使用：去掉自身卡片外观 */
+  flat?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   showActions: true,
-  mode: 'usage'
+  mode: 'usage',
+  flat: false
 })
 const emit = defineEmits([
   'update:modelValue',
@@ -481,4 +487,13 @@ onMounted(async () => {
 onUnmounted(() => {
   document.removeEventListener('click', onDocumentClick)
 })
+
+// 供外部(如用户排行下钻)在程序化设置 user_id 后回显选中的用户邮箱
+const setUserKeyword = (email: string) => {
+  userKeyword.value = email
+  userResults.value = []
+  showUserDropdown.value = false
+}
+
+defineExpose({ setUserKeyword })
 </script>
