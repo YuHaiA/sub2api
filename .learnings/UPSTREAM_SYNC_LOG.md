@@ -896,3 +896,32 @@
   - Batch applied cleanly with no manual conflict resolution.
 - Validation:
   - Not run locally: this Windows environment currently has neither `go`, `gofmt`, nor `make` on PATH.
+
+### Absorbed upstream batch `2026-07-11-f`
+
+- Source: `Wei-Shaw/sub2api`
+- Upstream head at fetch: `e316ebf52838`
+- Commits:
+  - `f2966530` `feat(openai): 支持用户级 Fast/Flex 策略`
+  - `0fa1eb85` `fix(grok): preserve compatible reasoning effort`
+  - `5a0dd510` `fix(grok): remove obsolete helper`
+  - `79423383` `fix(apicompat): 回程还原 namespace 子工具调用，修复 Codex MCP 工具 unsupported call`
+  - `f1082bb7` `fix(apicompat): namespace 摊平名撞名时显式拒绝请求`
+  - `8a51119e` `fix(openai): pair originator with final User-Agent for codex upstream`
+  - `0d28f7f9` `fix(apicompat): Responses↔Anthropic 转换补齐 cache_creation_input_tokens`
+  - `83f169e4` `fix(apicompat): 补齐 Responses→Anthropic 流式路径的 cache_creation_input_tokens`
+  - `89a551b9` `fix(handler): opsCaptureWriter 释放后访问 nil panic`
+  - `bc3cb290` `fix(handler): 补齐 opsCaptureWriter 全部委托方法的 nil 守卫`
+  - `a2cdaa64` `fix(apicompat): 内置 tool_search 与同名工具撞名时显式拒绝请求`
+  - `e2b68d1f` `fix(apicompat): tool_choice 仅转发实际存在于转换结果中的工具`
+  - `90e9d03d` `fix(apicompat): 强制选择 tool_search 的 tool_choice 降级为指向代理的 function 选择`
+  - `6c588bb9` `chore: sync VERSION to 0.1.151 [skip ci]`
+- Scope:
+  - Synced user-level OpenAI Fast/Flex policy support, Grok compatible reasoning-effort preservation, and obsolete Grok helper cleanup.
+  - Synced Codex MCP namespace tool round-trip restoration, namespace collision rejection, Codex upstream request identity pairing, Anthropic cache-creation token mapping, and `tool_search` collision/tool-choice hardening.
+  - Synced ops capture writer nil guards and VERSION 0.1.151.
+- Merge notes:
+  - Resolved `backend/internal/service/openai_gateway_messages_chat_fallback.go` by adapting the new `ChatCompletionsResponseToResponses` signature with `nil, false, nil` for the `/v1/messages` chat fallback path, where no original Responses tool declaration context is available.
+- Validation:
+  - `git diff --check` passed during conflict resolution.
+  - Not run locally: this Windows environment currently has neither `go`, `gofmt`, nor `make` on PATH.
