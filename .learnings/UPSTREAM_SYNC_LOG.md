@@ -777,3 +777,34 @@
 - Validation:
   - `git diff --check` passed during conflict resolution.
   - Not run locally: this Windows environment currently has neither `go`, `gofmt`, nor `make` on PATH.
+
+### Absorbed upstream batch `2026-07-11-b`
+
+- Source: `Wei-Shaw/sub2api`
+- Upstream head at fetch: `e316ebf52838`
+- Commits:
+  - `890cc2bb` `fix: clarify Grok media pricing controls`
+  - `4d702e32` `fix: split Grok image and video pricing`
+  - `376e03de` `fix: update Grok media default rate card`
+  - `889b6574` `test: accept casted video billing constraint`
+  - `3b206cc6` `test: preserve grok video resolution forwarding`
+  - `e0d149d5` `feat(api-key): show last used IP`
+  - `7a11b39d` `fix(api-key): check usage log rows close`
+  - `5debe1db` `feat(keys): sort by current concurrency`
+  - `4a303976` `fix: prevent channel pricing overrides from mutating shared fallback pricing`
+  - `88581912` `test: add regression tests for fallback pricing pollution`
+  - `29a5fcd2` `fix(gateway,frontend): 修复鉴权绕过与前端支付/会话缺陷`
+  - `4e5be8f7` `fix(crs-sync): raise frontend sync timeout to 180s`
+  - `bfb827b8` `fix(security): HTML-escape site_name 并对 doc_url 统一应用 sanitizeUrl`
+  - `53a5c45b` `fix(gateway): cap lenient json normalization`
+  - `54859022` `feat: show used quota in groups list`
+- Scope:
+  - Synced Grok media pricing split/default-rate updates and video billing regression coverage.
+  - Synced API key last-used IP display, current-concurrency sorting, usage-log row close handling, and group used-quota display.
+  - Synced fallback pricing pollution guard, gateway/frontend auth and payment/session hardening, CRS sync timeout increase, HTML/doc URL sanitization, and lenient JSON normalization caps.
+- Merge notes:
+  - Resolved `backend/internal/repository/api_key_repo.go` by keeping both local last-used-IP lookup helpers and upstream `ListAllByUserID` support used by current-concurrency sorting.
+  - Resolved `frontend/src/views/KeyUsageView.vue` by accepting upstream `docUrl` sanitization while preserving the fork-specific GitHub URL `https://github.com/YuHaiA/sub2api`.
+- Validation:
+  - `git diff --check` passed during conflict resolution.
+  - Not run locally: this Windows environment currently has neither `go`, `gofmt`, nor `make` on PATH.
