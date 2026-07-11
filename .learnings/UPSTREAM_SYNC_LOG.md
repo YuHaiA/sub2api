@@ -867,3 +867,32 @@
 - Validation:
   - `git diff --check` passed during conflict resolution.
   - Not run locally: this Windows environment currently has neither `go`, `gofmt`, nor `make` on PATH.
+
+### Absorbed upstream batch `2026-07-11-e`
+
+- Source: `Wei-Shaw/sub2api`
+- Upstream head at fetch: `e316ebf52838`
+- Commits:
+  - `ae9a01d8` `fix(compact): 二轮审计加固——心跳字节不得污染 failover 判定与并发写安全`
+  - `5c15d32f` `test(repository): stabilize expired lock reconciliation`
+  - `000f6dc6` `fix(compact): 终态 output 非空但缺 compaction 时从事件流补入（146 等价性收尾）`
+  - `80b3d4c1` `fix: 兼容 GPT-5.6 max 推理强度`
+  - `e984b4e2` `fix(i18n): 补齐 en 语言包 overview 和 resources 缺失 key`
+  - `fc66a30f` `fix: harden billing concurrency and payment recovery`
+  - `c3ae5fc3` `fix(usage): effort 提取改用模型候选列表，修复后缀模型元数据丢失`
+  - `dda8f787` `fix(admin): GetUserBreakdown 使用 ParseUsageRequestType 解析 request_type`
+  - `b9b013a0` `fix(usage): WS passthrough effort 提取补入映射后模型候选`
+  - `ea9f40b6` `fix(frontend): UserBreakdownParams.request_type 类型从 number 改为 UsageRequestType`
+  - `0dec1ad2` `fix(service): 消除 isOpenAIGPT56Model 重复声明，统一到 openai_model_alias.go`
+  - `9a2f11b4` `chore: sync VERSION to 0.1.150 [skip ci]`
+  - `a495d5e3` `test: 更新断言以覆盖 setup-token 纳入后台刷新`
+  - `d3a1835e` `fix(image): strip Codex image_gen namespace declarations`
+  - `de28eba3` `fix(openai): harden GPT-5.6 billing and usage`
+- Scope:
+  - Synced compact audit hardening, expired-lock reconciliation test stabilization, terminal-output compaction recovery, GPT-5.6 `max` reasoning effort compatibility, and English locale key fixes.
+  - Synced billing concurrency/payment recovery hardening, usage effort extraction via model candidates, user-breakdown request type parsing, WS passthrough effort extraction, and request type frontend typing.
+  - Synced GPT-5.6 alias consolidation, VERSION 0.1.150, setup-token refresh assertion updates, Codex `image_gen` namespace stripping, and GPT-5.6 billing/usage hardening.
+- Merge notes:
+  - Batch applied cleanly with no manual conflict resolution.
+- Validation:
+  - Not run locally: this Windows environment currently has neither `go`, `gofmt`, nor `make` on PATH.
