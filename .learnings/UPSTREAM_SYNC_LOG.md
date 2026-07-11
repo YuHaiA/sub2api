@@ -752,3 +752,28 @@
   - Resolved affected backend/frontend payment tests to cover configured-rate conversion, disabled-rate direct price behavior, non-CNY direct price behavior, and fee calculation after conversion
 - Validation:
   - Not run locally: this Windows environment currently has neither `go` nor `make` on PATH
+
+### Absorbed upstream batch `2026-07-11-a`
+
+- Source: `Wei-Shaw/sub2api`
+- Upstream head at fetch: `e316ebf52838`
+- Commits:
+  - `5fcbe7e3` `Add response_format compatibility mapping`
+  - `e2326a79` `Format response format types`
+  - `2a3dcb49` `fix(scheduler): 空 model_mapping 的 OpenAI OAuth 账号不再吸收全部模型`
+  - `9b75c7b7` `fix(scheduler): 改用异族厂商前缀黑名单，兼容渠道级模型映射`
+  - `fa01aec8` `fix: 前缀全部加连字符，与 thinking_protocol.go 风格对齐`
+  - `75fb3c41` `fix(apicompat): responses→chat 桥支持 custom 工具，修复 Codex exec 丢失`
+  - `27e29f05` `feat(apicompat): 添加 tool_search 支持，增强工具调用处理逻辑`
+  - `13e773ef` `feat: Codex 客户端模型清单（manifest）透传接口`
+  - `3866da50` `fix(ratelimit): Anthropic 无 reset 头的 429 也进入兜底冷却`
+  - `5aba53d5` `fix(ops): 记录固化 200 SSE 流上的就地错误，修复流内限流不进错误看板`
+- Scope:
+  - Synced Responses API compatibility for `response_format`, custom/freeform tools, `tool_search`, namespace-style tool bridging, string tool declarations, and Codex manifest passthrough.
+  - Synced OpenAI OAuth scheduler model-support hardening so empty mappings no longer absorb all models and cross-provider prefix filtering supports channel-level mappings.
+  - Synced Anthropic fallback cooldown behavior for 429 responses without reset headers and ops capture for in-stream SSE errors on finalized 200 responses.
+- Merge notes:
+  - Resolved `backend/internal/service/openai_gateway_responses_chat_fallback.go` by preserving local `readCCUpstreamJSONResponse`, `newStreamHeaderWriter`, and `scanCCStream` pipeline helpers while wiring upstream `customTools` and `toolSearch` flags into non-stream and streaming Responses conversion.
+- Validation:
+  - `git diff --check` passed during conflict resolution.
+  - Not run locally: this Windows environment currently has neither `go`, `gofmt`, nor `make` on PATH.
