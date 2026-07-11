@@ -837,3 +837,33 @@
   - Batch applied cleanly with no manual conflict resolution.
 - Validation:
   - Not run locally: this Windows environment currently has neither `go`, `gofmt`, nor `make` on PATH.
+
+### Absorbed upstream batch `2026-07-11-d`
+
+- Source: `Wei-Shaw/sub2api`
+- Upstream head at fetch: `e316ebf52838`
+- Commits:
+  - `feef0bc0` `chore: update sponsors`
+  - `7918b1a9` `fix: 落实 #3867-#3870 合并审计的全部跟进项`
+  - `1a3cc2a7` `refactor: 重新设计用量页布局并新增延迟健康列`
+  - `16c0613b` `fix(compact): body-signal 客户端流式请求的响应合成回 SSE`
+  - `1c2e6503` `feat: 版本徽章新增近3个历史版本在线回退与手动回退指引`
+  - `92b283d9` `fix: 修复 SSE 桥接 appendEvent 中 errcheck 告警`
+  - `ad8afc8a` `Add parallel_tool_calls compatibility mapping`
+  - `12d811bd` `chore: sync VERSION to 0.1.149 [skip ci]`
+  - `99da3081` `fix: 后台自动刷新纳入 setup-token 账号`
+  - `4a2b10c9` `feat(openai): support GPT-5.6 cache write billing`
+  - `383f61d0` `fix(openai): align GPT-5.6 billing with official pricing`
+  - `657c4f97` `fix(openai): 升级 Codex 客户端版本至 0.144.1，修复 gpt-5.6-luna 404`
+  - `2cffe1cf` `fix(compact): SSE→JSON 保留 raw output_item.done 并为 unary 等待补下游心跳（修复 #3887）`
+  - `062af81f` `fix(openai): preserve explicit GPT-5.6 cache write prices`
+  - `0a5f34a2` `fix(openai): recognize Windows websocket resets`
+- Scope:
+  - Synced sponsor updates, audit follow-ups, redesigned admin usage layout with latency health, compact body-signal streaming SSE synthesis, and version-badge rollback guidance.
+  - Synced `parallel_tool_calls` compatibility, setup-token background refresh inclusion, GPT-5.6 cache-write billing/official pricing alignment, Codex client version 0.144.1, compact SSE keepalive/raw output preservation, and Windows websocket reset handling.
+- Merge notes:
+  - Resolved `frontend/src/components/admin/usage/UsageFilters.vue` by preserving the fork's compact grid layout while adding upstream `flat` embedding support and hiding `billing_mode` outside `usage` mode.
+  - Resolved `backend/internal/server/routes/admin.go` and `frontend/src/api/admin/system.ts` by preserving fork-specific fixed `docker-deploy` deploy APIs while adding upstream rollback-version listing and optional-version rollback support.
+- Validation:
+  - `git diff --check` passed during conflict resolution.
+  - Not run locally: this Windows environment currently has neither `go`, `gofmt`, nor `make` on PATH.
