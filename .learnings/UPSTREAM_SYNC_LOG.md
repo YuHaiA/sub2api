@@ -808,3 +808,32 @@
 - Validation:
   - `git diff --check` passed during conflict resolution.
   - Not run locally: this Windows environment currently has neither `go`, `gofmt`, nor `make` on PATH.
+
+### Absorbed upstream batch `2026-07-11-c`
+
+- Source: `Wei-Shaw/sub2api`
+- Upstream head at fetch: `e316ebf52838`
+- Commits:
+  - `25a71696` `chore: Go 工具链升级 1.26.4 → 1.26.5——修复 stdlib 漏洞并补齐 CI 版本引用`
+  - `cccba9a8` `Add official Grok 4.5 support`
+  - `17855098` `fix(apicompat): ResponsesToAnthropicRequest 补全 instructions 字段并映射 developer role`
+  - `d4952154` `fix: bill Grok video per second and harden video usage logging`
+  - `7468427e` `fix(messages): /v1/messages 传输层错误对齐 failover 链路，不再直接 502`
+  - `243678e1` `Fix Grok 4.5 alias test expectations`
+  - `104fd2b6` `fix(messages): /v1/messages 非 cyber response.failed 补全 failover 和错误回写`
+  - `15c59be7` `fix(frontend): 补齐 en 语言包缺失 key 并对 site_logo 统一应用 sanitizeUrl`
+  - `b480545c` `fix: improve Grok OAuth, image, and usage flows`
+  - `1a0a6ea9` `fix: stabilize Grok quota probe model`
+  - `1da3501a` `fix: apply error passthrough to OpenAI response.failed streams`
+  - `64fdc11e` `feat(admin): 用户创建/编辑支持选择与修改角色 (user/admin)`
+  - `b062b366` `feat(admin): 用量记录页新增"用户 Token 排行"面板`
+  - `8f97953e` `fix(gateway): SSE response.failed 应用错误透传规则，不再硬编码 502`
+  - `0ee51b45` `chore: sync VERSION to 0.1.147 [skip ci]`
+- Scope:
+  - Synced Go toolchain and CI references to 1.26.5, official Grok 4.5 support, Grok video per-second billing, and Grok OAuth/image/usage hardening.
+  - Synced Messages and OpenAI response.failed failover/error-passthrough fixes, Responses→Anthropic instruction/developer-role mapping, and frontend logo/doc URL sanitization follow-up.
+  - Added admin user role create/edit support, user token ranking on usage records, and VERSION 0.1.147.
+- Merge notes:
+  - Batch applied cleanly with no manual conflict resolution.
+- Validation:
+  - Not run locally: this Windows environment currently has neither `go`, `gofmt`, nor `make` on PATH.
