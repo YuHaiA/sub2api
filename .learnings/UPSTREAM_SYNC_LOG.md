@@ -925,3 +925,35 @@
 - Validation:
   - `git diff --check` passed during conflict resolution.
   - Not run locally: this Windows environment currently has neither `go`, `gofmt`, nor `make` on PATH.
+
+### Absorbed upstream batch `2026-07-22-a`
+
+- Source: `Wei-Shaw/sub2api`
+- Upstream head at fetch: `60013c5f100b`
+- Commits:
+  - `0464856c4` `feat(frontend): Fast/Flex 策略支持搜索选择用户`
+  - `4d4ba64bf` `fix(codex): 剥离续链 message item 的非法 item_* id`
+  - `6e2bb3128` `fix(service): guard compact keepalive writer delegates`
+  - `84bb7d070` `fix: 保留 remote_compaction_v2 原生 Responses 链路`
+  - `51de58b37` `fix: normalize GPT-5.6 alias in OpenAI OAuth account tests`
+  - `94a22b62f` `fix(frontend): 小数据量关闭 DataTable 虚拟化并按行主键缓存行高,消除账号列表滚动抖动`
+  - `80b7a8d4c` `perf(keys): bound latest IP lookup per key`
+  - `1c02158c2` `perf(migrations): index latest API key IP lookups`
+  - `c56a64fab` `feat(account): 账号编辑弹窗支持手动覆盖 OpenAI 订阅档位 plan_type(仅 OAuth)`
+  - `0478fd366` `feat(grok): enable free OAuth prompt caching`
+  - `52071d391` `fix(openai): 转发 Codex alpha/search 独立搜索端点`
+  - `1dedb2097` `fix(grok): persist quota exhaustion as rate limit`
+  - `d5b47c214` `fix(openai): restore Codex identity for OAuth Messages`
+  - `5015b7a1c` `修复 tool_search 参数对象反序列化`
+  - `06af8115f` `修复 compact 心跳 writer 生命周期`
+- Scope:
+  - Synced Fast/Flex user search, Codex message item id sanitization, compact keepalive writer guards, and remote_compaction_v2 native Responses path.
+  - Synced GPT-5.6 OAuth test alias normalization, DataTable virtualization threshold/row-key height cache, API key last-IP lookup indexing, and OpenAI plan_type manual override for OAuth accounts.
+  - Synced Grok free OAuth prompt caching, quota-exhaustion rate-limit persistence, Codex alpha/search forwarding, OAuth Messages Codex identity restoration, tool_search arg deserialization, and compact heartbeat writer lifecycle fix.
+- Merge notes:
+  - Resolved `frontend/src/components/common/DataTable.vue` by taking upstream `renderRows` virtualization threshold path while preserving the fork's `table-row` + slate hover styling.
+  - Resolved `backend/internal/service/openai_gateway_grok_test.go` by keeping both fork Grok CLI version / api_key assertions and upstream Codex-identity isolation checks.
+- Validation:
+  - `git diff --check` reports only an inherited trailing blank line in `frontend/src/components/account/__tests__/credentialsBuilder.spec.ts` from the plan_type commit; no conflict-marker issues.
+  - Not run locally: this Windows environment currently has neither `go`, `gofmt`, nor `make` on PATH.
+
