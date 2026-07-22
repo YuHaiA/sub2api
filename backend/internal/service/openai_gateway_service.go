@@ -357,12 +357,14 @@ type OpenAIGatewayService struct {
 	openaiWSPoolOnce              sync.Once
 	openaiWSStateStoreOnce        sync.Once
 	openaiSchedulerOnce           sync.Once
+	openaiProxyStreamCircuitOnce  sync.Once
 	openaiWSPassthroughDialerOnce sync.Once
 	openaiWSPool                  *openAIWSConnPool
 	openaiWSStateStore            OpenAIWSStateStore
 	openaiScheduler               OpenAIAccountScheduler
 	openaiWSPassthroughDialer     openAIWSClientDialer
 	openaiAccountStats            *openAIAccountRuntimeStats
+	openaiProxyStreamCircuit      *openAIProxyStreamCircuit
 
 	openaiWSFallbackUntil               sync.Map // key: int64(accountID), value: time.Time
 	openaiAccountRuntimeBlockUntil      sync.Map // key: int64(accountID), value: time.Time

@@ -161,6 +161,9 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 		}
 	}
 	finalizeStream := func() (*openaiStreamingResult, error) {
+		if sawTerminalEvent && !sawFailedEvent {
+			s.clearOpenAIProxyStreamDisconnect(account)
+		}
 		if !sawTerminalEvent {
 			if !openAIStreamClientOutputStarted(c, clientOutputStarted) {
 				return resultWithUsage(), s.newOpenAIStreamFailoverError(
@@ -171,6 +174,9 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 					nil,
 					"OpenAI stream ended before a terminal event",
 				)
+			}
+			if !clientDisconnected {
+				s.recordOpenAIProxyStreamDisconnect(account, errors.New("stream ended before terminal event"), upstreamRequestID)
 			}
 			return resultWithUsage(), fmt.Errorf("stream usage incomplete: missing terminal event")
 		}
@@ -194,6 +200,7 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 			return nil, nil, false
 		}
 		if sawTerminalEvent && !sawFailedEvent {
+			s.clearOpenAIProxyStreamDisconnect(account)
 			logger.LegacyPrintf("service.openai_gateway", "Upstream scan ended after terminal event: %v", scanErr)
 			return resultWithUsage(), nil, true
 		}
@@ -221,6 +228,7 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 		if clientDisconnected {
 			return resultWithUsage(), fmt.Errorf("stream usage incomplete after disconnect: %w", scanErr), true
 		}
+		s.recordOpenAIProxyStreamDisconnect(account, scanErr, upstreamRequestID)
 		sendErrorEvent("stream_read_error")
 		return resultWithUsage(), fmt.Errorf("stream read error: %w", scanErr), true
 	}
