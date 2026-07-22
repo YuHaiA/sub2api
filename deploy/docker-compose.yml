@@ -45,9 +45,10 @@ services:
       # Server Configuration
       # =======================================================================
       - SERVER_HOST=0.0.0.0
-      - SERVER_PORT=8080
-      - SERVER_MODE=${SERVER_MODE:-release}
-      - RUN_MODE=${RUN_MODE:-standard}
+	  - SERVER_PORT=8080
+	  - SERVER_MODE=${SERVER_MODE:-release}
+	  - RUN_MODE=${RUN_MODE:-standard}
+	  - ALIPAY_MOBILE_PRECREATE_DEEP_LINK=${ALIPAY_MOBILE_PRECREATE_DEEP_LINK:-}
 
       # =======================================================================
       # Database Configuration (PostgreSQL)
