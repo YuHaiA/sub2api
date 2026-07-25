@@ -168,6 +168,10 @@ func (r *contentModerationTestUserRepo) Create(ctx context.Context, user *User) 
 	panic("unexpected Create call")
 }
 
+func (r *contentModerationTestUserRepo) CreateWithEmailAliasGuard(ctx context.Context, user *User) error {
+	panic("unexpected CreateWithEmailAliasGuard call")
+}
+
 func (r *contentModerationTestUserRepo) GetByID(ctx context.Context, id int64) (*User, error) {
 	if r.user == nil {
 		return nil, ErrUserNotFound
@@ -252,6 +256,10 @@ func (r *contentModerationTestUserRepo) BatchAddConcurrency(ctx context.Context,
 
 func (r *contentModerationTestUserRepo) ExistsByEmail(ctx context.Context, email string) (bool, error) {
 	panic("unexpected ExistsByEmail call")
+}
+
+func (r *contentModerationTestUserRepo) ExistsByEmailAlias(ctx context.Context, email string) (bool, error) {
+	panic("unexpected ExistsByEmailAlias call")
 }
 
 func (r *contentModerationTestUserRepo) RemoveGroupFromAllowedGroups(ctx context.Context, groupID int64) (int64, error) {
