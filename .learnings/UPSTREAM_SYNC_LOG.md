@@ -996,6 +996,7 @@
   - Restored pre-cancel checks before compatible-request account selection.
   - Reset Cloudflare challenge backoff at the exact idle-window boundary.
   - Aligned Grok and token-refresh assertions with the reconciled production behavior.
+  - Removed the orphaned durable auth-cache outbox migration/test from the simple-mode change; this fork keeps service-level cache invalidation, and auth snapshot version 18 invalidates entries predating the Grok default image-access backfill.
 - Validation:
   - `go test -tags=unit ./... -count=1` passed.
   - `go build ./...` passed.

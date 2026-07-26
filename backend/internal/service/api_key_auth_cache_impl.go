@@ -14,7 +14,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-const apiKeyAuthSnapshotVersion = 17 // v17: include the OpenAI group Live gate
+const apiKeyAuthSnapshotVersion = 18 // v18: invalidate snapshots predating the Grok default image-access backfill
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
