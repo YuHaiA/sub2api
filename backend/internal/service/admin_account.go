@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/http"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -69,6 +71,8 @@ func normalizeAccountConcurrency(platform, accountType string, concurrency int) 
 }
 
 func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccountInput) (*Account, error) {
+	accountExtra := maps.Clone(input.Extra)
+
 	// 绑定分组
 	groupIDs := input.GroupIDs
 	// 如果没有指定分组,自动绑定对应平台的默认分组
@@ -92,54 +96,9 @@ func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccou
 		}
 	}
 
-func buildAccountForCreate(input *CreateAccountInput, accountExtra map[string]any) (*Account, error) {
-	// Probe/session state is system-managed. New accounts always start with automatic refresh disabled.
-	delete(accountExtra, UpstreamBillingProbeEnabledExtraKey)
-	delete(accountExtra, UpstreamBillingProbeExtraKey)
-	delete(accountExtra, OllamaCloudUsageSessionExtraKey)
-	delete(accountExtra, OllamaCloudUsageAutoRefreshExtraKey)
-	delete(accountExtra, OllamaCloudUsageSnapshotExtraKey)
-	account := &Account{
-		Name:        input.Name,
-		Notes:       normalizeAccountNotes(input.Notes),
-		Platform:    input.Platform,
-		Type:        input.Type,
-		Credentials: input.Credentials,
-		Extra:       input.Extra,
-		ProxyID:     input.ProxyID,
-		Concurrency: normalizeAccountConcurrency(input.Platform, input.Type, input.Concurrency),
-		Priority:    input.Priority,
-		Status:      StatusActive,
-		Schedulable: true,
-	}
-	// 预计算固定时间重置的下次重置时间
-	if account.Extra != nil {
-		if err := ValidateQuotaResetConfig(account.Extra); err != nil {
-			return nil, err
-		}
-		ComputeQuotaResetAt(account.Extra)
-		NormalizeFixedQuotaWindows(account.Extra)
-	}
-	if input.ExpiresAt != nil && *input.ExpiresAt > 0 {
-		expiresAt := time.Unix(*input.ExpiresAt, 0)
-		account.ExpiresAt = &expiresAt
-	}
-	if input.AutoPauseOnExpired != nil {
-		account.AutoPauseOnExpired = *input.AutoPauseOnExpired
-	} else {
-		account.AutoPauseOnExpired = true
-	}
-	if input.RateMultiplier != nil {
-		if *input.RateMultiplier < 0 {
-			return nil, errors.New("rate_multiplier must be >= 0")
-		}
-		account.RateMultiplier = input.RateMultiplier
-	}
-	if input.LoadFactor != nil && *input.LoadFactor > 0 {
-		if *input.LoadFactor > 10000 {
-			return nil, errors.New("load_factor must be <= 10000")
-		}
-		account.LoadFactor = input.LoadFactor
+	account, err := buildAccountForCreate(input, accountExtra)
+	if err != nil {
+		return nil, err
 	}
 	if err := s.accountRepo.Create(ctx, account); err != nil {
 		return nil, err
@@ -180,6 +139,65 @@ func buildAccountForCreate(input *CreateAccountInput, accountExtra map[string]an
 	return account, nil
 }
 
+func buildAccountForCreate(input *CreateAccountInput, accountExtra map[string]any) (*Account, error) {
+	// Probe/session state is system-managed and may only be changed through
+	// the dedicated endpoints.
+	delete(accountExtra, UpstreamBillingProbeEnabledExtraKey)
+	delete(accountExtra, UpstreamBillingProbeExtraKey)
+	delete(accountExtra, OllamaCloudUsageSessionExtraKey)
+	delete(accountExtra, OllamaCloudUsageAutoRefreshExtraKey)
+	delete(accountExtra, OllamaCloudUsageSnapshotExtraKey)
+
+	// 校验并规范化请求头覆写配置（header 名小写化、格式检查）
+	if err := NormalizeHeaderOverrideCredentials(input.Credentials); err != nil {
+		return nil, err
+	}
+
+	account := &Account{
+		Name:        input.Name,
+		Notes:       normalizeAccountNotes(input.Notes),
+		Platform:    input.Platform,
+		Type:        input.Type,
+		Credentials: input.Credentials,
+		Extra:       accountExtra,
+		ProxyID:     input.ProxyID,
+		Concurrency: normalizeAccountConcurrency(input.Platform, input.Type, input.Concurrency),
+		Priority:    input.Priority,
+		Status:      StatusActive,
+		Schedulable: true,
+	}
+	// 预计算固定时间重置的下次重置时间
+	if account.Extra != nil {
+		if err := ValidateQuotaResetConfig(account.Extra); err != nil {
+			return nil, err
+		}
+		ComputeQuotaResetAt(account.Extra)
+		NormalizeFixedQuotaWindows(account.Extra)
+	}
+	if input.ExpiresAt != nil && *input.ExpiresAt > 0 {
+		expiresAt := time.Unix(*input.ExpiresAt, 0)
+		account.ExpiresAt = &expiresAt
+	}
+	if input.AutoPauseOnExpired != nil {
+		account.AutoPauseOnExpired = *input.AutoPauseOnExpired
+	} else {
+		account.AutoPauseOnExpired = true
+	}
+	if input.RateMultiplier != nil {
+		if *input.RateMultiplier < 0 {
+			return nil, errors.New("rate_multiplier must be >= 0")
+		}
+		account.RateMultiplier = input.RateMultiplier
+	}
+	if input.LoadFactor != nil && *input.LoadFactor > 0 {
+		if *input.LoadFactor > 10000 {
+			return nil, errors.New("load_factor must be <= 10000")
+		}
+		account.LoadFactor = input.LoadFactor
+	}
+	return account, nil
+}
+
 func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *UpdateAccountInput) (*Account, error) {
 	account, err := s.accountRepo.GetByID(ctx, id)
 	if err != nil {
@@ -187,14 +205,7 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 	}
 	var normalizedExtra map[string]any
 	if input.Extra != nil {
-		normalizedExtra, err = normalizeOpenAILongContextBillingUpdateExtra(account, input)
-		if err != nil {
-			return nil, err
-		}
-		normalizedExtra, err = normalizeGrokMediaEligibilityUpdateExtra(account, input, normalizedExtra)
-		if err != nil {
-			return nil, err
-		}
+		normalizedExtra = maps.Clone(input.Extra)
 	}
 	previousProbeIdentity := upstreamBillingProbeIdentity(account)
 	previousOllamaUsageIdentity := ollamaCloudUsageIdentity(account)
@@ -252,11 +263,9 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 	if input.Extra != nil {
 		requestedProbeEnabled, hasRequestedProbeEnabled := normalizedExtra[UpstreamBillingProbeEnabledExtraKey]
 		if hasRequestedProbeEnabled {
-			enabled, ok := requestedProbeEnabled.(bool)
-			if !ok {
+			if _, ok := requestedProbeEnabled.(bool); !ok {
 				return nil, infraerrors.BadRequest("INVALID_UPSTREAM_BILLING_PROBE_ENABLED", "upstream_billing_probe_enabled must be a boolean")
 			}
-			requestedProbeEnabledUpdate = &enabled
 		}
 		delete(normalizedExtra, UpstreamBillingProbeEnabledExtraKey)
 		delete(normalizedExtra, UpstreamBillingProbeExtraKey)
@@ -270,7 +279,6 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 			"quota_daily_start",
 			"quota_weekly_used",
 			"quota_weekly_start",
-			grokBillingExtraKey,
 			UpstreamBillingProbeEnabledExtraKey,
 			UpstreamBillingProbeExtraKey,
 			OllamaCloudUsageSessionExtraKey,
@@ -278,10 +286,10 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 			OllamaCloudUsageSnapshotExtraKey,
 		} {
 			if v, ok := account.Extra[key]; ok {
-				input.Extra[key] = v
+				normalizedExtra[key] = v
 			}
 		}
-		account.Extra = input.Extra
+		account.Extra = normalizedExtra
 		if account.Platform == PlatformAntigravity && wasOveragesEnabled && !account.IsOveragesEnabled() {
 			delete(account.Extra, "antigravity_credits_overages") // 清理旧版 overages 运行态
 			// 清除 AICredits 限流 key
@@ -413,15 +421,6 @@ func (s *adminServiceImpl) UpdateAccountExtra(ctx context.Context, id int64, upd
 	delete(updates, OllamaCloudUsageSessionExtraKey)
 	delete(updates, OllamaCloudUsageAutoRefreshExtraKey)
 	delete(updates, OllamaCloudUsageSnapshotExtraKey)
-	if _, exists := updates[openAILongContextBillingEnabledKey]; exists {
-		account, err := s.accountRepo.GetByID(ctx, id)
-		if err != nil {
-			return err
-		}
-		if err := ValidateOpenAILongContextBillingExtra(account.Platform, updates); err != nil {
-			return err
-		}
-	}
 	if len(updates) == 0 {
 		return nil
 	}

@@ -161,6 +161,9 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 	}
 
 	for {
+		if c.Request.Context().Err() != nil {
+			return
+		}
 		selection, err := h.gatewayService.SelectAccountWithLoadAwareness(c.Request.Context(), apiKey.GroupID, selectionSessionHash, reqModel, fs.FailedAccountIDs, "", int64(0))
 		if err != nil {
 			if len(fs.FailedAccountIDs) == 0 {

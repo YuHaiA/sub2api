@@ -1363,11 +1363,16 @@ func (s *defaultOpenAIAccountScheduler) lookupShadowParentAccount(ctx context.Co
 }
 
 func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatible(ctx context.Context, account *Account, req OpenAIAccountScheduleRequest) bool {
+	compatible, _ := s.isAccountRequestCompatibleReason(ctx, account, req)
+	return compatible
+}
+
+func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatibleReason(ctx context.Context, account *Account, req OpenAIAccountScheduleRequest) (bool, string) {
 	if account == nil {
-		return false
+		return false, "account_nil"
 	}
 	if s != nil && s.service != nil && s.service.isOpenAIAccountRuntimeBlocked(account) {
-		return false
+		return false, "runtime_blocked"
 	}
 	if s != nil && s.service != nil && s.service.isOpenAIProxyStreamQuarantined(account) {
 		return false, "proxy_stream_quarantined"
@@ -1376,8 +1381,12 @@ func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatible(ctx context.C
 	// TopK candidate pool can be filled with paused accounts and the later fresh/DB
 	// rechecks won't reach healthy accounts that fell outside TopK — manifesting as
 	// "no available accounts" even though healthy ones exist.
-	if paused, _ := shouldAutoPauseOpenAIAccountByQuota(ctx, account); paused {
-		return false
+	if paused, decision := shouldAutoPauseOpenAIAccountByQuota(ctx, account); paused {
+		reason := "quota_auto_pause"
+		if decision.window != "" {
+			reason += "_" + decision.window
+		}
+		return false, reason
 	}
 	// 母账号健康联动：影子账号的凭据来自母账号，母账号不可调度时影子也不应被选中。
 	// Parent-health gate: shadow borrows the parent's credentials; an unschedulable
@@ -1385,17 +1394,20 @@ func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatible(ctx context.C
 	if !parentHealthyForShadow(account, func(id int64) *Account {
 		return s.lookupShadowParentAccount(ctx, id)
 	}) {
-		return false
+		return false, "shadow_parent_unhealthy"
 	}
 	if req.RequestedModel != "" && !account.IsModelSupported(req.RequestedModel) {
-		return false
+		return false, "model_not_supported"
 	}
 	if req.GroupID != nil && s != nil && s.service != nil &&
 		s.service.needsUpstreamChannelRestrictionCheck(ctx, req.GroupID) &&
 		s.service.isUpstreamModelRestrictedByChannel(ctx, *req.GroupID, account, req.RequestedModel, req.RequireCompact) {
-		return false
+		return false, "channel_upstream_restricted"
 	}
-	return accountSupportsOpenAICapabilities(account, req.RequiredCapability, req.RequiredImageCapability)
+	if !accountSupportsOpenAICapabilities(account, req.RequiredCapability, req.RequiredImageCapability) {
+		return false, "capability_mismatch"
+	}
+	return true, ""
 }
 
 func (s *defaultOpenAIAccountScheduler) ReportResult(accountID int64, success bool, firstTokenMs *int) {

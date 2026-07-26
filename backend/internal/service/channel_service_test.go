@@ -2220,6 +2220,7 @@ func TestCheckRestricted_AntigravityDoesNotSeeModelsFromOtherPlatforms(t *testin
 		ModelPricing: []ChannelModelPricing{
 			{ID: 500, Platform: PlatformAnthropic, Models: []string{"shared-model"}, InputPrice: testPtrFloat64(10e-6)},
 			{ID: 501, Platform: PlatformGemini, Models: []string{"shared-model"}, InputPrice: testPtrFloat64(5e-6)},
+			{ID: 502, Platform: PlatformAntigravity, Models: []string{"antigravity-allowed"}, InputPrice: testPtrFloat64(15e-6)},
 		},
 	}
 	repo := makeStandardRepo(ch, map[int64]string{10: PlatformAntigravity})

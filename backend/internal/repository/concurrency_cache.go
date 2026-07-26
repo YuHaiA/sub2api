@@ -180,6 +180,49 @@ var (
 		return 1
 	`)
 
+	// acquireOpenAIWSIngressLeaseScript atomically reaps crashed members and
+	// acquires or refreshes one API-key-scoped ingress lease using Redis TIME.
+	acquireOpenAIWSIngressLeaseScript = redis.NewScript(`
+		redis.replicate_commands()
+		local key = KEYS[1]
+		local maxConnections = tonumber(ARGV[1])
+		local ttl = tonumber(ARGV[2])
+		local leaseID = ARGV[3]
+		local now = tonumber(redis.call('TIME')[1])
+		local expireBefore = now - ttl
+		redis.call('ZREMRANGEBYSCORE', key, '-inf', expireBefore)
+		if redis.call('ZSCORE', key, leaseID) ~= false then
+			redis.call('ZADD', key, now, leaseID)
+			redis.call('EXPIRE', key, ttl)
+			return 1
+		end
+		if redis.call('ZCARD', key) < maxConnections then
+			redis.call('ZADD', key, now, leaseID)
+			redis.call('EXPIRE', key, ttl)
+			return 1
+		end
+		return 0
+	`)
+
+	// refreshOpenAIWSIngressLeaseScript does not recreate a missing member: a
+	// process that lost its lease must terminate its local WebSocket instead of
+	// silently continuing beyond the distributed cap.
+	refreshOpenAIWSIngressLeaseScript = redis.NewScript(`
+		redis.replicate_commands()
+		local key = KEYS[1]
+		local ttl = tonumber(ARGV[1])
+		local leaseID = ARGV[2]
+		local now = tonumber(redis.call('TIME')[1])
+		local expireBefore = now - ttl
+		redis.call('ZREMRANGEBYSCORE', key, '-inf', expireBefore)
+		if redis.call('ZSCORE', key, leaseID) == false then
+			return 0
+		end
+		redis.call('ZADD', key, now, leaseID)
+		redis.call('EXPIRE', key, ttl)
+		return 1
+	`)
+
 	// trackSlotScript 记录 stats-only 槽位，不做并发上限判断。
 	// KEYS[1] = 有序集合键
 	// ARGV[1] = TTL（秒）

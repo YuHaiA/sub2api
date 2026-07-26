@@ -9,12 +9,12 @@ import (
 )
 
 const (
-	openAIAccountStateUpdateTimeout       = 5 * time.Second
-	openAIOAuth429FallbackCooldown        = 5 * time.Second
-	openAIStopSchedulingBridgeCooldown    = 2 * time.Minute
-	openAIOAuth429StormWindow             = 10 * time.Second
-	openAIOAuth429StormThreshold          = 20
-	openAIOAuth429StormMaxAccountSwitches = 1
+	openAIAccountStateUpdateTimeout         = 5 * time.Second
+	openAIOAuth429FallbackCooldown          = 5 * time.Second
+	openAIStopSchedulingBridgeCooldown      = 2 * time.Minute
+	openAIOAuth429StormWindow               = 10 * time.Second
+	openAIOAuth429StormThreshold            = 20
+	openAIOAuth429StormMaxAccountSwitches   = 1
 	openAICloudflareChallengeInitialBackoff = 10 * time.Second
 	openAICloudflareChallengeMaxBackoff     = 120 * time.Second
 	openAICloudflareChallengeResetAfter     = 15 * time.Minute
@@ -138,7 +138,7 @@ func (s *OpenAIGatewayService) nextOpenAICloudflareChallengeBackoff(accountID in
 		}
 	}
 
-	if state.lastHitAt.IsZero() || now.Sub(state.lastHitAt) > openAICloudflareChallengeResetAfter {
+	if state.lastHitAt.IsZero() || now.Sub(state.lastHitAt) >= openAICloudflareChallengeResetAfter {
 		state.level = 0
 	} else if state.level < 3 {
 		state.level++

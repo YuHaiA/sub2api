@@ -82,7 +82,7 @@ func SetupRouter(
 	}
 
 	// 注册路由
-	registerRoutes(r, handlers, jwtAuth, adminAuth, apiKeyAuth, auditLog, stepUpAuth, apiKeyService, subscriptionService, opsService, settingService, compositeResolver, cfg, redisClient)
+	registerRoutes(r, handlers, jwtAuth, adminAuth, apiKeyAuth, apiKeyService, subscriptionService, opsService, settingService, compositeResolver, cfg, redisClient)
 
 	return r
 }
@@ -109,11 +109,11 @@ func registerRoutes(
 	v1 := r.Group("/api/v1")
 
 	// 注册各模块路由
-	routes.RegisterAuthRoutes(v1, h, jwtAuth, auditLog, redisClient, settingService)
-	routes.RegisterUserRoutes(v1, h, jwtAuth, auditLog, settingService)
-	routes.RegisterAdminRoutes(v1, h, adminAuth, auditLog, stepUpAuth, settingService)
+	routes.RegisterAuthRoutes(v1, h, jwtAuth, redisClient, settingService)
+	routes.RegisterUserRoutes(v1, h, jwtAuth, settingService)
+	routes.RegisterAdminRoutes(v1, h, adminAuth, settingService)
 	routes.RegisterGatewayRoutes(r, h, apiKeyAuth, apiKeyService, subscriptionService, opsService, settingService, compositeResolver, cfg)
-	routes.RegisterPaymentRoutes(v1, h.Payment, h.PaymentWebhook, h.Admin.Payment, jwtAuth, adminAuth, auditLog, settingService)
+	routes.RegisterPaymentRoutes(v1, h.Payment, h.PaymentWebhook, h.Admin.Payment, jwtAuth, adminAuth, settingService)
 
 	handler.RegisterPageRoutes(v1, cfg.Pricing.DataDir, gin.HandlerFunc(jwtAuth), gin.HandlerFunc(adminAuth), settingService)
 }

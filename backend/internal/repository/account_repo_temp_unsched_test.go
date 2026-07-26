@@ -88,10 +88,12 @@ type recordingSQLExecutor struct {
 	result      sql.Result
 	err         error
 	execQueries []string
+	execArgs    [][]any
 }
 
 func (e *recordingSQLExecutor) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
 	e.execQueries = append(e.execQueries, query)
+	e.execArgs = append(e.execArgs, append([]any(nil), args...))
 	if e.err != nil {
 		return nil, e.err
 	}

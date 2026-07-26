@@ -14,6 +14,7 @@ type stubAdminService struct {
 	apiKeys                             []service.APIKey
 	groups                              []service.Group
 	accounts                            []service.Account
+	getAccountResult                    *service.Account
 	accountSchedulerScoreFilterAccounts []service.Account
 	openAISchedulerScorePoolAccounts    []service.Account
 	schedulerScoreFilterCalls           int
@@ -446,6 +447,9 @@ func (s *stubAdminService) ListOpenAISchedulableAccountsForSchedulerScore(_ cont
 }
 
 func (s *stubAdminService) GetAccount(ctx context.Context, id int64) (*service.Account, error) {
+	if s.getAccountResult != nil {
+		return s.getAccountResult, nil
+	}
 	account := service.Account{ID: id, Name: "account", Status: service.StatusActive}
 	return &account, nil
 }

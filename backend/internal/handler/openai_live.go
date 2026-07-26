@@ -14,8 +14,6 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
-	"github.com/tidwall/gjson"
-	"go.uber.org/zap"
 )
 
 func (h *OpenAIGatewayHandler) Live(c *gin.Context) {
@@ -42,27 +40,6 @@ func (h *OpenAIGatewayHandler) Live(c *gin.Context) {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
-	model := strings.TrimSpace(gjson.GetBytes(request.Session, "model").String())
-	reqLog := requestLogger(
-		c,
-		"handler.openai_gateway.live",
-		zap.Int64("user_id", subject.UserID),
-		zap.Int64("api_key_id", apiKey.ID),
-		zap.Any("group_id", apiKey.GroupID),
-	)
-	if decision := h.checkSecurityAudit(
-		c,
-		reqLog,
-		apiKey,
-		subject,
-		service.ContentModerationProtocolOpenAIResponses,
-		model,
-		request.Session,
-	); decision != nil && !decision.AllowNextStage {
-		h.openAISecurityAuditError(c, decision)
-		return
-	}
-
 	subscription, _ := middleware2.GetSubscriptionFromContext(c)
 	if h.billingCacheService == nil {
 		h.errorResponse(c, http.StatusServiceUnavailable, "api_error", "Billing service unavailable")

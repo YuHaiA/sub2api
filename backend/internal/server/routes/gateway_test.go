@@ -17,8 +17,7 @@ import (
 func newGatewayRoutesTestRouter(platform ...string) *gin.Engine {
 	return newGatewayRoutesTestRouterWithConfig(&config.Config{
 		Gateway: config.GatewayConfig{
-			MaxBodySize:     1024 * 1024,
-			TextMaxBodySize: 1024 * 1024,
+			MaxBodySize: 1024 * 1024,
 		},
 	}, platform...)
 }
@@ -161,8 +160,6 @@ func TestGatewayRoutesCompositeVideoLookupsUseGrokHandler(t *testing.T) {
 	for _, path := range []string{
 		"/v1/videos/request-123",
 		"/videos/request-123",
-		"/v1/videos/request-123/content",
-		"/videos/request-123/content",
 	} {
 		req := httptest.NewRequest(http.MethodGet, path, nil)
 		w := httptest.NewRecorder()

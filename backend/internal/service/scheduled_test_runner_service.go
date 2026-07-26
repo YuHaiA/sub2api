@@ -18,14 +18,14 @@ const autoHealthCheckBatchPause = 2 * time.Second
 
 // ScheduledTestRunnerService periodically scans due test plans and executes them.
 type ScheduledTestRunnerService struct {
-	planRepo       ScheduledTestPlanRepository
-	scheduledSvc   *ScheduledTestService
-	accountTestSvc *AccountTestService
-	rateLimitSvc   *RateLimitService
-	settingService *SettingService
-	accountRepo    AccountRepository
+	planRepo        ScheduledTestPlanRepository
+	scheduledSvc    *ScheduledTestService
+	accountTestSvc  *AccountTestService
+	rateLimitSvc    *RateLimitService
+	settingService  *SettingService
+	accountRepo     AccountRepository
 	tokenRefreshSvc *TokenRefreshService
-	cfg            *config.Config
+	cfg             *config.Config
 
 	cron      *cron.Cron
 	startOnce sync.Once
@@ -44,14 +44,14 @@ func NewScheduledTestRunnerService(
 	cfg *config.Config,
 ) *ScheduledTestRunnerService {
 	return &ScheduledTestRunnerService{
-		planRepo:       planRepo,
-		scheduledSvc:   scheduledSvc,
-		accountTestSvc: accountTestSvc,
-		rateLimitSvc:   rateLimitSvc,
-		settingService: settingService,
-		accountRepo:    accountRepo,
+		planRepo:        planRepo,
+		scheduledSvc:    scheduledSvc,
+		accountTestSvc:  accountTestSvc,
+		rateLimitSvc:    rateLimitSvc,
+		settingService:  settingService,
+		accountRepo:     accountRepo,
 		tokenRefreshSvc: tokenRefreshSvc,
-		cfg:            cfg,
+		cfg:             cfg,
 	}
 }
 

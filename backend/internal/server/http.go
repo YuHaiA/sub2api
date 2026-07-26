@@ -95,26 +95,7 @@ func ProvideRouter(
 		service.SetWebSearchManager(websearch.NewManager(configs, redisClient))
 	})
 
-	return SetupRouter(r, handlers, jwtAuth, adminAuth, apiKeyAuth, auditLog, stepUpAuth, apiKeyService, subscriptionService, opsService, settingService, compositeResolver, cfg, redisClient)
-}
-
-func configureTrustedProxies(r *gin.Engine, cfg config.ServerConfig) {
-	if cfg.TrustedProxiesConfigured {
-		if err := r.SetTrustedProxies(cfg.TrustedProxies); err != nil {
-			log.Printf("Failed to set trusted proxies: %v", err)
-			_ = r.SetTrustedProxies(nil)
-		}
-		if len(cfg.TrustedProxies) == 0 && cfg.Mode == "release" {
-			log.Printf("Warning: server.trusted_proxies is explicitly empty; forwarded client IP trust is disabled")
-		}
-	} else {
-		if err := r.SetTrustedProxies(nil); err != nil {
-			log.Printf("Failed to disable trusted proxies: %v", err)
-		}
-		if cfg.Mode == "release" {
-			log.Printf("Warning: server.trusted_proxies is not configured; disabling the forwarded-IP compatibility switch will use direct peer addresses only")
-		}
-	}
+	return SetupRouter(r, handlers, jwtAuth, adminAuth, apiKeyAuth, apiKeyService, subscriptionService, opsService, settingService, compositeResolver, cfg, redisClient)
 }
 
 // ProvideHTTPServer 提供 HTTP 服务器

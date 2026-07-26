@@ -984,3 +984,24 @@
   - `git diff --check` passed.
   - Backend execution is deferred to GitHub Actions per user preference; Docker was not started.
 
+### Absorbed upstream follow-up `2026-07-27-a`
+
+- Source: `Wei-Shaw/sub2api`
+- Upstream head reconciled: `2730c1c43b29`
+- Scope:
+  - Completed the remaining file-level reconciliation for upstream `0.1.165`, including upstream billing probes, gateway-key billing checks, scheduler/repository updates, and image/long-context usage-log persistence.
+  - Preserved fork-specific OpenAI namespace round trips, Spark reasoning aliases, Antigravity platform isolation, and the empty-pricing allowlist behavior.
+  - Removed orphaned upstream audit/failover tests and wiring whose production implementations are not present in this fork.
+- Follow-up fixes:
+  - Restored pre-cancel checks before compatible-request account selection.
+  - Reset Cloudflare challenge backoff at the exact idle-window boundary.
+  - Aligned Grok and token-refresh assertions with the reconciled production behavior.
+- Validation:
+  - `go test -tags=unit ./... -count=1` passed.
+  - `go build ./...` passed.
+  - `go test ./... -count=1` passed.
+  - Frontend lint, typecheck, targeted Vitest coverage, and production build passed during this reconciliation.
+  - `python tools/check_pnpm_audit_exceptions.py --audit frontend/audit.json --exceptions .github/audit-exceptions.yml` passed.
+  - `git diff --check` and conflict-marker scans passed.
+  - Docker was not started; integration coverage remains delegated to GitHub Actions.
+

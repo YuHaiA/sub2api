@@ -49,16 +49,16 @@ type DeployConfig struct {
 }
 
 type DeployState struct {
-	Status         string `json:"status"`
-	RequestedImage string `json:"requested_image,omitempty"`
+	Status           string `json:"status"`
+	RequestedImage   string `json:"requested_image,omitempty"`
 	RequestedImageID string `json:"requested_image_id,omitempty"`
-	RunningImageID string `json:"running_image_id,omitempty"`
-	AlreadyUpToDate bool   `json:"already_up_to_date,omitempty"`
-	LastMessage    string `json:"last_message,omitempty"`
-	LastError      string `json:"last_error,omitempty"`
-	LastOutput     string `json:"last_output,omitempty"`
-	StartedAt      *int64 `json:"started_at,omitempty"`
-	FinishedAt     *int64 `json:"finished_at,omitempty"`
+	RunningImageID   string `json:"running_image_id,omitempty"`
+	AlreadyUpToDate  bool   `json:"already_up_to_date,omitempty"`
+	LastMessage      string `json:"last_message,omitempty"`
+	LastError        string `json:"last_error,omitempty"`
+	LastOutput       string `json:"last_output,omitempty"`
+	StartedAt        *int64 `json:"started_at,omitempty"`
+	FinishedAt       *int64 `json:"finished_at,omitempty"`
 }
 
 type DeployTriggerRequest struct {

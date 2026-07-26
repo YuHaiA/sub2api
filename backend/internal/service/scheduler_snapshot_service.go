@@ -816,15 +816,7 @@ func (s *SchedulerSnapshotService) fullRebuildInterval() time.Duration {
 }
 
 func (s *SchedulerSnapshotService) defaultBuckets(ctx context.Context) ([]SchedulerBucket, error) {
-	buckets := make([]SchedulerBucket, 0)
-	platforms := []string{PlatformAnthropic, PlatformGemini, PlatformOpenAI, PlatformAntigravity, PlatformGrok}
-	for _, platform := range platforms {
-		buckets = append(buckets, SchedulerBucket{GroupID: 0, Platform: platform, Mode: SchedulerModeSingle})
-		buckets = append(buckets, SchedulerBucket{GroupID: 0, Platform: platform, Mode: SchedulerModeForced})
-		if platform == PlatformAnthropic || platform == PlatformGemini {
-			buckets = append(buckets, SchedulerBucket{GroupID: 0, Platform: platform, Mode: SchedulerModeMixed})
-		}
-	}
+	buckets := schedulerCanonicalBuckets(0)
 
 	if s.isRunModeSimple() || s.groupRepo == nil {
 		return dedupeBuckets(buckets), nil
@@ -838,6 +830,10 @@ func (s *SchedulerSnapshotService) defaultBuckets(ctx context.Context) ([]Schedu
 		if group.Platform == "" {
 			continue
 		}
+		if group.Platform == PlatformComposite {
+			buckets = append(buckets, schedulerCanonicalBuckets(group.ID)...)
+			continue
+		}
 		buckets = append(buckets, SchedulerBucket{GroupID: group.ID, Platform: group.Platform, Mode: SchedulerModeSingle})
 		buckets = append(buckets, SchedulerBucket{GroupID: group.ID, Platform: group.Platform, Mode: SchedulerModeForced})
 		if group.Platform == PlatformAnthropic || group.Platform == PlatformGemini {
@@ -845,6 +841,24 @@ func (s *SchedulerSnapshotService) defaultBuckets(ctx context.Context) ([]Schedu
 		}
 	}
 	return dedupeBuckets(buckets), nil
+}
+
+func schedulerSnapshotPlatforms() [5]string {
+	return [5]string{PlatformAnthropic, PlatformGemini, PlatformOpenAI, PlatformAntigravity, PlatformGrok}
+}
+
+func schedulerCanonicalBuckets(groupID int64) []SchedulerBucket {
+	buckets := make([]SchedulerBucket, 0, 12)
+	for _, platform := range schedulerSnapshotPlatforms() {
+		buckets = append(buckets,
+			SchedulerBucket{GroupID: groupID, Platform: platform, Mode: SchedulerModeSingle},
+			SchedulerBucket{GroupID: groupID, Platform: platform, Mode: SchedulerModeForced},
+		)
+		if platform == PlatformAnthropic || platform == PlatformGemini {
+			buckets = append(buckets, SchedulerBucket{GroupID: groupID, Platform: platform, Mode: SchedulerModeMixed})
+		}
+	}
+	return buckets
 }
 
 func dedupeBuckets(in []SchedulerBucket) []SchedulerBucket {

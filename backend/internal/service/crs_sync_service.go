@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -1139,10 +1140,6 @@ func reconcileCRSUpstreamBillingProbeExtra(
 			extra[OllamaCloudUsageSnapshotExtraKey] = snapshot
 		}
 	}
-}
-
-func mergeCRSOpenAILongContextBillingExtra(existing, updates map[string]any) (map[string]any, error) {
-	return normalizeOpenAILongContextBillingExtra(PlatformOpenAI, mergeMap(existing, updates))
 }
 
 func (s *CRSSyncService) mapOrCreateProxy(ctx context.Context, enabled bool, cached *[]Proxy, src *crsProxy, defaultName string) (*int64, error) {

@@ -502,9 +502,9 @@ const (
 	SettingKeySubscriptionExpiryNotifyEnabled = "subscription_expiry_notify_enabled" // 订阅到期提醒全局开关，默认开启
 
 	// 账号限额通知
-	SettingKeyAccountQuotaNotifyEnabled = "account_quota_notify_enabled" // 全局开关
-	SettingKeyAccountQuotaNotifyEmails  = "account_quota_notify_emails"  // 管理员通知邮箱列表（JSON 数组）
-	SettingKeyAccountHealthAutoCheckConfig = "account_health_auto_check_config" // JSON 配置
+	SettingKeyAccountQuotaNotifyEnabled     = "account_quota_notify_enabled"      // 全局开关
+	SettingKeyAccountQuotaNotifyEmails      = "account_quota_notify_emails"       // 管理员通知邮箱列表（JSON 数组）
+	SettingKeyAccountHealthAutoCheckConfig  = "account_health_auto_check_config"  // JSON 配置
 	SettingKeyAccountTokenAutoRefreshConfig = "account_token_auto_refresh_config" // JSON 配置
 
 	// Web Search Emulation

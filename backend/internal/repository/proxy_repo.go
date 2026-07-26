@@ -23,6 +23,8 @@ type proxyRepository struct {
 	sql    sqlExecutor
 }
 
+const proxyProbeOutboxAccountChunkSize = 500
+
 func NewProxyRepository(client *dbent.Client, sqlDB *sql.DB) service.ProxyRepository {
 	return newProxyRepositoryWithSQL(client, sqlDB)
 }
@@ -91,7 +93,62 @@ func (r *proxyRepository) ListByIDs(ctx context.Context, ids []int64) ([]service
 }
 
 func (r *proxyRepository) Update(ctx context.Context, proxyIn *service.Proxy) error {
-	builder := r.client.Proxy.UpdateOneID(proxyIn.ID).
+	client := r.client
+	var tx *dbent.Tx
+	if contextTx := dbent.TxFromContext(ctx); contextTx != nil {
+		client = contextTx.Client()
+	} else {
+		var err error
+		tx, err = r.client.Tx(ctx)
+		if err != nil && err != dbent.ErrTxStarted {
+			return err
+		}
+		if tx != nil {
+			defer func() { _ = tx.Rollback() }()
+			ctx = dbent.NewTxContext(ctx, tx)
+			client = tx.Client()
+		}
+	}
+
+	updated, err := updateProxyAndInvalidateProbeSnapshots(ctx, client, proxyIn)
+	if err != nil {
+		return err
+	}
+	if tx != nil {
+		if err := tx.Commit(); err != nil {
+			return err
+		}
+	}
+	applyProxyEntityToService(proxyIn, updated)
+	return nil
+}
+
+type proxyProbeIdentity struct {
+	protocol string
+	host     string
+	port     int
+	username string
+	password string
+	status   string
+}
+
+func proxyProbeIdentityFromService(proxyIn *service.Proxy) proxyProbeIdentity {
+	return proxyProbeIdentity{
+		protocol: proxyIn.Protocol,
+		host:     proxyIn.Host,
+		port:     proxyIn.Port,
+		username: proxyIn.Username,
+		password: proxyIn.Password,
+		status:   proxyIn.Status,
+	}
+}
+
+func updateProxyAndInvalidateProbeSnapshots(ctx context.Context, client *dbent.Client, proxyIn *service.Proxy) (*dbent.Proxy, error) {
+	currentIdentity, err := lockProxyProbeIdentity(ctx, client, proxyIn.ID)
+	if err != nil {
+		return nil, err
+	}
+	builder := client.Proxy.UpdateOneID(proxyIn.ID).
 		SetName(proxyIn.Name).
 		SetProtocol(proxyIn.Protocol).
 		SetHost(proxyIn.Host).
@@ -121,12 +178,8 @@ func (r *proxyRepository) Update(ctx context.Context, proxyIn *service.Proxy) er
 	}
 
 	updated, err := builder.Save(ctx)
-	if err == nil {
-		applyProxyEntityToService(proxyIn, updated)
-		return nil
-	}
 	if dbent.IsNotFound(err) {
-		return service.ErrProxyNotFound
+		return nil, service.ErrProxyNotFound
 	}
 	if err != nil {
 		return nil, err
@@ -219,6 +272,22 @@ func enqueueProxyProbeAccountChanges(ctx context.Context, exec sqlExecutor, acco
 		}
 	}
 	return nil
+}
+
+func sortedUniqueAccountIDs(accountIDs []int64) []int64 {
+	if len(accountIDs) < 2 {
+		return accountIDs
+	}
+	sort.Slice(accountIDs, func(i, j int) bool { return accountIDs[i] < accountIDs[j] })
+	write := 1
+	for _, accountID := range accountIDs[1:] {
+		if accountID == accountIDs[write-1] {
+			continue
+		}
+		accountIDs[write] = accountID
+		write++
+	}
+	return accountIDs[:write]
 }
 
 func (r *proxyRepository) Delete(ctx context.Context, id int64) error {

@@ -38,7 +38,7 @@ func SanitizeReasoning(_ string, body []byte) []byte {
 		}
 
 		updated, _ = sjson.DeleteBytes(updated, encPath)
-		updated, _ = sjson.SetBytes(updated, fmt.Sprintf("input.%d.summary", index), []byte("[]"))
+		updated, _ = sjson.SetRawBytes(updated, fmt.Sprintf("input.%d.summary", index), []byte("[]"))
 		updated, _ = sjson.SetBytes(updated, fmt.Sprintf("input.%d.content", index), nil)
 	}
 

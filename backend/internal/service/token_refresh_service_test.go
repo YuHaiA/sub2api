@@ -328,7 +328,7 @@ func TestTokenRefreshService_RefreshWithRetry_AntigravityClearsForceRefreshOnSuc
 	err := service.refreshWithRetry(context.Background(), account, refresher, refresher, time.Hour)
 	require.NoError(t, err)
 	require.Equal(t, 1, repo.updateCredentialsCalls)
-	require.Equal(t, 1, repo.updateExtraCalls)
+	require.Equal(t, 2, repo.updateExtraCalls)
 	require.Equal(t, false, repo.lastExtraUpdates[antigravityForceTokenRefreshExtraKey])
 	require.Equal(t, "", repo.lastExtraUpdates[antigravityForceTokenRefreshReasonExtraKey])
 	require.Equal(t, false, account.Extra[antigravityForceTokenRefreshExtraKey])

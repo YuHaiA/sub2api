@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler"
@@ -28,6 +29,10 @@ func (r *keyBillingRouteAPIKeyRepo) GetByKeyForAuth(_ context.Context, key strin
 	}
 	clone := *r.apiKey
 	return &clone, nil
+}
+
+func (r *keyBillingRouteAPIKeyRepo) UpdateLastUsed(context.Context, int64, time.Time) error {
+	return nil
 }
 
 type keyBillingRouteRateRepo struct {

@@ -14,6 +14,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/domain"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 )
 
@@ -101,6 +102,11 @@ const (
 )
 
 const openAIEndpointCapabilitiesCredentialKey = "openai_capabilities"
+
+// GrokMediaEligibleExtraKey is reserved for the optional Grok media-routing
+// override used by newer clients. This fork currently preserves the value but
+// does not gate scheduling on it.
+const GrokMediaEligibleExtraKey = "grok_media_eligible"
 
 const (
 	OpenAIAuthModePersonalAccessToken = "personalAccessToken"
@@ -1376,8 +1382,7 @@ func (a *Account) SupportsOpenAIEndpointCapability(capability OpenAIEndpointCapa
 	case OpenAIEndpointCapabilityLive:
 		return a.Platform == PlatformOpenAI &&
 			a.Type == AccountTypeOAuth &&
-			!a.IsOpenAIPersonalAccessToken() &&
-			!a.IsOpenAIAgentIdentity()
+			!a.IsOpenAIPersonalAccessToken()
 	case OpenAIEndpointCapabilityResponses:
 		// Responses 支持状态由 accounts.extra 的自动探测标记决定，而非
 		// credentials 能力集。已探测确认不支持 /v1/responses 的 APIKey 上游

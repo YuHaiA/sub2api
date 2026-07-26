@@ -53,6 +53,10 @@ func (r *tokenRefreshCandidateRepo) UpdateCredentials(_ context.Context, id int6
 	return nil
 }
 
+func (r *tokenRefreshCandidateRepo) UpdateExtra(context.Context, int64, map[string]any) error {
+	return nil
+}
+
 func (r *tokenRefreshCandidateRepo) SetError(context.Context, int64, string) error {
 	r.setErrorCalls++
 	return nil

@@ -193,6 +193,11 @@ type Account struct {
 	RateMultiplier          float64                        `json:"rate_multiplier"`
 	Status                  string                         `json:"status"`
 	ErrorMessage            string                         `json:"error_message"`
+	HealthStatus            string                         `json:"health_status,omitempty"`
+	HealthResultStatus      string                         `json:"health_result_status,omitempty"`
+	HealthMessage           string                         `json:"health_message,omitempty"`
+	HealthLatencyMs         int64                          `json:"health_latency_ms,omitempty"`
+	HealthLastCheckedAt     string                         `json:"health_last_checked_at,omitempty"`
 	LastUsedAt              *time.Time                     `json:"last_used_at"`
 	ExpiresAt               *int64                         `json:"expires_at"`
 	AutoPauseOnExpired      bool                           `json:"auto_pause_on_expired"`
@@ -484,13 +489,14 @@ type UsageLog struct {
 	CacheCreation5mTokens int `json:"cache_creation_5m_tokens"`
 	CacheCreation1hTokens int `json:"cache_creation_1h_tokens"`
 
-	InputCost         float64 `json:"input_cost"`
-	OutputCost        float64 `json:"output_cost"`
-	CacheCreationCost float64 `json:"cache_creation_cost"`
-	CacheReadCost     float64 `json:"cache_read_cost"`
-	TotalCost         float64 `json:"total_cost"`
-	ActualCost        float64 `json:"actual_cost"`
-	RateMultiplier    float64 `json:"rate_multiplier"`
+	InputCost                 float64 `json:"input_cost"`
+	OutputCost                float64 `json:"output_cost"`
+	CacheCreationCost         float64 `json:"cache_creation_cost"`
+	CacheReadCost             float64 `json:"cache_read_cost"`
+	TotalCost                 float64 `json:"total_cost"`
+	ActualCost                float64 `json:"actual_cost"`
+	RateMultiplier            float64 `json:"rate_multiplier"`
+	LongContextBillingApplied bool    `json:"long_context_billing_applied"`
 
 	BillingType  int8   `json:"billing_type"`
 	RequestType  string `json:"request_type"`
@@ -504,6 +510,8 @@ type UsageLog struct {
 	ImageSize          *string        `json:"image_size"`
 	ImageInputSize     *string        `json:"image_input_size"`
 	ImageOutputSize    *string        `json:"image_output_size"`
+	ImageInputTokens   int            `json:"image_input_tokens"`
+	ImageInputCost     float64        `json:"image_input_cost"`
 	ImageOutputTokens  int            `json:"image_output_tokens"`
 	ImageOutputCost    float64        `json:"image_output_cost"`
 	ImageSizeSource    *string        `json:"image_size_source"`
