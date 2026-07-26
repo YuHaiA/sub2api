@@ -21,7 +21,7 @@ func TestWithHTTPUpstreamProfile_OpenAI(t *testing.T) {
 }
 
 func TestWithHTTPUpstreamRedirectsDisabled(t *testing.T) {
-	ctx := WithHTTPUpstreamRedirectsDisabled(nil)
+	ctx := WithHTTPUpstreamRedirectsDisabled(context.TODO())
 	if !HTTPUpstreamRedirectsDisabled(ctx) {
 		t.Fatal("expected redirects to be disabled")
 	}
