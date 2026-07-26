@@ -957,3 +957,30 @@
   - `git diff --check` reports only an inherited trailing blank line in `frontend/src/components/account/__tests__/credentialsBuilder.spec.ts` from the plan_type commit; no conflict-marker issues.
   - Not run locally: this Windows environment currently has neither `go`, `gofmt`, nor `make` on PATH.
 
+### Absorbed upstream batch `2026-07-26-a`
+
+- Source: `Wei-Shaw/sub2api`
+- Upstream head at fetch: `2730c1c43b29`
+- Version: `0.1.165`
+- Counts:
+  - 66 non-merge upstream candidates reviewed
+  - 64 non-merge commits applied
+  - 2 commits intentionally skipped
+- Skipped:
+  - `521db6869` `fix(openai): preserve pool-mode same-account retries` — the fork does not have the upstream pool retry mechanism.
+  - `b5979050f` `fix(frontend): upgrade postcss for security audit` — the equivalent PostCSS update is already present in the fork.
+- Scope:
+  - Synced composite-group routing and billing follow-ups, Grok/OpenAI compatibility and failover hardening, mobile payment deep-link support, account/session diagnostics, and the Anthropic `claude-opus-5` model update.
+  - Synced OpenAI Live gateway/attestation handling, API-key input/item sanitization, usage session identifiers, Gemini image preservation, announcement preview styling, and the PostCSS security update.
+  - Synced Ollama Cloud usage refresh, debounce/expiry/PG compatibility fixes, registration email-alias deduplication, and VERSION `0.1.165`.
+- Compatibility and conflict notes:
+  - Removed parent-only group-duplicate service/routes/tests and unsupported reasoning-policy fields/calls; corrected generated Ent Group field indices after those fields were absent in the fork.
+  - Preserved the fork's local group/UI shapes and removed orphaned upstream web-search pricing and account billing-column assertions; kept the supported upstream billing-probe settings and account-edit persistence paths.
+  - Added per-request redirect blocking for credential-bearing upstream probes without changing the shared client's default behavior, with repository/service coverage.
+  - The conflict scan found only the known false positive long `====` string in `backend/internal/pkg/antigravity/request_transformer.go`; no conflict markers remain.
+- Validation:
+  - `pnpm run typecheck` passed.
+  - Full frontend `pnpm run test:run` passed.
+  - `git diff --check` passed.
+  - Backend execution is deferred to GitHub Actions per user preference; Docker was not started.
+

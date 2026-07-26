@@ -199,6 +199,16 @@ vi.mock("vue-i18n", async () => {
     "admin.settings.openaiExperimentalScheduler.quotaHeadroomWeight": "额度余量",
     "admin.settings.openaiExperimentalScheduler.previousResponseWeight": "previous_response 粘性",
     "admin.settings.openaiExperimentalScheduler.sessionStickyWeight": "session_hash 粘性",
+    "admin.settings.upstreamBillingProbe.title": "上游倍率自动探测",
+    "admin.settings.upstreamBillingProbe.description":
+      "定期获取 OpenAI API Key 所连接上游 Sub2API 站点声明的计费倍率。",
+    "admin.settings.upstreamBillingProbe.enabled": "启用全局自动探测",
+    "admin.settings.upstreamBillingProbe.enabledHint":
+      "开启后，仅对账号自身已启用自动检测的账号执行定时探测。",
+    "admin.settings.upstreamBillingProbe.intervalMinutes": "探测周期（分钟）",
+    "admin.settings.upstreamBillingProbe.intervalHint": "范围 5–1440 分钟。",
+    "admin.settings.upstreamBillingProbe.saved": "上游倍率自动探测设置已保存",
+    "admin.settings.upstreamBillingProbe.saveFailed": "保存上游倍率自动探测设置失败",
     "admin.settings.site.uploadImage": "上传图片",
     "admin.settings.site.remove": "移除",
     "admin.settings.platformQuota.platform": "平台",
@@ -515,6 +525,16 @@ async function openPaymentTab(wrapper: ReturnType<typeof mountView>) {
 
   expect(paymentTabButton).toBeDefined();
   await paymentTabButton?.trigger("click");
+  await flushPromises();
+}
+
+async function openGatewayTab(wrapper: ReturnType<typeof mountView>) {
+  const gatewayTabButton = wrapper
+    .findAll("button")
+    .find((node) => node.text().includes("admin.settings.tabs.gateway"));
+
+  expect(gatewayTabButton).toBeDefined();
+  await gatewayTabButton?.trigger("click");
   await flushPromises();
 }
 
@@ -910,66 +930,6 @@ describe("admin SettingsView payment visible method controls", () => {
       interval_minutes: 90,
       debounce_minutes: 3,
     });
-  });
-
-  it("places and explains rate controls for both scheduling modes", async () => {
-    const wrapper = mountView();
-
-    await flushPromises();
-    expect(
-      wrapper.find('[data-testid="openai-oauth-scheduling-rate-multiplier"]').exists(),
-    ).toBe(false);
-
-    const lowRateToggle = wrapper.get('[data-testid="openai-low-rate-priority-toggle"]');
-    await lowRateToggle.setValue(true);
-    const priorityModeText = wrapper.text();
-    expect(priorityModeText).toContain(
-      "同一分组同时包含 API Key 和 OAuth 账号时，OAuth 账号按此倍率与已探测的 API Key 计费倍率一起排序。",
-    );
-    expect(priorityModeText.indexOf("低倍率优先")).toBeLessThan(
-      priorityModeText.indexOf("OAuth 调度参考倍率"),
-    );
-    expect(priorityModeText.indexOf("OAuth 调度参考倍率")).toBeLessThan(
-      priorityModeText.indexOf("OpenAI 实验调度策略"),
-    );
-
-    const oauthRateInput = wrapper.get(
-      '[data-testid="openai-oauth-scheduling-rate-multiplier"]',
-    );
-    await oauthRateInput.setValue("0.05");
-    await wrapper.find("form").trigger("submit.prevent");
-    await flushPromises();
-
-    expect(updateSettings).toHaveBeenCalledWith(
-      expect.objectContaining({
-        openai_low_upstream_rate_priority_enabled: true,
-        openai_oauth_scheduling_rate_multiplier: 0.05,
-      }),
-    );
-
-    await wrapper
-      .get('[data-testid="openai-advanced-scheduler-toggle"]')
-      .setValue(true);
-    expect(
-      wrapper.find('[data-testid="openai-low-rate-priority-toggle"]').exists(),
-    ).toBe(false);
-    expect(
-      wrapper.find('[data-testid="openai-oauth-scheduling-rate-multiplier"]').exists(),
-    ).toBe(true);
-    const weightedModeText = wrapper.text();
-    expect(weightedModeText).toContain(
-      "同一分组同时包含 API Key 和 OAuth 账号时，计算“计费倍率”得分时，OAuth 账号按此倍率参与计算。",
-    );
-    expect(weightedModeText).not.toContain(
-      "OAuth 账号按此倍率与已探测的 API Key 计费倍率一起排序。",
-    );
-    expect(weightedModeText.indexOf("订阅优先")).toBeLessThan(
-      weightedModeText.indexOf("OAuth 调度参考倍率"),
-    );
-    expect(weightedModeText.indexOf("OAuth 调度参考倍率")).toBeLessThan(
-      weightedModeText.indexOf("调度权值覆盖"),
-    );
-    expect(weightedModeText).toContain("计费倍率");
   });
 
   it("passes translated upload and remove labels to the payment help image uploader", async () => {

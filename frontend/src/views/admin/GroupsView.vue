@@ -360,26 +360,6 @@
                 <Icon name="edit" size="sm" />
                 <span class="text-xs">{{ t("common.edit") }}</span>
 			  </button>
-			  <button
-				data-testid="group-duplicate"
-                :title="
-                  duplicatingGroupIds.has(row.id)
-                    ? t('admin.groups.duplicating')
-                    : t('admin.groups.duplicate')
-                "
-                :disabled="duplicatingGroupIds.has(row.id)"
-                @click="handleDuplicate(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-dark-700 dark:hover:text-primary-400"
-              >
-                <Icon name="copy" size="sm" />
-                <span class="text-xs">
-                  {{
-                    duplicatingGroupIds.has(row.id)
-                      ? t("admin.groups.duplicating")
-                      : t("admin.groups.duplicate")
-                  }}
-                </span>
-              </button>
               <button
                 v-if="row.platform === 'composite'"
                 @click="handleCompositeRoutes(row)"
@@ -1342,41 +1322,6 @@
             <p class="input-hint">
               {{ t("admin.groups.claudeCode.fallbackHint") }}
             </p>
-          </div>
-        </div>
-
-        <!-- Codex 网页搜索按次计费（仅 openai 平台） -->
-        <div
-          v-if="createForm.platform === 'openai'"
-          class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
-        >
-          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-            {{ t("admin.groups.webSearchPricing.title") }}
-          </h4>
-          <div>
-            <label class="input-label">{{
-              t("admin.groups.webSearchPricing.pricePerCall")
-            }}</label>
-            <input
-              v-model.number="createForm.web_search_price_per_call"
-              type="number"
-              step="0.001"
-              min="0"
-              placeholder="0.01"
-              class="input"
-            />
-            <p class="input-hint">
-              {{ t("admin.groups.webSearchPricing.pricePerCallHint") }}
-            </p>
-            <div
-              class="mt-2 rounded-lg bg-gray-50 p-3 text-xs text-gray-600 dark:bg-dark-700 dark:text-gray-300"
-            >
-              {{
-                t("admin.groups.webSearchPricing.finalPricePreview", {
-                  price: createWebSearchFinalPricePreview,
-                })
-              }}
-            </div>
           </div>
         </div>
 
@@ -2885,41 +2830,6 @@
             <p class="input-hint">
               {{ t("admin.groups.claudeCode.fallbackHint") }}
             </p>
-          </div>
-        </div>
-
-        <!-- Codex 网页搜索按次计费（仅 openai 平台） -->
-        <div
-          v-if="editForm.platform === 'openai'"
-          class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
-        >
-          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-            {{ t("admin.groups.webSearchPricing.title") }}
-          </h4>
-          <div>
-            <label class="input-label">{{
-              t("admin.groups.webSearchPricing.pricePerCall")
-            }}</label>
-            <input
-              v-model.number="editForm.web_search_price_per_call"
-              type="number"
-              step="0.001"
-              min="0"
-              placeholder="0.01"
-              class="input"
-            />
-            <p class="input-hint">
-              {{ t("admin.groups.webSearchPricing.pricePerCallHint") }}
-            </p>
-            <div
-              class="mt-2 rounded-lg bg-gray-50 p-3 text-xs text-gray-600 dark:bg-dark-700 dark:text-gray-300"
-            >
-              {{
-                t("admin.groups.webSearchPricing.finalPricePreview", {
-                  price: editWebSearchFinalPricePreview,
-                })
-              }}
-            </div>
           </div>
         </div>
 
@@ -5057,9 +4967,13 @@ const deleteConfirmMessage = computed(() => {
 
 const loadLiveCapability = async () => {
   if (liveCapability.value) return liveCapability.value;
+  const capabilityLoader = adminAPI.groups.getLiveCapability;
+  if (typeof capabilityLoader !== "function") {
+    liveCapability.value = { supported: false };
+    return liveCapability.value;
+  }
   if (!liveCapabilityRequest) {
-    liveCapabilityRequest = adminAPI.groups
-      .getLiveCapability()
+    liveCapabilityRequest = capabilityLoader()
       .catch(() => ({ supported: false }))
       .finally(() => {
         liveCapabilityRequest = null;
@@ -5644,25 +5558,6 @@ const handleRateMultipliers = (group: AdminGroup) => {
 const handleRPMOverrides = (group: AdminGroup) => {
   rpmOverridesGroup.value = group;
   showRPMOverridesModal.value = true;
-};
-
-const handleDuplicate = async (group: AdminGroup) => {
-  if (duplicatingGroupIds.has(group.id)) return;
-
-  duplicatingGroupIds.add(group.id);
-  try {
-    const duplicate = await adminAPI.groups.duplicate(group.id);
-    appStore.showSuccess(
-      t("admin.groups.duplicateSuccess", { name: duplicate.name }),
-    );
-    await loadGroups();
-  } catch (error: unknown) {
-    appStore.showError(
-      extractApiErrorMessage(error, t("admin.groups.duplicateFailed")),
-    );
-  } finally {
-    duplicatingGroupIds.delete(group.id);
-  }
 };
 
 const compositeRouteMatchLabel = (matchType: CompositeRouteMatchType) =>
