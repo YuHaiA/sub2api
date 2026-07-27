@@ -97,6 +97,10 @@ func (m *mockProxyRepoForOAuth) CountAccountsByProxyID(ctx context.Context, prox
 func (m *mockProxyRepoForOAuth) ListAccountSummariesByProxyID(ctx context.Context, proxyID int64) ([]ProxyAccountSummary, error) {
 	panic("ListAccountSummariesByProxyID not implemented")
 }
+func (m *mockProxyRepoForOAuth) MarkProxyUnhealthyAndReroute(ctx context.Context, proxyID int64, now time.Time) (int64, error) {
+	panic("MarkProxyUnhealthyAndReroute not implemented")
+}
+
 func (m *mockProxyRepoForOAuth) SweepExpiredProxies(ctx context.Context, now time.Time) (int64, error) {
 	panic("SweepExpiredProxies not implemented")
 }

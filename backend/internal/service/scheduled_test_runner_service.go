@@ -345,7 +345,15 @@ func autoHealthStatusFromResult(result *ScheduledTestResult) string {
 		strings.Contains(lower, "resource_exhausted"),
 		strings.Contains(lower, "payment required"),
 		strings.Contains(lower, "api returned 402"),
-		strings.Contains(lower, "(402)"):
+		strings.Contains(lower, "(402)"),
+		strings.Contains(lower, "eof"),
+		strings.Contains(lower, "timeout"),
+		strings.Contains(lower, "deadline exceeded"),
+		strings.Contains(lower, "connection reset"),
+		strings.Contains(lower, "proxy connection failed"),
+		strings.Contains(lower, "chatgpt codex upstream connection failed"),
+		strings.Contains(lower, "stream ended before response.completed"),
+		strings.Contains(lower, "stream read error"):
 		return "constrained"
 	case strings.Contains(lower, "banned"),
 		strings.Contains(lower, "suspend"),

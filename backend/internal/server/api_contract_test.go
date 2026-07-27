@@ -1972,6 +1972,10 @@ func (stubProxyRepo) ListAccountSummariesByProxyID(ctx context.Context, proxyID 
 	return nil, errors.New("not implemented")
 }
 
+func (stubProxyRepo) MarkProxyUnhealthyAndReroute(ctx context.Context, proxyID int64, now time.Time) (int64, error) {
+	return 0, nil
+}
+
 func (stubProxyRepo) SweepExpiredProxies(ctx context.Context, now time.Time) (int64, error) {
 	return 0, nil
 }

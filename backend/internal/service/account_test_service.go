@@ -1713,7 +1713,25 @@ func (s *AccountTestService) processOpenAIStream(c *gin.Context, body io.Reader)
 				seenContent = true
 				s.sendEvent(c, TestEvent{Type: "content", Text: delta})
 			}
+		case "response.output_text.done":
+			// Some upstreams only emit the final text chunk without deltas.
+			if text, ok := data["text"].(string); ok && strings.TrimSpace(text) != "" {
+				seenContent = true
+				s.sendEvent(c, TestEvent{Type: "content", Text: text})
+			}
+		case "response.output_item.done", "response.output_item.added":
+			// Codex/ChatGPT may deliver assistant text only inside completed message items.
+			if text := extractOpenAIStreamItemText(data["item"]); text != "" {
+				seenContent = true
+				s.sendEvent(c, TestEvent{Type: "content", Text: text})
+			}
 		case "response.completed", "response.done":
+			// Prefer completed event, but keep any content already observed.
+			if text := extractOpenAICompletedResponseText(data["response"]); text != "" && !seenContent {
+				seenContent = true
+				s.sendEvent(c, TestEvent{Type: "content", Text: text})
+			}
+			seenCompleted = true
 			s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
 			return nil
 		case "response.failed":
@@ -1736,6 +1754,56 @@ func (s *AccountTestService) processOpenAIStream(c *gin.Context, body io.Reader)
 			return s.sendErrorAndEnd(c, errorMsg)
 		}
 	}
+}
+
+func extractOpenAIStreamItemText(item any) string {
+	itemMap, ok := item.(map[string]any)
+	if !ok || itemMap == nil {
+		return ""
+	}
+	itemType, _ := itemMap["type"].(string)
+	if itemType != "" && itemType != "message" {
+		return ""
+	}
+	content, ok := itemMap["content"].([]any)
+	if !ok {
+		return ""
+	}
+	var parts []string
+	for _, raw := range content {
+		part, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		partType, _ := part["type"].(string)
+		if partType != "" && partType != "output_text" && partType != "text" {
+			continue
+		}
+		if text, ok := part["text"].(string); ok {
+			if trimmed := strings.TrimSpace(text); trimmed != "" {
+				parts = append(parts, text)
+			}
+		}
+	}
+	return strings.Join(parts, "")
+}
+
+func extractOpenAICompletedResponseText(response any) string {
+	responseMap, ok := response.(map[string]any)
+	if !ok || responseMap == nil {
+		return ""
+	}
+	output, ok := responseMap["output"].([]any)
+	if !ok {
+		return ""
+	}
+	var parts []string
+	for _, rawItem := range output {
+		if text := extractOpenAIStreamItemText(rawItem); text != "" {
+			parts = append(parts, text)
+		}
+	}
+	return strings.Join(parts, "")
 }
 
 // testOpenAIImageAPIKey tests OpenAI image generation using an API Key account.
@@ -1953,7 +2021,11 @@ func (s *AccountTestService) sendErrorAndEnd(c *gin.Context, errorMsg string) er
 
 // defaultAccountHealthProbeTimeout bounds a single background health probe so one
 // slow/hung upstream cannot freeze the whole account-health queue.
-const defaultAccountHealthProbeTimeout = 45 * time.Second
+const defaultAccountHealthProbeTimeout = 60 * time.Second
+
+// defaultAccountHealthProbeRetries retries transient transport failures that are
+// common under concurrent batch probes (EOF / timeout / reset).
+const defaultAccountHealthProbeRetries = 1
 
 // RunTestBackground executes an account test in-memory (no real HTTP client),
 // capturing SSE output via httptest.NewRecorder, then parses the result.
@@ -1962,19 +2034,59 @@ const defaultAccountHealthProbeTimeout = 45 * time.Second
 func (s *AccountTestService) RunTestBackground(ctx context.Context, accountID int64, modelID string) (*ScheduledTestResult, error) {
 	startedAt := time.Now()
 
-	probeCtx, cancel := context.WithTimeout(ctx, defaultAccountHealthProbeTimeout)
-	defer cancel()
+	var (
+		responseText           string
+		errMsg                 string
+		completedSuccessfully  bool
+		testErr                error
+	)
 
-	w := httptest.NewRecorder()
-	ginCtx, _ := gin.CreateTestContext(w)
-	ginCtx.Request = (&http.Request{}).WithContext(probeCtx)
+	attempts := 1 + defaultAccountHealthProbeRetries
+	for attempt := 1; attempt <= attempts; attempt++ {
+		if err := ctx.Err(); err != nil {
+			testErr = err
+			errMsg = err.Error()
+			completedSuccessfully = false
+			responseText = ""
+			break
+		}
 
-	testErr := s.TestAccountConnection(ginCtx, accountID, modelID, defaultTextTestPrompt, AccountTestModeHealth)
+		probeCtx, cancel := context.WithTimeout(ctx, defaultAccountHealthProbeTimeout)
+		w := httptest.NewRecorder()
+		ginCtx, _ := gin.CreateTestContext(w)
+		ginCtx.Request = (&http.Request{}).WithContext(probeCtx)
+
+		testErr = s.TestAccountConnection(ginCtx, accountID, modelID, defaultTextTestPrompt, AccountTestModeHealth)
+		body := w.Body.String()
+		cancel()
+
+		responseText, errMsg, completedSuccessfully = parseTestSSEOutput(body)
+		if completedSuccessfully || responseText != "" {
+			testErr = nil
+			errMsg = ""
+			break
+		}
+		if errMsg == "" && testErr != nil {
+			errMsg = testErr.Error()
+		}
+		if attempt >= attempts || !isTransientAccountHealthProbeFailure(errMsg, testErr) {
+			break
+		}
+		// Brief backoff before retrying a flaky upstream/proxy path.
+		select {
+		case <-ctx.Done():
+			testErr = ctx.Err()
+			errMsg = ctx.Err().Error()
+			completedSuccessfully = false
+			responseText = ""
+		case <-time.After(time.Duration(attempt) * 750 * time.Millisecond):
+		}
+		if ctx.Err() != nil {
+			break
+		}
+	}
 
 	finishedAt := time.Now()
-	body := w.Body.String()
-	responseText, errMsg, completedSuccessfully := parseTestSSEOutput(body)
-
 	status := "success"
 	switch {
 	case completedSuccessfully:
@@ -1998,6 +2110,37 @@ func (s *AccountTestService) RunTestBackground(ctx context.Context, accountID in
 		StartedAt:    startedAt,
 		FinishedAt:   finishedAt,
 	}, nil
+}
+
+func isTransientAccountHealthProbeFailure(errMsg string, testErr error) bool {
+	parts := make([]string, 0, 2)
+	if strings.TrimSpace(errMsg) != "" {
+		parts = append(parts, errMsg)
+	}
+	if testErr != nil {
+		parts = append(parts, testErr.Error())
+	}
+	if len(parts) == 0 {
+		return false
+	}
+	lower := strings.ToLower(strings.Join(parts, " "))
+	switch {
+	case strings.Contains(lower, "eof"),
+		strings.Contains(lower, "connection reset"),
+		strings.Contains(lower, "connection refused"),
+		strings.Contains(lower, "i/o timeout"),
+		strings.Contains(lower, "timeout"),
+		strings.Contains(lower, "deadline exceeded"),
+		strings.Contains(lower, "tls handshake"),
+		strings.Contains(lower, "temporary"),
+		strings.Contains(lower, "unavailable"),
+		strings.Contains(lower, "proxy connection failed"),
+		strings.Contains(lower, "stream read error"),
+		strings.Contains(lower, "stream ended before response.completed"):
+		return true
+	default:
+		return false
+	}
 }
 
 // parseTestSSEOutput extracts response text and error message from captured SSE output.

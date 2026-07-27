@@ -693,9 +693,49 @@ func (r *proxyRepository) SweepExpiredProxies(ctx context.Context, now time.Time
 	return totalChanged, nil
 }
 
+// MarkProxyUnhealthyAndReroute marks a dead proxy as error and reroutes bound accounts.
+func (r *proxyRepository) MarkProxyUnhealthyAndReroute(ctx context.Context, proxyID int64, now time.Time) (int64, error) {
+	all, err := r.ListAllForFallback(ctx)
+	if err != nil {
+		return 0, err
+	}
+	byID := make(map[int64]service.Proxy, len(all))
+	var current *service.Proxy
+	for i := range all {
+		p := all[i]
+		byID[p.ID] = p
+		if p.ID == proxyID {
+			current = &p
+		}
+	}
+	if current == nil {
+		return 0, service.ErrProxyNotFound
+	}
+	// Already non-active: still allow re-route attempts if accounts remain bound.
+	target, change := service.ResolveProxyFallbackTarget(*current, byID, now)
+	if !change && current.FallbackMode == service.FallbackModeProxy {
+		logger.LegacyPrintf("repository.proxy", "[ProxyHealth] proxy %d unhealthy but fallback chain unresolved; accounts kept", proxyID)
+	}
+	changed, sweepErr := r.sweepOneProxyWithStatus(ctx, proxyID, service.StatusError, target, change)
+	if sweepErr != nil {
+		return 0, sweepErr
+	}
+	if changed > 0 {
+		if err := enqueueSchedulerOutbox(ctx, r.sql, service.SchedulerOutboxEventFullRebuild, nil, nil, nil); err != nil {
+			logger.LegacyPrintf("repository.proxy", "[SchedulerOutbox] enqueue proxy health rebuild failed: err=%v", err)
+		}
+	}
+	return changed, nil
+}
+
 // sweepOneExpiredProxy 在单事务内原子执行：标记代理 expired + 改投绑定账号。
-// 若 r.client 已绑定事务（测试注入场景），直接在 r.sql 上执行，由外层事务保证原子性。
 func (r *proxyRepository) sweepOneExpiredProxy(ctx context.Context, proxyID int64, target *int64, change bool) (int64, error) {
+	return r.sweepOneProxyWithStatus(ctx, proxyID, service.StatusExpired, target, change)
+}
+
+// sweepOneProxyWithStatus 在单事务内原子执行：标记代理状态 + 改投绑定账号。
+// 若 r.client 已绑定事务（测试注入场景），直接在 r.sql 上执行，由外层事务保证原子性。
+func (r *proxyRepository) sweepOneProxyWithStatus(ctx context.Context, proxyID int64, status string, target *int64, change bool) (int64, error) {
 	// 尝试开启子事务；若 r.client 已是事务 client，则返回 ErrTxStarted，退回使用 r.sql。
 	tx, txErr := r.client.Tx(ctx)
 	if txErr != nil {
@@ -703,13 +743,13 @@ func (r *proxyRepository) sweepOneExpiredProxy(ctx context.Context, proxyID int6
 			return 0, txErr
 		}
 		// 已在外层事务中（集成测试场景），直接用 r.sql 执行
-		return r.sweepOneExpiredProxyOnExec(ctx, r.sql, proxyID, target, change)
+		return r.sweepOneProxyWithStatusOnExec(ctx, r.sql, proxyID, status, target, change)
 	}
 
 	// 使用新事务执行
 	var n int64
 	var err error
-	n, err = r.sweepOneExpiredProxyOnExec(ctx, tx, proxyID, target, change)
+	n, err = r.sweepOneProxyWithStatusOnExec(ctx, tx, proxyID, status, target, change)
 	if err != nil {
 		_ = tx.Rollback()
 		return 0, err
@@ -720,11 +760,11 @@ func (r *proxyRepository) sweepOneExpiredProxy(ctx context.Context, proxyID int6
 	return n, nil
 }
 
-// sweepOneExpiredProxyOnExec 在给定的 sqlExecutor 上执行：标记 expired + 改投账号。
-func (r *proxyRepository) sweepOneExpiredProxyOnExec(ctx context.Context, exec sqlExecutor, proxyID int64, target *int64, change bool) (int64, error) {
+// sweepOneProxyWithStatusOnExec 在给定的 sqlExecutor 上执行：标记状态 + 改投账号。
+func (r *proxyRepository) sweepOneProxyWithStatusOnExec(ctx context.Context, exec sqlExecutor, proxyID int64, status string, target *int64, change bool) (int64, error) {
 	if _, err := exec.ExecContext(ctx,
 		`UPDATE proxies SET status=$1, updated_at=NOW() WHERE id=$2 AND deleted_at IS NULL`,
-		service.StatusExpired, proxyID); err != nil {
+		status, proxyID); err != nil {
 		return 0, err
 	}
 	if !change {

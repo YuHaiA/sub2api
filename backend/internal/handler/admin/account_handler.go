@@ -1113,7 +1113,7 @@ const (
 	accountHealthStatusConstrained       = "constrained"
 	accountHealthStatusUnavailable       = "unavailable"
 	accountHealthCheckExtraKey           = "health_check"
-	defaultAccountHealthCheckConcurrency = 4
+	defaultAccountHealthCheckConcurrency = 2
 	defaultAccountHealthCheckBatchSize   = 10
 	accountHealthCheckBatchPause         = 2 * time.Second
 	defaultAccountHealthFetchPageSize    = 200
@@ -1448,7 +1448,16 @@ func classifyAccountHealthStatus(result *service.ScheduledTestResult) string {
 		strings.Contains(lower, "resource_exhausted"),
 		strings.Contains(lower, "payment required"),
 		strings.Contains(lower, "api returned 402"),
-		strings.Contains(lower, "(402)"):
+		strings.Contains(lower, "(402)"),
+		// Transient network/proxy pressure is not proof the account credential is dead.
+		strings.Contains(lower, "eof"),
+		strings.Contains(lower, "timeout"),
+		strings.Contains(lower, "deadline exceeded"),
+		strings.Contains(lower, "connection reset"),
+		strings.Contains(lower, "proxy connection failed"),
+		strings.Contains(lower, "chatgpt codex upstream connection failed"),
+		strings.Contains(lower, "stream ended before response.completed"),
+		strings.Contains(lower, "stream read error"):
 		return accountHealthStatusConstrained
 	case strings.Contains(lower, "banned"),
 		strings.Contains(lower, "suspend"),
@@ -1887,10 +1896,13 @@ func (h *AccountHandler) runSingleAccountHealthCheck(
 	}
 
 	snapshot := buildAccountHealthSnapshot(result)
+	// Progress counters should reflect actual health outcomes, not only infra errors.
+	if snapshot.Status != accountHealthStatusHealthy && snapshot.Status != accountHealthStatusConstrained {
+		failed = true
+	}
 	if result != nil && strings.EqualFold(result.Status, "success") && h.rateLimitService != nil {
 		if _, recoverErr := h.rateLimitService.RecoverAccountAfterSuccessfulTest(ctx, account.ID); recoverErr != nil {
 			log.Printf("account health check recover failed for account=%d: %v", account.ID, recoverErr)
-			failed = true
 		}
 	}
 	if persistErr := h.persistAccountHealthSnapshot(ctx, account, snapshot); persistErr != nil {

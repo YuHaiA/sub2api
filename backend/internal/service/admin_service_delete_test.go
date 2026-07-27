@@ -346,6 +346,10 @@ func (s *proxyRepoStub) CountAccountsByProxyID(ctx context.Context, proxyID int6
 func (s *proxyRepoStub) ListAccountSummariesByProxyID(ctx context.Context, proxyID int64) ([]ProxyAccountSummary, error) {
 	panic("unexpected ListAccountSummariesByProxyID call")
 }
+func (s *proxyRepoStub) MarkProxyUnhealthyAndReroute(_ context.Context, _ int64, _ time.Time) (int64, error) {
+	return 0, nil
+}
+
 func (s *proxyRepoStub) SweepExpiredProxies(_ context.Context, _ time.Time) (int64, error) {
 	return 0, nil
 }

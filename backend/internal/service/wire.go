@@ -215,8 +215,11 @@ func ProvideAccountExpiryService(accountRepo AccountRepository) *AccountExpirySe
 }
 
 // ProvideProxyExpiryService creates and starts ProxyExpiryService.
-func ProvideProxyExpiryService(proxyRepo ProxyRepository) *ProxyExpiryService {
+// When a prober is available, active proxies are auto-checked and failed ones
+// (no latency) failover via the configured backup/direct chain.
+func ProvideProxyExpiryService(proxyRepo ProxyRepository, prober ProxyExitInfoProber) *ProxyExpiryService {
 	svc := NewProxyExpiryService(proxyRepo, time.Minute)
+	svc.SetProxyProber(prober)
 	svc.Start()
 	return svc
 }

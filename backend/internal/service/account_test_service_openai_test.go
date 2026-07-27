@@ -661,3 +661,37 @@ func mustMarshalJSON(t *testing.T, value any) []byte {
 	require.NoError(t, err)
 	return data
 }
+
+
+func TestAccountTestService_OpenAIStreamOutputItemDoneSucceeds(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, recorder := newTestContext()
+
+	resp := newJSONResponse(http.StatusOK, "")
+	resp.Body = io.NopCloser(strings.NewReader(`data: {"type":"response.output_item.done","item":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"probe-ok"}]}}
+
+`))
+
+	upstream := &queuedHTTPUpstream{responses: []*http.Response{resp}}
+	svc := &AccountTestService{httpUpstream: upstream}
+	account := &Account{
+		ID:          92,
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeOAuth,
+		Concurrency: 1,
+		Credentials: map[string]any{"access_token": "test-token"},
+	}
+
+	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.5", "", AccountTestModeHealth)
+	require.NoError(t, err)
+	require.Contains(t, recorder.Body.String(), `"type":"content"`)
+	require.Contains(t, recorder.Body.String(), "probe-ok")
+	require.Contains(t, recorder.Body.String(), `"success":true`)
+}
+
+func TestIsTransientAccountHealthProbeFailure(t *testing.T) {
+	require.True(t, isTransientAccountHealthProbeFailure("ChatGPT Codex upstream connection failed (EOF)", nil))
+	require.True(t, isTransientAccountHealthProbeFailure("context deadline exceeded", nil))
+	require.True(t, isTransientAccountHealthProbeFailure("Stream ended before response.completed", nil))
+	require.False(t, isTransientAccountHealthProbeFailure("Authentication failed (401)", nil))
+}
