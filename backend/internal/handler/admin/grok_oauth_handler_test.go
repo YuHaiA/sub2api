@@ -98,7 +98,7 @@ func TestGrokOAuthHandlerQueryQuotaProbesUpstream(t *testing.T) {
 	require.Contains(t, rec.Body.String(), `"source":"active_probe"`)
 	require.Contains(t, rec.Body.String(), `"headers_observed":true`)
 	require.NotContains(t, rec.Body.String(), "access-token")
-	require.Equal(t, xai.DefaultBaseURL+"/responses", upstream.lastReq.URL.String())
+	require.Equal(t, xai.DefaultCLIBaseURL+"/responses", upstream.lastReq.URL.String())
 	require.Equal(t, "Bearer access-token", upstream.lastReq.Header.Get("Authorization"))
 	require.Contains(t, string(upstream.lastBody), `"store":false`)
 	require.NotNil(t, repo.updates[42])
@@ -144,4 +144,90 @@ func TestGrokOAuthHandlerRuntimeSanityDoesNotExposeSecrets(t *testing.T) {
 	require.NotContains(t, rec.Body.String(), "access_token")
 	require.NotContains(t, rec.Body.String(), "secret")
 	require.NotContains(t, rec.Body.String(), "client-secret-like-value")
+}
+
+func TestGrokSSOImportExpiryUsesTokenExpiryWithoutRefreshToken(t *testing.T) {
+	tokenExpiry := time.Now().Add(6 * time.Hour).Unix()
+	expiresAt, autoPause := grokSSOImportExpiry(nil, nil, &service.GrokTokenInfo{
+		ExpiresAt: tokenExpiry,
+	})
+
+	require.NotNil(t, expiresAt)
+	require.Equal(t, tokenExpiry, *expiresAt)
+	require.NotNil(t, autoPause)
+	require.True(t, *autoPause)
+}
+
+func TestGrokSSOImportExpiryUsesEarlierRequestedExpiryWithoutRefreshToken(t *testing.T) {
+	requestedExpiry := time.Now().Add(2 * time.Hour).Unix()
+	tokenExpiry := time.Now().Add(6 * time.Hour).Unix()
+	requestedAutoPause := false
+	expiresAt, autoPause := grokSSOImportExpiry(&requestedExpiry, &requestedAutoPause, &service.GrokTokenInfo{
+		ExpiresAt: tokenExpiry,
+	})
+
+	require.NotNil(t, expiresAt)
+	require.Equal(t, requestedExpiry, *expiresAt)
+	require.NotNil(t, autoPause)
+	require.True(t, *autoPause)
+}
+
+func TestGrokSSOImportExpiryPreservesRequestSettingsWithRefreshToken(t *testing.T) {
+	requestedExpiry := time.Now().Add(2 * time.Hour).Unix()
+	requestedAutoPause := false
+	expiresAt, autoPause := grokSSOImportExpiry(&requestedExpiry, &requestedAutoPause, &service.GrokTokenInfo{
+		RefreshToken: "refresh-token",
+		ExpiresAt:    time.Now().Add(6 * time.Hour).Unix(),
+	})
+
+	require.Same(t, &requestedExpiry, expiresAt)
+	require.Same(t, &requestedAutoPause, autoPause)
+}
+
+func TestGrokSSOImportCredentialsPreservesRequestedBaseURL(t *testing.T) {
+	built := map[string]any{
+		"access_token": "at-1",
+		"base_url":     xai.DefaultCLIBaseURL,
+	}
+	reqCredentials := map[string]any{
+		"base_url":                "https://relay.example.com/v1",
+		"header_override_enabled": true,
+		"header_overrides":        map[string]any{"x-relay-key": "k"},
+	}
+
+	credentials := grokSSOImportCredentials(built, reqCredentials)
+
+	require.Equal(t, "at-1", credentials["access_token"])
+	require.Equal(t, "https://relay.example.com/v1", credentials["base_url"])
+	require.Equal(t, true, credentials["header_override_enabled"])
+	require.Equal(t, map[string]any{"x-relay-key": "k"}, credentials["header_overrides"])
+	// req.Credentials 会被多个 worker 并发读取，合并过程不能污染入参。
+	require.Equal(t, "https://relay.example.com/v1", reqCredentials["base_url"])
+}
+
+func TestGrokSSOImportCredentialsDefaultsToBuildBaseURL(t *testing.T) {
+	built := map[string]any{
+		"access_token": "at-1",
+		"base_url":     xai.DefaultCLIBaseURL,
+	}
+
+	credentials := grokSSOImportCredentials(built, nil)
+	require.Equal(t, xai.DefaultCLIBaseURL, credentials["base_url"])
+
+	credentials = grokSSOImportCredentials(map[string]any{
+		"access_token": "at-2",
+		"base_url":     xai.DefaultCLIBaseURL,
+	}, map[string]any{"base_url": "   "})
+	require.Equal(t, xai.DefaultCLIBaseURL, credentials["base_url"])
+	require.Equal(t, "at-2", credentials["access_token"])
+}
+
+func TestGrokSSOImportWorkerRecoversPanic(t *testing.T) {
+	h := &GrokOAuthHandler{}
+	result := h.safeCreateAccountFromSSOToken(context.Background(), GrokSSOToOAuthRequest{}, "token", 2, 3)
+	// Without a service, createAccountFromSSOToken would panic on nil service access.
+	// Recovery must convert that into a failed item and keep the worker alive.
+	require.False(t, result.created)
+	require.Equal(t, 2, result.item.Index)
+	require.Contains(t, result.item.Error, "internal worker panic")
 }

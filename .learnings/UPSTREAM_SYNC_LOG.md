@@ -1006,3 +1006,92 @@
   - `git diff --check` and conflict-marker scans passed.
   - Docker was not started; integration coverage remains delegated to GitHub Actions.
 
+### Absorbed upstream Grok OAuth follow-up `2026-07-27-b`
+
+- Source: `Wei-Shaw/sub2api`
+- Commits:
+  - `3375b4ed2` `fix(grok): route OAuth subscriptions through CLI proxy`
+  - `ad4bf5c60` `feat(grok): 支持 Web SSO 批量导入并转换为 Build OAuth`
+  - `6c441637b` `fix(grok): 移除账号类型页 SSO 卡片入口`
+  - `a1b5c75ca` `feat(grok): probe newly imported OAuth accounts`
+- Scope:
+  - Routed Grok OAuth subscriptions through the CLI subscription proxy while preserving the fork's OAuth-only account type.
+  - Added Web SSO batch import, OAuth-flow SSO input, and post-import quota probing.
+  - Kept the local account handler's setting, billing-probe, Ollama, and cache dependencies while wiring the new Grok import prober.
+- Compatibility and conflict notes:
+  - Did not absorb the broad account-level custom-endpoint/API-key UI from `221581400` or `7f5d067a`; this fork intentionally keeps Grok OAuth-only.
+  - Applied the narrow `7f5d067a` backend correction: SSO import preserves an explicitly supplied `base_url` instead of letting the built CLI default overwrite it, with regression coverage.
+  - Preserved local `AccountHandler` construction and adjusted `wire_gen.go` dependency ordering rather than replacing the fork's existing fields.
+  - Aligned the imported quota-probe redaction test with this fork's existing `grok-4.3` probe default.
+- Validation:
+  - Grok API/composable Vitest tests passed (2 files, 6 tests).
+  - `pnpm --dir frontend run typecheck` passed.
+  - `pnpm --dir frontend run lint:check` passed.
+  - `pnpm --dir frontend run build` passed; generated output contains the SSO import route and is intentionally ignored by `.gitignore`.
+  - Official temporary Go 1.26.5 toolchain checksum matched release metadata; `gofmt` produced no changes.
+  - `go test -tags=unit ./internal/pkg/xai` passed.
+  - `go test -tags=unit ./internal/service` passed.
+  - `go test -tags=unit ./internal/handler/admin` passed.
+  - `go build ./...` passed.
+
+### Absorbed upstream batch `2026-07-27-c`
+
+- Source: `Wei-Shaw/sub2api`
+- Reconciliation base: `2730c1c43b29`
+- Upstream head at fetch: `95590b553069`
+- Counts:
+  - 26 non-merge upstream commits reviewed
+  - 22 commits fully absorbed or adapted
+  - 2 commits partially absorbed
+  - 2 commits intentionally skipped because their subsystems were already removed from this fork
+- Reviewed commits:
+  - `c81191b46` `fix(deploy): prevent Caddy compression from buffering SSE`
+  - `e46d55bc5` `fix(ci): make Caddy check portable across awk implementations`
+  - `386b57bb7` `fix(composite): pass the requested model through when a prefix route leaves upstream_model empty`
+  - `0b5903d45` `fix(settings): keep fields a settings PUT never sent at their stored value`
+  - `291a73742` `test: stop four concurrency tests from failing on a busy machine`
+  - `1850e0095` `fix(admin): filter usage logs by request id`
+  - `6c7625800` `fix(billing): price Antigravity Gemini 3.6 Flash`
+  - `d11b83870` `fix: show routed user in usage filters`
+  - `0875143d9` `fix: show optional affiliate code on registration`
+  - `6d99e668d` `fix(payment): group dashboard stats by currency`
+  - `ba5fa6a38` `fix(deps): update image and telemetry packages`
+  - `fd7e2039d` `fix(gemini): 完善gemini号池模式时retryable失效问题`
+  - `2447c44f8` `fix(repository): parse nanosecond next_probe_at in due probe scheduling`
+  - `a36222748` `fix(openai): strip foreign reasoning on account failover`
+  - `7ce6e8d65` `fix(openai): track websocket models per turn`
+  - `56b5f0df6` `fix(security-audit): reject unavailable prompt config`
+  - `16dd3d8ee` `fix(frontend): adapt available channels for mobile`
+  - `7af28ca84` `fix(claude): 伪装的 Claude Code CLI 版本号升级到 2.1.220`
+  - `2db0cbd29` `fix(grok): pause accounts after manual test payment failure`
+  - `1f45c99de` `fix(usage): correct mapped model statistics`
+  - `be65c713f` `fix(usage): preserve final upstream model`
+  - `7b3ed2a96` `fix(gateway): detect proxied Claude Code traffic by body to preserve prompt cache`
+  - `5c471485a` `fix(config): honor explicit CONFIG_FILE path`
+  - `7dde9370e` `Codex++ Responses<->Anthropic compatibility fixes`
+  - `7d3a896fc` `chore: update sponsors`
+  - `e94383a4c` `fix(frontend): 修复渠道监控时间线在窄卡片下溢出`
+- Partial and skipped commits:
+  - `c81191b46` — absorbed the live `deploy/Caddyfile` SSE no-buffering fix only; the removed Caddy shell check, `EDGE_SECURITY.md`, and backend CI job remain removed.
+  - `291a73742` — absorbed the surviving gateway and Ollama test-stability changes; removed security-audit and token-refresh-pool-health tests remain removed.
+  - `e46d55bc5` — skipped because it only changes the already-removed Caddy shell check.
+  - `56b5f0df6` — skipped because this fork intentionally removed the Prompt Config security-audit subsystem.
+- Scope:
+  - Synced composite routing, request-ID usage filtering, Antigravity Gemini 3.6 Flash pricing, payment currency grouping, dependency updates, Gemini retry behavior, and sponsor assets/docs.
+  - Synced PostgreSQL nanosecond billing-probe scheduling, OpenAI cross-mode reasoning cleanup, per-turn WebSocket model tracking, mapped/final model usage accounting, Claude Code detection/versioning, explicit `CONFIG_FILE`, and Responses/Anthropic client-tool compatibility.
+  - Synced routed-user filters, optional affiliate registration, mobile available channels, Grok payment-failure pausing, and narrow-card monitor timeline layout.
+- Compatibility and conflict notes:
+  - Preserved the fork's non-model-specific scheduler interface while adapting per-turn OpenAI WS channel mapping, billing model selection, and response-model restoration, including the Grok HTTP bridge path.
+  - Settings partial PUT preserves omitted values without restoring the upstream step-up subsystem; its handler tests use a local fixture rather than deleted step-up helpers.
+  - The `a36222748` modify/delete conflict keeps only the four new cross-mode sanitization tests and does not restore the fork-deleted legacy reasoning tests.
+  - Backfilled upstream dependency `4696ed7d0` (`Keep usage user search aligned with the latest query`) because `d11b83870` exposes its search revision; added sequence invalidation and two out-of-order/cleared-search regression tests.
+  - Preserved the existing Grok SSO import/admin route and OAuth-only account model from `2026-07-27-b`.
+- Validation:
+  - `go test -tags=unit ./internal/pkg/apicompat`, `./internal/repository`, and `./internal/config` passed.
+  - `go test -tags=unit ./internal/service`, `./internal/service/openai_ws_v2`, `./internal/handler`, `./internal/handler/admin`, and `./internal/pkg/xai` passed.
+  - The route registration regression test for `POST /api/v1/admin/grok/sso-to-oauth` passed in `./internal/server/routes`.
+  - `go build ./...`, `go mod tidy`, `gofmt`, and staged diff checks passed.
+  - Six affected frontend Vitest files passed (28 tests), including the backfilled `UsageFilters` race regressions.
+  - `pnpm typecheck`, `pnpm lint:check`, and `pnpm build` passed; generated web assets remain ignored.
+  - Docker was not started. No commit or push was performed.
+

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -1018,6 +1019,89 @@ func TestOpenAIResponsesWebSocket_PassthroughUsageLogLeavesUserAgentNilWhenMissi
 	require.Nil(t, got.log.UserAgent, "空入站 User-Agent 不应由上游握手 UA 或默认 UA 兜底")
 	require.NotNil(t, got.log.ReasoningEffort)
 	require.Equal(t, "medium", *got.log.ReasoningEffort)
+}
+
+func TestOpenAIWSTurnBillingModelPreservesImagePricingModel(t *testing.T) {
+	tests := []struct {
+		name             string
+		resultModel      string
+		mapping          service.ChannelMappingResult
+		requestedModel   string
+		upstreamModel    string
+		wantBillingModel string
+	}{
+		{
+			name:             "upstream billing preserves image model",
+			resultModel:      "gpt-image-2",
+			mapping:          service.ChannelMappingResult{BillingModelSource: service.BillingModelSourceUpstream},
+			requestedModel:   "gpt-5.6-sol",
+			upstreamModel:    "gpt-5.6-sol",
+			wantBillingModel: "gpt-image-2",
+		},
+		{
+			name:             "unmapped channel preserves image model",
+			resultModel:      "gpt-image-2",
+			mapping:          service.ChannelMappingResult{MappedModel: "gpt-5.6-sol", BillingModelSource: service.BillingModelSourceChannelMapped},
+			requestedModel:   "gpt-5.6-sol",
+			upstreamModel:    "gpt-5.6-sol",
+			wantBillingModel: "gpt-image-2",
+		},
+		{
+			name:             "requested source overrides image model",
+			resultModel:      "gpt-image-2",
+			mapping:          service.ChannelMappingResult{BillingModelSource: service.BillingModelSourceRequested},
+			requestedModel:   "public-image-alias",
+			upstreamModel:    "gpt-5.6-sol",
+			wantBillingModel: "public-image-alias",
+		},
+		{
+			name:             "mapped channel source overrides image model",
+			resultModel:      "gpt-image-2",
+			mapping:          service.ChannelMappingResult{MappedModel: "priced-channel-model", BillingModelSource: service.BillingModelSourceChannelMapped},
+			requestedModel:   "public-image-alias",
+			upstreamModel:    "gpt-5.6-sol",
+			wantBillingModel: "priced-channel-model",
+		},
+		{
+			name:             "text turn falls back to upstream model",
+			mapping:          service.ChannelMappingResult{BillingModelSource: service.BillingModelSourceUpstream},
+			requestedModel:   "public-alias",
+			upstreamModel:    "gpt-5.6-sol",
+			wantBillingModel: "gpt-5.6-sol",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := &service.OpenAIForwardResult{BillingModel: tt.resultModel}
+			require.Equal(t, tt.wantBillingModel, openAIWSTurnBillingModel(result, tt.mapping, tt.requestedModel, tt.upstreamModel))
+		})
+	}
+}
+
+func TestShouldReportOpenAIWSProxyAccountFailure(t *testing.T) {
+	t.Run("unsupported client model switch does not penalize account", func(t *testing.T) {
+		err := fmt.Errorf("wrapped ingress turn: %w", newOpenAIWSUnsupportedModelSwitchError("gpt-unsupported"))
+		require.False(t, shouldReportOpenAIWSProxyAccountFailure(err))
+
+		var closeErr *service.OpenAIWSClientCloseError
+		require.ErrorAs(t, err, &closeErr)
+		require.Equal(t, coderws.StatusPolicyViolation, closeErr.StatusCode())
+		require.Equal(t, "model switch requires reconnect", closeErr.Reason())
+	})
+
+	t.Run("upstream policy violation still penalizes account", func(t *testing.T) {
+		err := service.NewOpenAIWSClientCloseError(
+			coderws.StatusPolicyViolation,
+			"upstream websocket authentication failed",
+			errors.New("upstream rejected credentials"),
+		)
+		require.True(t, shouldReportOpenAIWSProxyAccountFailure(err))
+	})
+
+	t.Run("generic proxy failure still penalizes account", func(t *testing.T) {
+		require.True(t, shouldReportOpenAIWSProxyAccountFailure(errors.New("upstream websocket read failed")))
+	})
 }
 
 func TestSetOpenAIClientTransportHTTP(t *testing.T) {
