@@ -1669,14 +1669,13 @@ func (s *AccountTestService) processOpenAIChatCompletionsStream(c *gin.Context, 
 // processOpenAIStream processes the SSE stream from OpenAI Responses API
 func (s *AccountTestService) processOpenAIStream(c *gin.Context, body io.Reader) error {
 	reader := bufio.NewReader(body)
-	seenCompleted := false
 	seenContent := false
 
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
 			if err == io.EOF {
-				if seenCompleted || seenContent {
+				if seenContent {
 					s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
 					return nil
 				}
@@ -1692,7 +1691,7 @@ func (s *AccountTestService) processOpenAIStream(c *gin.Context, body io.Reader)
 
 		jsonStr := sseDataPrefix.ReplaceAllString(line, "")
 		if jsonStr == "[DONE]" {
-			if seenCompleted || seenContent {
+			if seenContent {
 				s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
 				return nil
 			}
@@ -1728,10 +1727,8 @@ func (s *AccountTestService) processOpenAIStream(c *gin.Context, body io.Reader)
 		case "response.completed", "response.done":
 			// Prefer completed event, but keep any content already observed.
 			if text := extractOpenAICompletedResponseText(data["response"]); text != "" && !seenContent {
-				seenContent = true
 				s.sendEvent(c, TestEvent{Type: "content", Text: text})
 			}
-			seenCompleted = true
 			s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
 			return nil
 		case "response.failed":
@@ -2035,10 +2032,10 @@ func (s *AccountTestService) RunTestBackground(ctx context.Context, accountID in
 	startedAt := time.Now()
 
 	var (
-		responseText           string
-		errMsg                 string
-		completedSuccessfully  bool
-		testErr                error
+		responseText          string
+		errMsg                string
+		completedSuccessfully bool
+		testErr               error
 	)
 
 	attempts := 1 + defaultAccountHealthProbeRetries
