@@ -39,6 +39,65 @@ const (
 	defaultOpenAIBatchHealthCheckModel = "gpt-5.4"
 )
 
+// ResolveHealthCheckModelID chooses a model for batch/auto health checks.
+// A configured model only applies when it matches the account platform family;
+// otherwise an empty string is returned so each platform falls back to its own
+// default test model (Claude/OpenAI/Gemini/Grok/Antigravity).
+func ResolveHealthCheckModelID(account *Account, configuredModelID string) string {
+	modelID := strings.TrimSpace(configuredModelID)
+	if modelID == "" || account == nil {
+		return modelID
+	}
+
+	family := healthCheckModelFamily(modelID)
+	switch family {
+	case "anthropic":
+		if account.IsAnthropic() || account.Platform == PlatformAntigravity {
+			return modelID
+		}
+	case "gemini":
+		if account.IsGemini() || account.Platform == PlatformAntigravity {
+			return modelID
+		}
+	case "grok":
+		if account.IsGrok() {
+			return modelID
+		}
+	case "openai":
+		if account.IsOpenAI() {
+			return modelID
+		}
+	default:
+		// Unknown/custom model ids are only forced onto OpenAI-compatible
+		// accounts; other platforms keep their defaults to avoid false failures.
+		if account.IsOpenAI() {
+			return modelID
+		}
+	}
+	return ""
+}
+
+func healthCheckModelFamily(modelID string) string {
+	lower := strings.ToLower(strings.TrimSpace(modelID))
+	switch {
+	case strings.HasPrefix(lower, "claude-"), strings.Contains(lower, "anthropic"):
+		return "anthropic"
+	case strings.HasPrefix(lower, "gemini-"):
+		return "gemini"
+	case strings.HasPrefix(lower, "grok-"):
+		return "grok"
+	case strings.HasPrefix(lower, "gpt-"),
+		strings.HasPrefix(lower, "chatgpt-"),
+		strings.HasPrefix(lower, "o1"),
+		strings.HasPrefix(lower, "o3"),
+		strings.HasPrefix(lower, "o4"),
+		strings.Contains(lower, "codex"):
+		return "openai"
+	default:
+		return ""
+	}
+}
+
 // TestEvent represents a SSE event for account testing
 type TestEvent struct {
 	Type     string `json:"type"`

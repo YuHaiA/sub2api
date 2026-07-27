@@ -17,7 +17,7 @@ export default {
       autoCheck: '健康检查',
       autoCheckEnabled: '启用自动健康检查',
       autoCheckInterval: '检查间隔',
-      autoCheckIntervalHint: '按设定间隔自动检测账号可用性；也可以手动立即检测。',
+      autoCheckIntervalHint: '按设定间隔自动检测各平台账号可用性；模型仅对匹配平台生效，其它平台使用各自默认测活模型。也可以手动立即检测。',
       autoCheckIntervalInvalid: '检查间隔必须是大于 0 的整数',
       intervalUnit: {
         minute: '分钟',
@@ -32,7 +32,7 @@ export default {
       healthCheckAlreadyRunning: '已有健康检查正在运行',
       healthCheckFailed: '健康检查启动失败',
       healthCheckProgress: '健康检查进行中：成功 {current}/{total}，失败 {failed}',
-      healthCheckModelPlaceholder: '模型 ID，例如 gpt-5.5',
+      healthCheckModelPlaceholder: '可选；留空则各平台用默认模型',
       healthCheckGroup: '检查分组',
       healthCheckStatus: '检查状态',
       deleteUnhealthy: '删除异常账号',

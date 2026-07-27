@@ -17,7 +17,7 @@ export default {
       autoCheck: 'Health Check',
       autoCheckEnabled: 'Enable automatic health checks',
       autoCheckInterval: 'Check interval',
-      autoCheckIntervalHint: 'Check account availability on a schedule, or run a manual check at any time.',
+      autoCheckIntervalHint: 'Check multi-platform account availability on a schedule. The model only applies to matching platforms; others use their default probe models. You can also run a manual check anytime.',
       autoCheckIntervalInvalid: 'Check interval must be a positive whole number',
       intervalUnit: {
         minute: 'Minutes',
@@ -32,7 +32,7 @@ export default {
       healthCheckAlreadyRunning: 'A health check is already running',
       healthCheckFailed: 'Failed to start health check',
       healthCheckProgress: 'Health check running: {current}/{total} succeeded, {failed} failed',
-      healthCheckModelPlaceholder: 'Model ID, e.g. gpt-5.5',
+      healthCheckModelPlaceholder: 'Optional; leave empty for per-platform defaults',
       healthCheckGroup: 'Check Group',
       healthCheckStatus: 'Check Status',
       deleteUnhealthy: 'Delete Unhealthy',

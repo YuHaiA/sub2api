@@ -259,7 +259,7 @@ func (s *ScheduledTestRunnerService) runOneAutoHealthCheck(ctx context.Context, 
 	defer release()
 
 	failed := false
-	result, err := s.accountTestSvc.RunTestBackground(ctx, account.ID, modelID)
+	result, err := s.accountTestSvc.RunTestBackground(ctx, account.ID, ResolveHealthCheckModelID(account, modelID))
 	if err != nil {
 		logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health account=%d test error: %v", account.ID, err)
 		failed = true

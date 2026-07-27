@@ -301,6 +301,11 @@ func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	accounts := admin.Group("/accounts")
 	{
 		accounts.GET("", h.Admin.Account.List)
+		// Static collection routes must stay before /:id, otherwise Gin treats
+		// paths like /health-summary as an account id.
+		accounts.POST("/deduplicate", h.Admin.Account.Deduplicate)
+		accounts.POST("/delete-unhealthy", h.Admin.Account.DeleteUnhealthy)
+		accounts.GET("/health-summary", h.Admin.Account.GetHealthSummary)
 		accounts.GET("/upstream-billing-probe/settings", h.Admin.Account.GetUpstreamBillingProbeSettings)
 		accounts.PUT("/upstream-billing-probe/settings", h.Admin.Account.UpdateUpstreamBillingProbeSettings)
 		accounts.POST("/upstream-billing-probe/batch", h.Admin.Account.ProbeUpstreamBillingBatch)

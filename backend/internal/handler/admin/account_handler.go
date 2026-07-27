@@ -1852,7 +1852,7 @@ func (h *AccountHandler) runSingleAccountHealthCheck(
 	}
 	defer release()
 
-	result, err := h.accountTestService.RunTestBackground(ctx, account.ID, modelID)
+	result, err := h.accountTestService.RunTestBackground(ctx, account.ID, service.ResolveHealthCheckModelID(account, modelID))
 	failed := false
 	if err != nil {
 		log.Printf("account health check failed for account=%d: %v", account.ID, err)

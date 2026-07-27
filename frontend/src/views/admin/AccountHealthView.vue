@@ -482,8 +482,9 @@ onMounted(async () => {
   try {
     await reloadPage()
     restartPollTimer()
-  } catch (error) {
+  } catch (error: any) {
     console.error('Failed to initialize account health page:', error)
+    appStore.showError(error?.message || t('common.error'))
   }
 })
 
