@@ -16,23 +16,26 @@ import (
 const (
 	sfKeyAccountHealthAutoCheckConfig   = "account_health_auto_check_config"
 	accountHealthAutoConfigCacheTTL     = 60 * time.Second
+	accountHealthAutoConfigRunningTTL   = 2 * time.Second
 	accountHealthAutoConfigErrorTTL     = 5 * time.Second
 	accountHealthAutoConfigDBTimeout    = 5 * time.Second
+	accountHealthAutoConfigStaleAfter   = 20 * time.Minute
 	DefaultAccountHealthIntervalMinutes = 60
 	maxAccountHealthIntervalMinutes     = 24 * 60
 )
 
 type AccountHealthAutoCheckConfig struct {
-	Enabled         bool   `json:"enabled"`
-	IntervalMinutes int    `json:"interval_minutes"`
-	ModelID         string `json:"model_id"`
-	Running         bool   `json:"running,omitempty"`
-	CurrentTotal    int    `json:"current_total,omitempty"`
-	CurrentSuccess  int    `json:"current_success,omitempty"`
-	CurrentFailed   int    `json:"current_failed,omitempty"`
-	QueueRunning    string `json:"queue_running,omitempty"`
-	QueuePending    string `json:"queue_pending,omitempty"`
-	LastRunAt       *int64 `json:"last_run_at,omitempty"`
+	Enabled           bool   `json:"enabled"`
+	IntervalMinutes   int    `json:"interval_minutes"`
+	ModelID           string `json:"model_id"`
+	Running           bool   `json:"running,omitempty"`
+	CurrentTotal      int    `json:"current_total,omitempty"`
+	CurrentSuccess    int    `json:"current_success,omitempty"`
+	CurrentFailed     int    `json:"current_failed,omitempty"`
+	QueueRunning      string `json:"queue_running,omitempty"`
+	QueuePending      string `json:"queue_pending,omitempty"`
+	LastRunAt         *int64 `json:"last_run_at,omitempty"`
+	ProgressUpdatedAt *int64 `json:"progress_updated_at,omitempty"`
 }
 
 type cachedAccountHealthAutoCheckConfig struct {
@@ -87,7 +90,8 @@ func parseAccountHealthAutoCheckConfigJSON(raw string) *AccountHealthAutoCheckCo
 func (s *SettingService) GetAccountHealthAutoCheckConfig(ctx context.Context) (*AccountHealthAutoCheckConfig, error) {
 	if cached := accountHealthAutoCheckCache.Load(); cached != nil {
 		if c, ok := cached.(*cachedAccountHealthAutoCheckConfig); ok && time.Now().UnixNano() < c.expiresAt {
-			return c.config, nil
+			cfg := s.withAccountHealthQueueSnapshot(c.config)
+			return s.clearStaleAccountHealthAutoCheckRunning(cfg), nil
 		}
 	}
 	result, err, _ := accountHealthAutoCheckSF.Do(sfKeyAccountHealthAutoCheckConfig, func() (any, error) {
@@ -97,9 +101,21 @@ func (s *SettingService) GetAccountHealthAutoCheckConfig(ctx context.Context) (*
 		return defaultAccountHealthAutoCheckConfig(), err
 	}
 	if cfg, ok := result.(*AccountHealthAutoCheckConfig); ok {
-		return cfg, nil
+		cfg = s.withAccountHealthQueueSnapshot(cfg)
+		return s.clearStaleAccountHealthAutoCheckRunning(cfg), nil
 	}
 	return defaultAccountHealthAutoCheckConfig(), nil
+}
+
+func (s *SettingService) withAccountHealthQueueSnapshot(cfg *AccountHealthAutoCheckConfig) *AccountHealthAutoCheckConfig {
+	if cfg == nil {
+		return defaultAccountHealthAutoCheckConfig()
+	}
+	out := *cfg
+	queue := GetBackgroundMaintenanceSnapshot()
+	out.QueueRunning = queue.Running
+	out.QueuePending = queue.Pending
+	return &out
 }
 
 func (s *SettingService) loadAccountHealthAutoCheckConfigFromDB() (*AccountHealthAutoCheckConfig, error) {
@@ -123,9 +139,14 @@ func (s *SettingService) loadAccountHealthAutoCheckConfigFromDB() (*AccountHealt
 		return cfg, err
 	}
 	cfg := parseAccountHealthAutoCheckConfigJSON(raw)
+	cfg = s.clearStaleAccountHealthAutoCheckRunning(cfg)
+	ttl := accountHealthAutoConfigCacheTTL
+	if cfg != nil && cfg.Running {
+		ttl = accountHealthAutoConfigRunningTTL
+	}
 	accountHealthAutoCheckCache.Store(&cachedAccountHealthAutoCheckConfig{
 		config:    cfg,
-		expiresAt: time.Now().Add(accountHealthAutoConfigCacheTTL).UnixNano(),
+		expiresAt: time.Now().Add(ttl).UnixNano(),
 	})
 	return cfg, nil
 }
@@ -144,6 +165,7 @@ func (s *SettingService) SaveAccountHealthAutoCheckConfig(ctx context.Context, c
 		cfg.QueueRunning = existing.QueueRunning
 		cfg.QueuePending = existing.QueuePending
 		cfg.LastRunAt = existing.LastRunAt
+		cfg.ProgressUpdatedAt = existing.ProgressUpdatedAt
 	}
 	return s.storeAccountHealthAutoCheckConfig(ctx, cfg)
 }
@@ -162,6 +184,7 @@ func (s *SettingService) MarkAccountHealthAutoCheckRun(ctx context.Context, runA
 	cfg.CurrentTotal = 0
 	cfg.CurrentSuccess = 0
 	cfg.CurrentFailed = 0
+	cfg.ProgressUpdatedAt = nil
 	cfg.LastRunAt = &ts
 	return s.storeAccountHealthAutoCheckConfig(ctx, cfg)
 }
@@ -184,6 +207,8 @@ func (s *SettingService) MarkAccountHealthAutoCheckProgress(
 	cfg.CurrentTotal = total
 	cfg.CurrentSuccess = success
 	cfg.CurrentFailed = failed
+	ts := time.Now().Unix()
+	cfg.ProgressUpdatedAt = &ts
 	return s.storeAccountHealthAutoCheckConfig(ctx, cfg)
 }
 
@@ -196,9 +221,54 @@ func (s *SettingService) storeAccountHealthAutoCheckConfig(ctx context.Context, 
 		return fmt.Errorf("account health auto check: save config: %w", err)
 	}
 	accountHealthAutoCheckSF.Forget(sfKeyAccountHealthAutoCheckConfig)
+	ttl := accountHealthAutoConfigCacheTTL
+	if cfg != nil && cfg.Running {
+		ttl = accountHealthAutoConfigRunningTTL
+	}
 	accountHealthAutoCheckCache.Store(&cachedAccountHealthAutoCheckConfig{
 		config:    cfg,
-		expiresAt: time.Now().Add(accountHealthAutoConfigCacheTTL).UnixNano(),
+		expiresAt: time.Now().Add(ttl).UnixNano(),
 	})
 	return nil
+}
+
+// clearStaleAccountHealthAutoCheckRunning drops a stuck "running" flag when progress
+// has not advanced for a long time (process crash, hung upstream, deploy restart).
+func (s *SettingService) clearStaleAccountHealthAutoCheckRunning(cfg *AccountHealthAutoCheckConfig) *AccountHealthAutoCheckConfig {
+	if cfg == nil || !cfg.Running {
+		return cfg
+	}
+
+	queue := GetBackgroundMaintenanceSnapshot()
+	healthQueueActive := queue.Running == "account_health_manual" ||
+		queue.Running == "account_health_auto" ||
+		queue.Pending == "account_health_manual" ||
+		queue.Pending == "account_health_auto"
+
+	stale := false
+	switch {
+	case cfg.ProgressUpdatedAt == nil:
+		// Legacy stuck "running" without progress heartbeat: only clear when this
+		// process is not currently executing/queueing a health task.
+		stale = !healthQueueActive
+	default:
+		updatedAt := time.Unix(*cfg.ProgressUpdatedAt, 0)
+		stale = time.Since(updatedAt) >= accountHealthAutoConfigStaleAfter && !healthQueueActive
+	}
+	if !stale {
+		return cfg
+	}
+
+	cleared := *cfg
+	cleared.Running = false
+	cleared.CurrentTotal = 0
+	cleared.CurrentSuccess = 0
+	cleared.CurrentFailed = 0
+	cleared.ProgressUpdatedAt = nil
+	cleared.QueueRunning = ""
+	cleared.QueuePending = ""
+	go func() {
+		_ = s.storeAccountHealthAutoCheckConfig(context.Background(), &cleared)
+	}()
+	return &cleared
 }

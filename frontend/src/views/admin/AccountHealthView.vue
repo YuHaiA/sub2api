@@ -452,7 +452,7 @@ async function pollUpdates() {
     applyAutoConfig(healthCfg)
     applyTokenConfig(refreshCfg)
 
-    if (hasNewHealthRun || (!tokenConfig.running && !autoConfig.running)) {
+    if (hasNewHealthRun || autoConfig.running || (!tokenConfig.running && !autoConfig.running)) {
       await loadHealthSummary()
     }
     restartPollTimer()

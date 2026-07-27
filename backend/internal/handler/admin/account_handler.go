@@ -1728,12 +1728,25 @@ func (h *AccountHandler) RunHealthCheck(c *gin.Context) {
 			runCtx, cancel := context.WithTimeout(context.Background(), 6*time.Hour)
 			defer cancel()
 
+			finished := false
+			defer func() {
+				if !finished {
+					if err := h.markAccountHealthCheckFinished(time.Now()); err != nil {
+						slog.Warn("account_health.manual_batch_mark_failed", "error", err)
+					}
+				}
+			}()
+
 			if len(accounts) == 0 {
-				_ = h.markAccountHealthCheckFinished(startedAt)
+				if err := h.markAccountHealthCheckFinished(startedAt); err != nil {
+					slog.Warn("account_health.manual_batch_mark_failed", "error", err)
+				}
+				finished = true
 				return
 			}
 
 			_ = h.settingService.MarkAccountHealthAutoCheckProgress(context.Background(), len(accounts), 0, 0)
+			var progressMu sync.Mutex
 			success := 0
 			failed := 0
 			for start := 0; start < len(accounts); start += defaultAccountHealthCheckBatchSize {
@@ -1742,14 +1755,23 @@ func (h *AccountHandler) RunHealthCheck(c *gin.Context) {
 					end = len(accounts)
 				}
 
-				_, _, batchFailed, err := h.runAccountHealthCheckBatch(runCtx, accounts[start:end], modelID)
+				_, _, batchFailed, err := h.runAccountHealthCheckBatch(runCtx, accounts[start:end], modelID, func(accountFailed bool) {
+					progressMu.Lock()
+					if accountFailed {
+						failed++
+					} else {
+						success++
+					}
+					currentSuccess := success
+					currentFailed := failed
+					progressMu.Unlock()
+					_ = h.settingService.MarkAccountHealthAutoCheckProgress(context.Background(), len(accounts), currentSuccess, currentFailed)
+				})
 				if err != nil {
 					slog.Warn("account_health.manual_batch_failed", "error", err)
 					return
 				}
-				failed += batchFailed
-				success += (end - start) - batchFailed
-				_ = h.settingService.MarkAccountHealthAutoCheckProgress(context.Background(), len(accounts), success, failed)
+				_ = batchFailed
 
 				if end < len(accounts) {
 					select {
@@ -1763,6 +1785,7 @@ func (h *AccountHandler) RunHealthCheck(c *gin.Context) {
 			if err := h.markAccountHealthCheckFinished(startedAt); err != nil {
 				slog.Warn("account_health.manual_batch_mark_failed", "error", err)
 			}
+			finished = true
 		},
 	})
 
@@ -1799,6 +1822,7 @@ func (h *AccountHandler) runAccountHealthCheckBatch(
 	ctx context.Context,
 	accounts []*service.Account,
 	modelID string,
+	onAccountDone func(failed bool),
 ) ([]AccountHealthCheckItem, []accountHealthSnapshot, int, error) {
 	items := make([]AccountHealthCheckItem, 0, len(accounts))
 	snapshots := make([]accountHealthSnapshot, 0, len(accounts))
@@ -1825,6 +1849,9 @@ func (h *AccountHandler) runAccountHealthCheckBatch(
 				failedCount++
 			}
 			mu.Unlock()
+			if onAccountDone != nil {
+				onAccountDone(failed)
+			}
 			return nil
 		})
 	}

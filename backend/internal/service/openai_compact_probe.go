@@ -12,12 +12,16 @@ const (
 	AccountTestModeDefault = "default"
 	// AccountTestModeCompact drives the /responses/compact compact-probe test.
 	AccountTestModeCompact = "compact"
+	// AccountTestModeHealth drives a lightweight connectivity probe for batch health checks.
+	AccountTestModeHealth = "health"
 )
 
 func normalizeAccountTestMode(mode string) string {
 	switch strings.ToLower(strings.TrimSpace(mode)) {
 	case AccountTestModeCompact:
 		return AccountTestModeCompact
+	case AccountTestModeHealth:
+		return AccountTestModeHealth
 	default:
 		return AccountTestModeDefault
 	}

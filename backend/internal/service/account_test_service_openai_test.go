@@ -571,11 +571,21 @@ func TestAccountTestService_OpenAIChatCompletionsPathRejectsNonJSONStream(t *tes
 func TestCreateOpenAITestPayload_DefaultTextPromptUsesProbePool(t *testing.T) {
 	t.Parallel()
 
-	payload := createOpenAITestPayload("gpt-5.4", false)
+	payload := createOpenAITestPayload("gpt-5.4", false, "", false)
 	text := gjson.GetBytes(mustMarshalJSON(t, payload), "input.0.content.0.text").String()
 
 	require.Contains(t, defaultTextTestPromptPool, text)
 	require.NotContains(t, []string{"hi", "hello", "你好"}, text)
+}
+
+func TestCreateOpenAITestPayload_HealthProbeUsesFixedPrompt(t *testing.T) {
+	t.Parallel()
+
+	payload := createOpenAITestPayload("gpt-5.5", true, "What time is it?", true)
+	require.Equal(t, defaultTextTestPrompt, gjson.GetBytes(mustMarshalJSON(t, payload), "input.0.content.0.text").String())
+	require.Equal(t, float64(32), gjson.GetBytes(mustMarshalJSON(t, payload), "max_output_tokens").Float())
+	require.Contains(t, gjson.GetBytes(mustMarshalJSON(t, payload), "instructions").String(), "connectivity probe")
+	require.Equal(t, false, gjson.GetBytes(mustMarshalJSON(t, payload), "store").Bool())
 }
 
 func TestCreateOpenAIChatCompletionsTestPayload_DefaultTextPromptUsesProbePool(t *testing.T) {

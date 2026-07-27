@@ -467,6 +467,7 @@ export interface AccountHealthAutoCheckConfig {
   queue_running?: string
   queue_pending?: string
   last_run_at?: number | null
+  progress_updated_at?: number | null
 }
 
 export interface AccountHealthCheckRunResult {

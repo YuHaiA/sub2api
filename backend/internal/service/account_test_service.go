@@ -36,7 +36,7 @@ var sseDataPrefix = regexp.MustCompile(`^data:\s*`)
 const (
 	testClaudeAPIURL                   = "https://api.anthropic.com/v1/messages?beta=true"
 	chatgptCodexAPIURL                 = "https://chatgpt.com/backend-api/codex/responses"
-	defaultOpenAIBatchHealthCheckModel = "gpt-5.4"
+	defaultOpenAIBatchHealthCheckModel = "gpt-5.5"
 )
 
 // ResolveHealthCheckModelID chooses a model for batch/auto health checks.
@@ -683,7 +683,7 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 	if isOAuth {
 		upstreamTestModelID = normalizeOpenAIModelForUpstream(credentialAccount, testModelID)
 	}
-	payload := createOpenAITestPayload(upstreamTestModelID, isOAuth)
+	payload := createOpenAITestPayload(upstreamTestModelID, isOAuth, prompt, mode == AccountTestModeHealth)
 	payloadBytes, _ := json.Marshal(payload)
 
 	// Send test_start event
@@ -1447,9 +1447,14 @@ func (s *AccountTestService) processGeminiStream(c *gin.Context, body io.Reader)
 	}
 }
 
-// createOpenAITestPayload creates a test payload for OpenAI Responses API
-func createOpenAITestPayload(modelID string, isOAuth bool) map[string]any {
-	testPrompt := resolveTextTestPrompt("")
+// createOpenAITestPayload creates a test payload for OpenAI Responses API.
+// prompt is optional; empty uses the randomized probe pool for interactive tests.
+// healthProbe forces a short, tool-free connectivity check suitable for batch health scans.
+func createOpenAITestPayload(modelID string, isOAuth bool, prompt string, healthProbe bool) map[string]any {
+	testPrompt := resolveTextTestPrompt(prompt)
+	if healthProbe {
+		testPrompt = defaultTextTestPrompt
+	}
 
 	payload := map[string]any{
 		"model": modelID,
@@ -1472,8 +1477,14 @@ func createOpenAITestPayload(modelID string, isOAuth bool) map[string]any {
 		payload["store"] = false
 	}
 
-	// All accounts require instructions for Responses API
-	payload["instructions"] = openai.DefaultInstructions
+	if healthProbe {
+		// Keep batch health checks short and avoid Codex agent/tool loops such as shell date.
+		payload["max_output_tokens"] = 32
+		payload["instructions"] = "You are a connectivity probe. Reply with exactly the requested text. Do not call tools or functions."
+	} else {
+		// Interactive account tests keep full Codex-compatible instructions.
+		payload["instructions"] = openai.CodexBaseInstructionsForModel(modelID)
+	}
 
 	return payload
 }
@@ -1627,12 +1638,13 @@ func (s *AccountTestService) processOpenAIChatCompletionsStream(c *gin.Context, 
 func (s *AccountTestService) processOpenAIStream(c *gin.Context, body io.Reader) error {
 	reader := bufio.NewReader(body)
 	seenCompleted := false
+	seenContent := false
 
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
 			if err == io.EOF {
-				if seenCompleted {
+				if seenCompleted || seenContent {
 					s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
 					return nil
 				}
@@ -1648,7 +1660,7 @@ func (s *AccountTestService) processOpenAIStream(c *gin.Context, body io.Reader)
 
 		jsonStr := sseDataPrefix.ReplaceAllString(line, "")
 		if jsonStr == "[DONE]" {
-			if seenCompleted {
+			if seenCompleted || seenContent {
 				s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
 				return nil
 			}
@@ -1666,6 +1678,7 @@ func (s *AccountTestService) processOpenAIStream(c *gin.Context, body io.Reader)
 		case "response.output_text.delta":
 			// OpenAI Responses API uses "delta" field for text content
 			if delta, ok := data["delta"].(string); ok && delta != "" {
+				seenContent = true
 				s.sendEvent(c, TestEvent{Type: "content", Text: delta})
 			}
 		case "response.completed", "response.done":
@@ -1906,16 +1919,25 @@ func (s *AccountTestService) sendErrorAndEnd(c *gin.Context, errorMsg string) er
 	return fmt.Errorf("%s", errorMsg)
 }
 
+// defaultAccountHealthProbeTimeout bounds a single background health probe so one
+// slow/hung upstream cannot freeze the whole account-health queue.
+const defaultAccountHealthProbeTimeout = 45 * time.Second
+
 // RunTestBackground executes an account test in-memory (no real HTTP client),
 // capturing SSE output via httptest.NewRecorder, then parses the result.
+// It always uses the lightweight health probe mode so batch checks stay fast and
+// avoid Codex agent/tool loops that interactive UI tests may intentionally exercise.
 func (s *AccountTestService) RunTestBackground(ctx context.Context, accountID int64, modelID string) (*ScheduledTestResult, error) {
 	startedAt := time.Now()
 
+	probeCtx, cancel := context.WithTimeout(ctx, defaultAccountHealthProbeTimeout)
+	defer cancel()
+
 	w := httptest.NewRecorder()
 	ginCtx, _ := gin.CreateTestContext(w)
-	ginCtx.Request = (&http.Request{}).WithContext(ctx)
+	ginCtx.Request = (&http.Request{}).WithContext(probeCtx)
 
-	testErr := s.TestAccountConnection(ginCtx, accountID, modelID, "", AccountTestModeDefault)
+	testErr := s.TestAccountConnection(ginCtx, accountID, modelID, defaultTextTestPrompt, AccountTestModeHealth)
 
 	finishedAt := time.Now()
 	body := w.Body.String()

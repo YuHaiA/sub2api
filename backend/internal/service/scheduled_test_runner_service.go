@@ -161,13 +161,25 @@ func (s *ScheduledTestRunnerService) runAutoAccountHealthCheck(ctx context.Conte
 			runCtx, cancel := context.WithTimeout(context.Background(), 6*time.Hour)
 			defer cancel()
 
+			finished := false
+			defer func() {
+				if !finished {
+					if err := s.settingService.MarkAccountHealthAutoCheckRun(context.Background(), time.Now()); err != nil {
+						logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health mark last run error: %v", err)
+					}
+				}
+			}()
+
 			accounts, listErr := s.listAllAccountsForAutoHealthCheck(runCtx)
 			if listErr != nil {
 				logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health list accounts error: %v", listErr)
 				return
 			}
 			if len(accounts) == 0 {
-				_ = s.settingService.MarkAccountHealthAutoCheckRun(context.Background(), now)
+				if err := s.settingService.MarkAccountHealthAutoCheckRun(context.Background(), now); err != nil {
+					logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health mark last run error: %v", err)
+				}
+				finished = true
 				return
 			}
 
@@ -191,19 +203,20 @@ func (s *ScheduledTestRunnerService) runAutoAccountHealthCheck(ctx context.Conte
 					go func(acc *Account) {
 						defer wg.Done()
 						defer func() { <-sem }()
-						if s.runOneAutoHealthCheck(runCtx, acc, strings.TrimSpace(cfg.ModelID), now) {
-							mu.Lock()
-							processedFailed++
-							mu.Unlock()
-							return
-						}
+						failed := s.runOneAutoHealthCheck(runCtx, acc, strings.TrimSpace(cfg.ModelID), now)
 						mu.Lock()
-						processedSuccess++
+						if failed {
+							processedFailed++
+						} else {
+							processedSuccess++
+						}
+						currentSuccess := processedSuccess
+						currentFailed := processedFailed
 						mu.Unlock()
+						_ = s.settingService.MarkAccountHealthAutoCheckProgress(context.Background(), len(accounts), currentSuccess, currentFailed)
 					}(&account)
 				}
 				wg.Wait()
-				_ = s.settingService.MarkAccountHealthAutoCheckProgress(context.Background(), len(accounts), processedSuccess, processedFailed)
 
 				if end < len(accounts) {
 					select {
@@ -217,6 +230,7 @@ func (s *ScheduledTestRunnerService) runAutoAccountHealthCheck(ctx context.Conte
 			if err := s.settingService.MarkAccountHealthAutoCheckRun(context.Background(), now); err != nil {
 				logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health mark last run error: %v", err)
 			}
+			finished = true
 		},
 	})
 	if mode != BackgroundMaintenanceRunNow {
