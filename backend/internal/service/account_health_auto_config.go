@@ -246,13 +246,13 @@ func (s *SettingService) clearStaleAccountHealthAutoCheckRunning(cfg *AccountHea
 		queue.Pending == "account_health_auto"
 
 	stale := false
-	switch {
-	case cfg.ProgressUpdatedAt == nil:
+	switch progressUpdatedAt := cfg.ProgressUpdatedAt; {
+	case progressUpdatedAt == nil:
 		// Legacy stuck "running" without progress heartbeat: only clear when this
 		// process is not currently executing/queueing a health task.
 		stale = !healthQueueActive
 	default:
-		updatedAt := time.Unix(*cfg.ProgressUpdatedAt, 0)
+		updatedAt := time.Unix(*progressUpdatedAt, 0)
 		stale = time.Since(updatedAt) >= accountHealthAutoConfigStaleAfter && !healthQueueActive
 	}
 	if !stale {
