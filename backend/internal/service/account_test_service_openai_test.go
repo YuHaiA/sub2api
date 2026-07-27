@@ -608,11 +608,29 @@ func TestCreateOpenAITestPayload_DefaultTextPromptUsesProbePool(t *testing.T) {
 func TestCreateOpenAITestPayload_HealthProbeUsesFixedPrompt(t *testing.T) {
 	t.Parallel()
 
-	payload := createOpenAITestPayload("gpt-5.5", true, "What time is it?", true)
-	require.Equal(t, defaultTextTestPrompt, gjson.GetBytes(mustMarshalJSON(t, payload), "input.0.content.0.text").String())
-	require.Equal(t, float64(32), gjson.GetBytes(mustMarshalJSON(t, payload), "max_output_tokens").Float())
-	require.Contains(t, gjson.GetBytes(mustMarshalJSON(t, payload), "instructions").String(), "connectivity probe")
-	require.Equal(t, false, gjson.GetBytes(mustMarshalJSON(t, payload), "store").Bool())
+	oauthPayload := createOpenAITestPayload("gpt-5.5", true, "What time is it?", true)
+	require.Equal(t, defaultTextTestPrompt, gjson.GetBytes(mustMarshalJSON(t, oauthPayload), "input.0.content.0.text").String())
+	require.False(t, gjson.GetBytes(mustMarshalJSON(t, oauthPayload), "max_output_tokens").Exists())
+	require.NotContains(t, gjson.GetBytes(mustMarshalJSON(t, oauthPayload), "instructions").String(), "connectivity probe")
+	require.NotEmpty(t, gjson.GetBytes(mustMarshalJSON(t, oauthPayload), "instructions").String())
+	require.Equal(t, false, gjson.GetBytes(mustMarshalJSON(t, oauthPayload), "store").Bool())
+
+	apiKeyPayload := createOpenAITestPayload("gpt-5.5", false, "What time is it?", true)
+	require.Equal(t, defaultTextTestPrompt, gjson.GetBytes(mustMarshalJSON(t, apiKeyPayload), "input.0.content.0.text").String())
+	require.Equal(t, float64(32), gjson.GetBytes(mustMarshalJSON(t, apiKeyPayload), "max_output_tokens").Float())
+}
+
+func TestFormatOpenAIUpstreamRequestError_OAuthEOFHintsCorrectEndpoint(t *testing.T) {
+	t.Parallel()
+
+	msg := formatOpenAIUpstreamRequestError(
+		chatgptCodexAPIURL,
+		true,
+		fmt.Errorf(`Post "%s": EOF`, chatgptCodexAPIURL),
+	)
+	require.Contains(t, msg, "ChatGPT Codex upstream connection failed")
+	require.Contains(t, msg, chatgptCodexAPIURL)
+	require.Contains(t, msg, "correct OAuth URL")
 }
 
 func TestCreateOpenAIChatCompletionsTestPayload_DefaultTextPromptUsesProbePool(t *testing.T) {

@@ -23,6 +23,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/geminicli"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 	"github.com/Wei-Shaw/sub2api/internal/util/urlvalidator"
 	"github.com/gin-gonic/gin"
@@ -724,9 +725,13 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 		proxyURL = account.Proxy.URL()
 	}
 
-	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
+	var tlsProfile *tlsfingerprint.Profile
+	if s.tlsFPProfileService != nil {
+		tlsProfile = s.tlsFPProfileService.ResolveTLSProfile(account)
+	}
+	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, tlsProfile)
 	if err != nil {
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Request failed: %s", err.Error()))
+		return s.sendErrorAndEnd(c, formatOpenAIUpstreamRequestError(apiURL, isOAuth, err))
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -1449,10 +1454,12 @@ func (s *AccountTestService) processGeminiStream(c *gin.Context, body io.Reader)
 
 // createOpenAITestPayload creates a test payload for OpenAI Responses API.
 // prompt is optional; empty uses the randomized probe pool for interactive tests.
-// healthProbe forces a short, tool-free connectivity check suitable for batch health scans.
+// healthProbe uses a fixed short user prompt to avoid tool-triggering chatty probes,
+// but still keeps Codex-compatible instructions for ChatGPT OAuth accounts.
 func createOpenAITestPayload(modelID string, isOAuth bool, prompt string, healthProbe bool) map[string]any {
 	testPrompt := resolveTextTestPrompt(prompt)
 	if healthProbe {
+		// Fixed prompt avoids "What time is it?" style probes that trigger shell tools.
 		testPrompt = defaultTextTestPrompt
 	}
 
@@ -1477,16 +1484,41 @@ func createOpenAITestPayload(modelID string, isOAuth bool, prompt string, health
 		payload["store"] = false
 	}
 
-	if healthProbe {
-		// Keep batch health checks short and avoid Codex agent/tool loops such as shell date.
+	// ChatGPT Codex OAuth is strict about client identity/instructions. Replacing
+	// them with a custom short system prompt can make upstream close the stream
+	// with transport errors such as EOF. Always keep Codex-compatible instructions.
+	payload["instructions"] = openai.CodexBaseInstructionsForModel(modelID)
+
+	// max_output_tokens is only safe on the public OpenAI platform API.
+	// ChatGPT internal Codex endpoints have rejected or aborted requests with it.
+	if healthProbe && !isOAuth {
 		payload["max_output_tokens"] = 32
-		payload["instructions"] = "You are a connectivity probe. Reply with exactly the requested text. Do not call tools or functions."
-	} else {
-		// Interactive account tests keep full Codex-compatible instructions.
-		payload["instructions"] = openai.CodexBaseInstructionsForModel(modelID)
 	}
 
 	return payload
+}
+
+func formatOpenAIUpstreamRequestError(apiURL string, isOAuth bool, err error) string {
+	if err == nil {
+		return "Request failed"
+	}
+	msg := strings.TrimSpace(err.Error())
+	if !isOAuth {
+		return fmt.Sprintf("Request failed: %s", msg)
+	}
+	lower := strings.ToLower(msg)
+	if strings.Contains(lower, "eof") ||
+		strings.Contains(lower, "connection reset") ||
+		strings.Contains(lower, "connection refused") ||
+		strings.Contains(lower, "i/o timeout") ||
+		strings.Contains(lower, "tls") {
+		return fmt.Sprintf(
+			"ChatGPT Codex upstream connection failed (%s). Endpoint %s is the correct OAuth URL; check proxy/TLS/network or refresh the account token.",
+			msg,
+			apiURL,
+		)
+	}
+	return fmt.Sprintf("Request failed: %s", msg)
 }
 
 func createOpenAIChatCompletionsTestPayload(modelID string, prompt string) map[string]any {
