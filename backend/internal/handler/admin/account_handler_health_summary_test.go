@@ -48,10 +48,18 @@ func TestClassifyAccountHealthStatus_MapsConstrainedAndUnavailable(t *testing.T)
 			expected: accountHealthStatusUnavailable,
 		},
 		{
-			name: "generic failure becomes unavailable",
+			name: "timeout becomes constrained",
 			result: &service.ScheduledTestResult{
 				Status:       "failed",
 				ErrorMessage: "dial tcp timeout",
+			},
+			expected: accountHealthStatusConstrained,
+		},
+		{
+			name: "generic failure becomes unavailable",
+			result: &service.ScheduledTestResult{
+				Status:       "failed",
+				ErrorMessage: "invalid api key",
 			},
 			expected: accountHealthStatusUnavailable,
 		},
