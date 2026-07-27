@@ -27,6 +27,25 @@ type grokImportProbeStub struct {
 	done         chan int64
 }
 
+type grokImportProbeSchedulerSnapshot struct {
+	Queued     int
+	Workers    int
+	MaxWorkers int
+}
+
+func (s *grokImportProbeScheduler) snapshot() grokImportProbeSchedulerSnapshot {
+	if s == nil {
+		return grokImportProbeSchedulerSnapshot{}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return grokImportProbeSchedulerSnapshot{
+		Queued:     len(s.queue),
+		Workers:    s.workers,
+		MaxWorkers: s.maxWorkers,
+	}
+}
+
 func newGrokImportProbeStub(buffer int) *grokImportProbeStub {
 	return &grokImportProbeStub{
 		calls:    make(map[int64]int),
