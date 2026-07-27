@@ -224,7 +224,7 @@ func TestAccountTestService_OpenAIShadowUsesParentCredentialsAndShadowModel(t *t
 	require.Contains(t, recorder.Body.String(), `"success":true`)
 }
 
-func TestAccountTestService_OpenAIStreamEOFBeforeCompletedFails(t *testing.T) {
+func TestAccountTestService_OpenAIStreamEOFWithContentSucceeds(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ctx, recorder := newTestContext()
 
@@ -237,6 +237,33 @@ func TestAccountTestService_OpenAIStreamEOFBeforeCompletedFails(t *testing.T) {
 	svc := &AccountTestService{httpUpstream: upstream}
 	account := &Account{
 		ID:          90,
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeOAuth,
+		Concurrency: 1,
+		Credentials: map[string]any{"access_token": "test-token"},
+	}
+
+	// Connectivity probes should treat any real output as success even if the
+	// upstream stream ends without an explicit response.completed event.
+	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "")
+	require.NoError(t, err)
+	require.Contains(t, recorder.Body.String(), `"type":"content"`)
+	require.Contains(t, recorder.Body.String(), `"success":true`)
+}
+
+func TestAccountTestService_OpenAIStreamEOFWithoutContentFails(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, recorder := newTestContext()
+
+	resp := newJSONResponse(http.StatusOK, "")
+	resp.Body = io.NopCloser(strings.NewReader(`data: {"type":"response.created"}
+
+`))
+
+	upstream := &queuedHTTPUpstream{responses: []*http.Response{resp}}
+	svc := &AccountTestService{httpUpstream: upstream}
+	account := &Account{
+		ID:          91,
 		Platform:    PlatformOpenAI,
 		Type:        AccountTypeOAuth,
 		Concurrency: 1,
