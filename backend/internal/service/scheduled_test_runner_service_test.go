@@ -51,10 +51,18 @@ func TestAutoHealthStatusFromResult_UsesCurrentBuckets(t *testing.T) {
 			expected: "unavailable",
 		},
 		{
-			name: "generic failure becomes unavailable",
+			name: "timeout becomes constrained",
 			result: &ScheduledTestResult{
 				Status:       "failed",
 				ErrorMessage: "dial tcp timeout",
+			},
+			expected: "constrained",
+		},
+		{
+			name: "generic failure becomes unavailable",
+			result: &ScheduledTestResult{
+				Status:       "failed",
+				ErrorMessage: "invalid api key",
 			},
 			expected: "unavailable",
 		},
