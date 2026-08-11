@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { RouterView, useRouter, useRoute } from 'vue-router'
-import type { RouteLocationNormalizedLoaded } from 'vue-router'
 import { onMounted, onBeforeUnmount, watch } from 'vue'
 import Toast from '@/components/common/Toast.vue'
 import NavigationProgress from '@/components/common/NavigationProgress.vue'
@@ -9,6 +8,7 @@ import { resolveRouteDocumentTitle } from '@/router/title'
 import AnnouncementPopup from '@/components/common/AnnouncementPopup.vue'
 import { useAppStore, useAuthStore, useSubscriptionStore, useAnnouncementStore, useAdminComplianceStore, useAdminSettingsStore } from '@/stores'
 import { getSetupStatus } from '@/api/setup'
+import { updateFavicon } from '@/utils/branding'
 
 const router = useRouter()
 const route = useRoute()
@@ -18,7 +18,6 @@ const subscriptionStore = useSubscriptionStore()
 const announcementStore = useAnnouncementStore()
 const adminComplianceStore = useAdminComplianceStore()
 const adminSettingsStore = useAdminSettingsStore()
-const ADMIN_VIEW_CACHE_MAX = 12
 
 function updateDocumentTitle() {
   const customMenuItems = [
@@ -26,30 +25,6 @@ function updateDocumentTitle() {
     ...(authStore.isAdmin ? adminSettingsStore.customMenuItems : []),
   ]
   document.title = resolveRouteDocumentTitle(route, appStore.siteName, customMenuItems)
-}
-
-function shouldKeepAliveRoute(route: RouteLocationNormalizedLoaded) {
-  return route.path.startsWith('/admin')
-}
-
-function getRouteViewKey(route: RouteLocationNormalizedLoaded) {
-  return route.path
-}
-
-/**
- * Update favicon dynamically
- * @param logoUrl - URL of the logo to use as favicon
- */
-function updateFavicon(logoUrl: string) {
-  // Find existing favicon link or create new one
-  let link = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
-  if (!link) {
-    link = document.createElement('link')
-    link.rel = 'icon'
-    document.head.appendChild(link)
-  }
-  link.type = logoUrl.endsWith('.svg') ? 'image/svg+xml' : 'image/x-icon'
-  link.href = logoUrl
 }
 
 // Watch for site settings changes and update favicon/title
@@ -163,12 +138,7 @@ onMounted(async () => {
 
 <template>
   <NavigationProgress />
-  <RouterView v-slot="{ Component, route }">
-    <KeepAlive :max="ADMIN_VIEW_CACHE_MAX">
-      <component :is="Component" v-if="shouldKeepAliveRoute(route)" :key="getRouteViewKey(route)" />
-    </KeepAlive>
-    <component :is="Component" v-if="!shouldKeepAliveRoute(route)" :key="getRouteViewKey(route)" />
-  </RouterView>
+  <RouterView />
   <Toast />
   <AnnouncementPopup />
   <AdminComplianceDialog />

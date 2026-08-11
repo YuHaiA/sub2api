@@ -2,21 +2,7 @@ package service
 
 import "time"
 
-// isProxyUsableForFallback reports whether a proxy can receive rerouted accounts.
-// Expired/disabled/error proxies are skipped so failover keeps moving down the chain.
-func isProxyUsableForFallback(p Proxy, now time.Time) bool {
-	if (&p).IsExpired(now) {
-		return false
-	}
-	switch p.Status {
-	case StatusExpired, StatusError, StatusDisabled:
-		return false
-	default:
-		return true
-	}
-}
-
-// ResolveProxyFallbackTarget 计算一个过期/故障代理 start 应把账号改投到哪里。
+// ResolveProxyFallbackTarget 计算一个过期代理 start 应把账号改投到哪里。
 // 返回 (targetID, change)：
 //   - change=false：不改动账号（mode=none，或链路成环/无解的兜底）
 //   - change=true, targetID=nil：改投为直连
@@ -41,7 +27,7 @@ func ResolveProxyFallbackTarget(start Proxy, byID map[int64]Proxy, now time.Time
 			if !ok {
 				return nil, false
 			}
-			if isProxyUsableForFallback(p, now) {
+			if !(&p).IsExpired(now) && p.Status != StatusExpired {
 				id := p.ID
 				return &id, true
 			}

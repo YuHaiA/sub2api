@@ -33,6 +33,17 @@
     <!-- Row 2: Plan type + Privacy mode (only if either exists) -->
     <div v-if="planLabel || privacyBadge" class="inline-flex items-center overflow-hidden rounded-md">
       <span v-if="planLabel" :class="['inline-flex items-center gap-1 px-1.5 py-1', planBadgeClass]">
+        <GrokFreeIcon
+          v-if="isGrokFreePlan"
+          data-testid="grok-free-plan-icon"
+        />
+        <Icon
+          v-else-if="planIconName"
+          :name="planIconName"
+          size="xs"
+          data-testid="grok-plan-icon"
+          aria-hidden="true"
+        />
         <span>{{ planLabel }}</span>
       </span>
       <span
@@ -57,6 +68,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { AccountPlatform, AccountType } from '@/types'
+import GrokFreeIcon from './GrokFreeIcon.vue'
 import PlatformIcon from './PlatformIcon.vue'
 import Icon from '@/components/icons/Icon.vue'
 
@@ -65,6 +77,7 @@ const { t } = useI18n()
 interface Props {
   platform: AccountPlatform
   type: AccountType
+  authMode?: string
   planType?: string
   privacyMode?: string
   subscriptionExpiresAt?: string
@@ -80,7 +93,15 @@ const platformLabel = computed(() => {
   return 'Gemini'
 })
 
+const normalizedAuthMode = computed(() =>
+  (props.authMode || '').trim().toLowerCase().replace(/[\s_-]+/g, '')
+)
+
 const typeLabel = computed(() => {
+  if (props.platform === 'openai' && props.type === 'oauth') {
+    if (normalizedAuthMode.value === 'agentidentity') return 'Agent Identity'
+    if (normalizedAuthMode.value === 'personalaccesstoken') return 'PAT'
+  }
   switch (props.type) {
     case 'oauth':
       return 'OAuth'
@@ -97,10 +118,13 @@ const typeLabel = computed(() => {
   }
 })
 
+const normalizedPlanType = computed(() =>
+  (props.planType || '').trim().toLowerCase().replace(/[\s_-]+/g, '')
+)
+
 const planLabel = computed(() => {
-  if (!props.planType) return ''
-  const lower = props.planType.toLowerCase()
-  switch (lower) {
+  if (!normalizedPlanType.value) return ''
+  switch (normalizedPlanType.value) {
     case 'plus':
       return 'Plus'
     case 'team':
@@ -109,12 +133,38 @@ const planLabel = computed(() => {
     case 'pro':
       return 'Pro'
     case 'free':
-      return 'Free'
+    case 'basic':
+      return props.platform === 'grok' ? 'Grok Free' : 'Free'
+    case 'supergrok':
+      return 'SuperGrok'
+    case 'supergrokheavy':
+      return 'SuperGrok Heavy'
+    case 'heavy':
+      return 'Heavy'
     case 'abnormal':
       return t('admin.accounts.subscriptionAbnormal')
     default:
       return props.planType
   }
+})
+
+const isGrokFreePlan = computed(() =>
+  props.platform === 'grok' &&
+  (normalizedPlanType.value === 'free' || normalizedPlanType.value === 'basic')
+)
+
+const planIconName = computed<'bolt' | null>(() => {
+  if (props.platform !== 'grok') return null
+  // Paid Grok tiers (SuperGrok / Heavy) share the bolt mark; free uses GrokFreeIcon.
+  if (
+    normalizedPlanType.value === 'supergrok' ||
+    normalizedPlanType.value === 'supergrokheavy' ||
+    normalizedPlanType.value === 'heavy' ||
+    normalizedPlanType.value.includes('heavy')
+  ) {
+    return 'bolt'
+  }
+  return null
 })
 
 const platformClass = computed(() => {
@@ -150,8 +200,34 @@ const typeClass = computed(() => {
 })
 
 const planBadgeClass = computed(() => {
-  if (props.planType && props.planType.toLowerCase() === 'abnormal') {
+  if (normalizedPlanType.value === 'abnormal') {
     return 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
+  }
+  // Free stays muted gray; paid Grok tiers get distinct colors.
+  if (normalizedPlanType.value === 'free' || normalizedPlanType.value === 'basic') {
+    return 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+  }
+  if (props.platform === 'grok' && normalizedPlanType.value) {
+    // Heavy / SuperGrok Heavy → purple
+    if (normalizedPlanType.value.includes('heavy')) {
+      return 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-300'
+    }
+    // SuperGrok → cyan
+    if (normalizedPlanType.value.includes('supergrok')) {
+      return 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300'
+    }
+    // Any other non-free Grok plan (future tiers) → amber so it still stands out
+    return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+  }
+  // OpenAI / other paid plan labels: keep readable distinction from free gray
+  if (normalizedPlanType.value === 'plus') {
+    return 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300'
+  }
+  if (normalizedPlanType.value === 'team') {
+    return 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+  }
+  if (normalizedPlanType.value === 'pro' || normalizedPlanType.value === 'chatgptpro') {
+    return 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300'
   }
   return typeClass.value
 })
@@ -159,7 +235,7 @@ const planBadgeClass = computed(() => {
 // Subscription expiration label (non-free only)
 const expiresLabel = computed(() => {
   if (!props.subscriptionExpiresAt || !props.planType) return ''
-  if (props.planType.toLowerCase() === 'free') return ''
+  if (normalizedPlanType.value === 'free' || normalizedPlanType.value === 'basic') return ''
   try {
     const d = new Date(props.subscriptionExpiresAt)
     if (isNaN(d.getTime())) return ''

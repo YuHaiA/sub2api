@@ -9,55 +9,66 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	channelRestrictionTestModel      = "gpt-5.5"
-	channelRestrictionAlternateModel = "gpt-5.4-mini"
-)
-
 // --- billingModelForRestriction ---
 
 func TestBillingModelForRestriction_Requested(t *testing.T) {
 	t.Parallel()
-	got := billingModelForRestriction(BillingModelSourceRequested, channelRestrictionTestModel, channelRestrictionAlternateModel)
-	require.Equal(t, channelRestrictionTestModel, got)
+	got := billingModelForRestriction(BillingModelSourceRequested, "claude-sonnet-4-5", "claude-sonnet-4-6")
+	require.Equal(t, "claude-sonnet-4-5", got)
 }
 
 func TestBillingModelForRestriction_ChannelMapped(t *testing.T) {
 	t.Parallel()
-	got := billingModelForRestriction(BillingModelSourceChannelMapped, channelRestrictionAlternateModel, channelRestrictionTestModel)
-	require.Equal(t, channelRestrictionTestModel, got)
+	got := billingModelForRestriction(BillingModelSourceChannelMapped, "claude-sonnet-4-5", "claude-sonnet-4-6")
+	require.Equal(t, "claude-sonnet-4-6", got)
 }
 
 func TestBillingModelForRestriction_Upstream(t *testing.T) {
 	t.Parallel()
-	got := billingModelForRestriction(BillingModelSourceUpstream, channelRestrictionTestModel, channelRestrictionAlternateModel)
+	got := billingModelForRestriction(BillingModelSourceUpstream, "claude-sonnet-4-5", "claude-sonnet-4-6")
 	require.Equal(t, "", got, "upstream should return empty (per-account check needed)")
+}
+
+func TestBillingModelForRestriction_ResponseModelUsesMappedPrecheck(t *testing.T) {
+	t.Parallel()
+	got := billingModelForRestriction(BillingModelSourceResponse, "claude-fable-5", "claude-fable-5")
+	require.Equal(t, "claude-fable-5", got)
 }
 
 func TestBillingModelForRestriction_Empty(t *testing.T) {
 	t.Parallel()
-	got := billingModelForRestriction("", channelRestrictionAlternateModel, channelRestrictionTestModel)
-	require.Equal(t, channelRestrictionTestModel, got, "empty source defaults to channel_mapped")
+	got := billingModelForRestriction("", "claude-sonnet-4-5", "claude-sonnet-4-6")
+	require.Equal(t, "claude-sonnet-4-6", got, "empty source defaults to channel_mapped")
 }
 
 // --- resolveAccountUpstreamModel ---
 
-func TestResolveAccountUpstreamModel_OpenAIPassthrough(t *testing.T) {
+func TestResolveAccountUpstreamModel_Antigravity(t *testing.T) {
 	t.Parallel()
 	account := &Account{
-		Platform: PlatformOpenAI,
+		Platform: PlatformAntigravity,
 	}
-	got := resolveAccountUpstreamModel(account, channelRestrictionTestModel)
-	require.Equal(t, channelRestrictionTestModel, got)
+	// Antigravity 平台使用 DefaultAntigravityModelMapping
+	got := resolveAccountUpstreamModel(account, "claude-sonnet-4-6")
+	require.Equal(t, "claude-sonnet-4-6", got)
 }
 
-func TestResolveAccountUpstreamModel_NonOpenAIPassthrough(t *testing.T) {
+func TestResolveAccountUpstreamModel_Antigravity_Unsupported(t *testing.T) {
+	t.Parallel()
+	account := &Account{
+		Platform: PlatformAntigravity,
+	}
+	got := resolveAccountUpstreamModel(account, "totally-unknown-model")
+	require.Equal(t, "", got, "unsupported model should return empty")
+}
+
+func TestResolveAccountUpstreamModel_NonAntigravity(t *testing.T) {
 	t.Parallel()
 	account := &Account{
 		Platform: PlatformAnthropic,
 	}
-	got := resolveAccountUpstreamModel(account, channelRestrictionTestModel)
-	require.Equal(t, channelRestrictionTestModel, got, "no mapping = passthrough")
+	got := resolveAccountUpstreamModel(account, "claude-sonnet-4-6")
+	require.Equal(t, "claude-sonnet-4-6", got, "no mapping = passthrough")
 }
 
 // --- checkChannelPricingRestriction ---
@@ -65,14 +76,14 @@ func TestResolveAccountUpstreamModel_NonOpenAIPassthrough(t *testing.T) {
 func TestCheckChannelPricingRestriction_NilGroupID(t *testing.T) {
 	t.Parallel()
 	svc := &GatewayService{channelService: &ChannelService{}}
-	require.False(t, svc.checkChannelPricingRestriction(context.Background(), nil, channelRestrictionTestModel))
+	require.False(t, svc.checkChannelPricingRestriction(context.Background(), nil, "claude-sonnet-4"))
 }
 
 func TestCheckChannelPricingRestriction_NilChannelService(t *testing.T) {
 	t.Parallel()
 	svc := &GatewayService{}
 	gid := int64(10)
-	require.False(t, svc.checkChannelPricingRestriction(context.Background(), &gid, channelRestrictionTestModel))
+	require.False(t, svc.checkChannelPricingRestriction(context.Background(), &gid, "claude-sonnet-4"))
 }
 
 func TestCheckChannelPricingRestriction_EmptyModel(t *testing.T) {
@@ -84,7 +95,7 @@ func TestCheckChannelPricingRestriction_EmptyModel(t *testing.T) {
 
 func TestCheckChannelPricingRestriction_ChannelMapped_Restricted(t *testing.T) {
 	t.Parallel()
-	// 渠道映射到 gpt-5.5，但定价列表只有其他模型。
+	// 渠道映射 claude-sonnet-4-5 → claude-sonnet-4-6，但定价列表只有 claude-opus-4-6
 	ch := Channel{
 		ID:                 1,
 		Status:             StatusActive,
@@ -92,23 +103,23 @@ func TestCheckChannelPricingRestriction_ChannelMapped_Restricted(t *testing.T) {
 		RestrictModels:     true,
 		BillingModelSource: BillingModelSourceChannelMapped,
 		ModelPricing: []ChannelModelPricing{
-			{Platform: PlatformOpenAI, Models: []string{channelRestrictionAlternateModel}},
+			{Platform: "anthropic", Models: []string{"claude-opus-4-6"}},
 		},
 		ModelMapping: map[string]map[string]string{
-			PlatformOpenAI: {channelRestrictionTestModel: channelRestrictionTestModel},
+			"anthropic": {"claude-sonnet-4-5": "claude-sonnet-4-6"},
 		},
 	}
-	channelSvc := newTestChannelService(makeStandardRepo(ch, map[int64]string{10: PlatformOpenAI}))
+	channelSvc := newTestChannelService(makeStandardRepo(ch, map[int64]string{10: "anthropic"}))
 	svc := &GatewayService{channelService: channelSvc}
 
 	gid := int64(10)
-	require.True(t, svc.checkChannelPricingRestriction(context.Background(), &gid, channelRestrictionTestModel),
-		"mapped model gpt-5.5 is NOT in pricing -> restricted")
+	require.True(t, svc.checkChannelPricingRestriction(context.Background(), &gid, "claude-sonnet-4-5"),
+		"mapped model claude-sonnet-4-6 is NOT in pricing → restricted")
 }
 
 func TestCheckChannelPricingRestriction_ChannelMapped_Allowed(t *testing.T) {
 	t.Parallel()
-	// 渠道映射到 gpt-5.5，且定价列表包含 gpt-5.5。
+	// 渠道映射 claude-sonnet-4-5 → claude-sonnet-4-6，定价列表包含 claude-sonnet-4-6
 	ch := Channel{
 		ID:                 1,
 		Status:             StatusActive,
@@ -116,23 +127,23 @@ func TestCheckChannelPricingRestriction_ChannelMapped_Allowed(t *testing.T) {
 		RestrictModels:     true,
 		BillingModelSource: BillingModelSourceChannelMapped,
 		ModelPricing: []ChannelModelPricing{
-			{Platform: PlatformOpenAI, Models: []string{channelRestrictionTestModel}},
+			{Platform: "anthropic", Models: []string{"claude-sonnet-4-6"}},
 		},
 		ModelMapping: map[string]map[string]string{
-			PlatformOpenAI: {channelRestrictionTestModel: channelRestrictionTestModel},
+			"anthropic": {"claude-sonnet-4-5": "claude-sonnet-4-6"},
 		},
 	}
-	channelSvc := newTestChannelService(makeStandardRepo(ch, map[int64]string{10: PlatformOpenAI}))
+	channelSvc := newTestChannelService(makeStandardRepo(ch, map[int64]string{10: "anthropic"}))
 	svc := &GatewayService{channelService: channelSvc}
 
 	gid := int64(10)
-	require.False(t, svc.checkChannelPricingRestriction(context.Background(), &gid, channelRestrictionTestModel),
-		"mapped model gpt-5.5 IS in pricing -> allowed")
+	require.False(t, svc.checkChannelPricingRestriction(context.Background(), &gid, "claude-sonnet-4-5"),
+		"mapped model claude-sonnet-4-6 IS in pricing → allowed")
 }
 
 func TestCheckChannelPricingRestriction_Requested_Restricted(t *testing.T) {
 	t.Parallel()
-	// billing_model_source=requested，定价列表有其他模型但请求的是 gpt-5.5。
+	// billing_model_source=requested，定价列表有 claude-sonnet-4-6 但请求的是 claude-sonnet-4-5
 	ch := Channel{
 		ID:                 1,
 		Status:             StatusActive,
@@ -140,15 +151,15 @@ func TestCheckChannelPricingRestriction_Requested_Restricted(t *testing.T) {
 		RestrictModels:     true,
 		BillingModelSource: BillingModelSourceRequested,
 		ModelPricing: []ChannelModelPricing{
-			{Platform: PlatformOpenAI, Models: []string{channelRestrictionAlternateModel}},
+			{Platform: "anthropic", Models: []string{"claude-sonnet-4-6"}},
 		},
 	}
-	channelSvc := newTestChannelService(makeStandardRepo(ch, map[int64]string{10: PlatformOpenAI}))
+	channelSvc := newTestChannelService(makeStandardRepo(ch, map[int64]string{10: "anthropic"}))
 	svc := &GatewayService{channelService: channelSvc}
 
 	gid := int64(10)
-	require.True(t, svc.checkChannelPricingRestriction(context.Background(), &gid, channelRestrictionTestModel),
-		"requested model gpt-5.5 is NOT in pricing -> restricted")
+	require.True(t, svc.checkChannelPricingRestriction(context.Background(), &gid, "claude-sonnet-4-5"),
+		"requested model claude-sonnet-4-5 is NOT in pricing → restricted")
 }
 
 func TestCheckChannelPricingRestriction_Requested_Allowed(t *testing.T) {
@@ -160,35 +171,15 @@ func TestCheckChannelPricingRestriction_Requested_Allowed(t *testing.T) {
 		RestrictModels:     true,
 		BillingModelSource: BillingModelSourceRequested,
 		ModelPricing: []ChannelModelPricing{
-			{Platform: PlatformOpenAI, Models: []string{channelRestrictionTestModel}},
+			{Platform: "anthropic", Models: []string{"claude-sonnet-4-5"}},
 		},
 	}
-	channelSvc := newTestChannelService(makeStandardRepo(ch, map[int64]string{10: PlatformOpenAI}))
+	channelSvc := newTestChannelService(makeStandardRepo(ch, map[int64]string{10: "anthropic"}))
 	svc := &GatewayService{channelService: channelSvc}
 
 	gid := int64(10)
-	require.False(t, svc.checkChannelPricingRestriction(context.Background(), &gid, channelRestrictionTestModel),
+	require.False(t, svc.checkChannelPricingRestriction(context.Background(), &gid, "claude-sonnet-4-5"),
 		"requested model IS in pricing → allowed")
-}
-
-func TestCheckChannelPricingRestriction_EmptyPricingAllowlistDoesNotDenyAll(t *testing.T) {
-	t.Parallel()
-	ch := Channel{
-		ID:                 1,
-		Status:             StatusActive,
-		GroupIDs:           []int64{10},
-		RestrictModels:     true,
-		BillingModelSource: BillingModelSourceChannelMapped,
-		ModelMapping: map[string]map[string]string{
-			PlatformOpenAI: {channelRestrictionTestModel: channelRestrictionTestModel},
-		},
-	}
-	channelSvc := newTestChannelService(makeStandardRepo(ch, map[int64]string{10: PlatformOpenAI}))
-	svc := &GatewayService{channelService: channelSvc}
-
-	gid := int64(10)
-	require.False(t, svc.checkChannelPricingRestriction(context.Background(), &gid, channelRestrictionTestModel),
-		"restrict_models without any pricing rows must not turn into deny-all")
 }
 
 func TestCheckChannelPricingRestriction_Upstream_SkipsPreCheck(t *testing.T) {
@@ -201,14 +192,14 @@ func TestCheckChannelPricingRestriction_Upstream_SkipsPreCheck(t *testing.T) {
 		RestrictModels:     true,
 		BillingModelSource: BillingModelSourceUpstream,
 		ModelPricing: []ChannelModelPricing{
-			{Platform: PlatformOpenAI, Models: []string{channelRestrictionAlternateModel}},
+			{Platform: "anthropic", Models: []string{"claude-opus-4-6"}},
 		},
 	}
-	channelSvc := newTestChannelService(makeStandardRepo(ch, map[int64]string{10: PlatformOpenAI}))
+	channelSvc := newTestChannelService(makeStandardRepo(ch, map[int64]string{10: "anthropic"}))
 	svc := &GatewayService{channelService: channelSvc}
 
 	gid := int64(10)
-	require.False(t, svc.checkChannelPricingRestriction(context.Background(), &gid, channelRestrictionTestModel),
+	require.False(t, svc.checkChannelPricingRestriction(context.Background(), &gid, "unknown-model"),
 		"upstream mode should skip pre-check (per-account check needed)")
 }
 
@@ -220,14 +211,14 @@ func TestCheckChannelPricingRestriction_RestrictModelsDisabled(t *testing.T) {
 		GroupIDs:       []int64{10},
 		RestrictModels: false, // 未开启模型限制
 		ModelPricing: []ChannelModelPricing{
-			{Platform: PlatformOpenAI, Models: []string{channelRestrictionAlternateModel}},
+			{Platform: "anthropic", Models: []string{"claude-opus-4-6"}},
 		},
 	}
-	channelSvc := newTestChannelService(makeStandardRepo(ch, map[int64]string{10: PlatformOpenAI}))
+	channelSvc := newTestChannelService(makeStandardRepo(ch, map[int64]string{10: "anthropic"}))
 	svc := &GatewayService{channelService: channelSvc}
 
 	gid := int64(10)
-	require.False(t, svc.checkChannelPricingRestriction(context.Background(), &gid, channelRestrictionTestModel),
+	require.False(t, svc.checkChannelPricingRestriction(context.Background(), &gid, "any-model"),
 		"RestrictModels=false → always allowed")
 }
 
@@ -241,7 +232,7 @@ func TestCheckChannelPricingRestriction_NoChannel(t *testing.T) {
 	svc := &GatewayService{channelService: channelSvc}
 
 	gid := int64(999)
-	require.False(t, svc.checkChannelPricingRestriction(context.Background(), &gid, channelRestrictionTestModel),
+	require.False(t, svc.checkChannelPricingRestriction(context.Background(), &gid, "any-model"),
 		"no channel for group → allowed")
 }
 
@@ -255,15 +246,17 @@ func TestIsUpstreamModelRestrictedByChannel_Restricted(t *testing.T) {
 		GroupIDs:       []int64{10},
 		RestrictModels: true,
 		ModelPricing: []ChannelModelPricing{
-			{Platform: PlatformOpenAI, Models: []string{channelRestrictionAlternateModel}},
+			{Platform: "anthropic", Models: []string{"claude-opus-4-6"}},
 		},
 	}
-	channelSvc := newTestChannelService(makeStandardRepo(ch, map[int64]string{10: PlatformOpenAI}))
+	channelSvc := newTestChannelService(makeStandardRepo(ch, map[int64]string{10: "anthropic"}))
 	svc := &GatewayService{channelService: channelSvc}
 
-	account := &Account{Platform: PlatformOpenAI}
-	require.True(t, svc.isUpstreamModelRestrictedByChannel(context.Background(), 10, account, channelRestrictionTestModel),
-		"upstream model gpt-5.5 NOT in pricing -> restricted")
+	account := &Account{Platform: PlatformAntigravity}
+	// claude-sonnet-4-6 在 DefaultAntigravityModelMapping 中，映射后仍为 claude-sonnet-4-6
+	// 但定价列表只有 claude-opus-4-6
+	require.True(t, svc.isUpstreamModelRestrictedByChannel(context.Background(), 10, account, "claude-sonnet-4-6"),
+		"upstream model claude-sonnet-4-6 NOT in pricing → restricted")
 }
 
 func TestIsUpstreamModelRestrictedByChannel_Allowed(t *testing.T) {
@@ -274,18 +267,18 @@ func TestIsUpstreamModelRestrictedByChannel_Allowed(t *testing.T) {
 		GroupIDs:       []int64{10},
 		RestrictModels: true,
 		ModelPricing: []ChannelModelPricing{
-			{Platform: PlatformOpenAI, Models: []string{channelRestrictionTestModel}},
+			{Platform: "anthropic", Models: []string{"claude-sonnet-4-6"}},
 		},
 	}
-	channelSvc := newTestChannelService(makeStandardRepo(ch, map[int64]string{10: PlatformOpenAI}))
+	channelSvc := newTestChannelService(makeStandardRepo(ch, map[int64]string{10: "anthropic"}))
 	svc := &GatewayService{channelService: channelSvc}
 
-	account := &Account{Platform: PlatformOpenAI}
-	require.False(t, svc.isUpstreamModelRestrictedByChannel(context.Background(), 10, account, channelRestrictionTestModel),
-		"upstream model gpt-5.5 IS in pricing -> allowed")
+	account := &Account{Platform: PlatformAntigravity}
+	require.False(t, svc.isUpstreamModelRestrictedByChannel(context.Background(), 10, account, "claude-sonnet-4-6"),
+		"upstream model claude-sonnet-4-6 IS in pricing → allowed")
 }
 
-func TestIsUpstreamModelRestrictedByChannel_EmptyRequestedModel(t *testing.T) {
+func TestIsUpstreamModelRestrictedByChannel_UnsupportedModel(t *testing.T) {
 	t.Parallel()
 	ch := Channel{
 		ID:             1,
@@ -293,29 +286,14 @@ func TestIsUpstreamModelRestrictedByChannel_EmptyRequestedModel(t *testing.T) {
 		GroupIDs:       []int64{10},
 		RestrictModels: true,
 		ModelPricing: []ChannelModelPricing{
-			{Platform: PlatformOpenAI, Models: []string{channelRestrictionTestModel}},
+			{Platform: "anthropic", Models: []string{"claude-opus-4-6"}},
 		},
 	}
-	channelSvc := newTestChannelService(makeStandardRepo(ch, map[int64]string{10: PlatformOpenAI}))
+	channelSvc := newTestChannelService(makeStandardRepo(ch, map[int64]string{10: "anthropic"}))
 	svc := &GatewayService{channelService: channelSvc}
 
-	account := &Account{Platform: PlatformOpenAI}
-	require.False(t, svc.isUpstreamModelRestrictedByChannel(context.Background(), 10, account, ""),
-		"empty upstream model should not be restricted")
-}
-
-func TestIsUpstreamModelRestrictedByChannel_EmptyPricingAllowlistDoesNotDenyAll(t *testing.T) {
-	t.Parallel()
-	ch := Channel{
-		ID:             1,
-		Status:         StatusActive,
-		GroupIDs:       []int64{10},
-		RestrictModels: true,
-	}
-	channelSvc := newTestChannelService(makeStandardRepo(ch, map[int64]string{10: PlatformOpenAI}))
-	svc := &GatewayService{channelService: channelSvc}
-
-	account := &Account{Platform: PlatformOpenAI}
-	require.False(t, svc.isUpstreamModelRestrictedByChannel(context.Background(), 10, account, channelRestrictionTestModel),
-		"empty pricing allowlist must not block every upstream model")
+	account := &Account{Platform: PlatformAntigravity}
+	// totally-unknown-model 不在 DefaultAntigravityModelMapping 中 → 映射结果为空
+	require.False(t, svc.isUpstreamModelRestrictedByChannel(context.Background(), 10, account, "totally-unknown-model"),
+		"unmappable model → upstream model empty → not restricted (account filter handles this)")
 }

@@ -76,6 +76,13 @@ func TestLiveCapabilityOnlyAllowsOpenAIOAuth(t *testing.T) {
 			openAIAuthModeCredentialKey: OpenAIAuthModePersonalAccessToken,
 		},
 	}).SupportsOpenAIEndpointCapability(OpenAIEndpointCapabilityLive))
+	require.False(t, (&Account{
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeOAuth,
+		Credentials: map[string]any{
+			openAIAuthModeCredentialKey: OpenAIAuthModeAgentIdentity,
+		},
+	}).SupportsOpenAIEndpointCapability(OpenAIEndpointCapabilityLive))
 }
 
 func TestValidateLiveCallRequestDoesNotRequireDelegation(t *testing.T) {

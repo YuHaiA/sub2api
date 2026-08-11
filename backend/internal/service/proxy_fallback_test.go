@@ -70,26 +70,4 @@ func TestResolveFallbackTarget(t *testing.T) {
 		require.True(t, change)
 		require.Nil(t, target)
 	})
-
-	t.Run("error/disabled backup is skipped", func(t *testing.T) {
-		c := mkProxy(3, FallbackModeNone, nil, di(30), now)
-		b := mkProxy(2, FallbackModeProxy, i64(3), di(30), now)
-		b.Status = StatusError
-		a := mkProxy(1, FallbackModeProxy, i64(2), di(-1), now)
-		by := map[int64]Proxy{1: a, 2: b, 3: c}
-		target, change := ResolveProxyFallbackTarget(a, by, now)
-		require.True(t, change)
-		require.NotNil(t, target)
-		require.Equal(t, int64(3), *target)
-	})
-	t.Run("disabled backup with direct fallback", func(t *testing.T) {
-		b := mkProxy(2, FallbackModeDirect, nil, di(30), now)
-		b.Status = StatusDisabled
-		a := mkProxy(1, FallbackModeProxy, i64(2), di(-1), now)
-		by := map[int64]Proxy{1: a, 2: b}
-		target, change := ResolveProxyFallbackTarget(a, by, now)
-		require.True(t, change)
-		require.Nil(t, target)
-	})
 }
-

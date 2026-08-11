@@ -64,7 +64,7 @@ func (s *emailSyncRepoStub) GetFirstAdmin(context.Context) (*User, error) {
 	return nil, fmt.Errorf("unexpected GetFirstAdmin call")
 }
 
-func (s *emailSyncRepoStub) Update(_ context.Context, user *User) error {
+func (s *emailSyncRepoStub) Update(_ context.Context, user *User, _ UserUpdateFields) error {
 	s.updateCalls++
 	s.updated = append(s.updated, user)
 	s.user = user
@@ -117,6 +117,14 @@ func (s *emailSyncRepoStub) ExistsByEmailAlias(context.Context, string) (bool, e
 	return false, nil
 }
 
+func (s *emailSyncRepoStub) AdjustBalance(ctx context.Context, id int64, delta float64) (BalanceChange, error) {
+	panic("unexpected AdjustBalance call")
+}
+
+func (s *emailSyncRepoStub) SetBalance(ctx context.Context, id int64, value float64) (BalanceChange, error) {
+	panic("unexpected SetBalance call")
+}
+
 func (s *emailSyncRepoStub) RemoveGroupFromAllowedGroups(context.Context, int64) (int64, error) {
 	return 0, nil
 }
@@ -125,6 +133,9 @@ func (s *emailSyncRepoStub) BatchSetConcurrency(context.Context, []int64, int) (
 	return 0, nil
 }
 func (s *emailSyncRepoStub) BatchAddConcurrency(context.Context, []int64, int) (int, error) {
+	return 0, nil
+}
+func (s *emailSyncRepoStub) BatchUpdateLimits(context.Context, []int64, *int, *int) (int, error) {
 	return 0, nil
 }
 

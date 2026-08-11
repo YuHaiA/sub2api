@@ -32,8 +32,6 @@ type ProxyRepository interface {
 	ListAccountSummariesByProxyID(ctx context.Context, proxyID int64) ([]ProxyAccountSummary, error)
 
 	SweepExpiredProxies(ctx context.Context, now time.Time) (changed int64, err error)
-	// MarkProxyUnhealthyAndReroute marks a dead proxy as error and reroutes bound accounts via fallback.
-	MarkProxyUnhealthyAndReroute(ctx context.Context, proxyID int64, now time.Time) (changed int64, err error)
 	ListAllForFallback(ctx context.Context) ([]Proxy, error)
 	CountExpired(ctx context.Context) (int64, error)
 	CountExpiringSoon(ctx context.Context, now time.Time) (int64, error)

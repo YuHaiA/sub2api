@@ -301,6 +301,7 @@ type AdminSubscriptionPlanResult struct {
 	Description     string    `json:"description"`
 	Price           float64   `json:"price"`
 	OriginalPrice   *float64  `json:"original_price,omitempty"`
+	Currency        string    `json:"currency,omitempty"`
 	ValidityDays    int       `json:"validity_days"`
 	ValidityUnit    string    `json:"validity_unit"`
 	Features        string    `json:"features"`
@@ -332,6 +333,7 @@ func adminSubscriptionPlansForResponse(plans []*dbent.SubscriptionPlan, groupInf
 			Description:     p.Description,
 			Price:           p.Price,
 			OriginalPrice:   p.OriginalPrice,
+			Currency:        p.Currency,
 			ValidityDays:    p.ValidityDays,
 			ValidityUnit:    p.ValidityUnit,
 			Features:        p.Features,

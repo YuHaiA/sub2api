@@ -21,7 +21,8 @@ func TestWithHTTPUpstreamProfile_OpenAI(t *testing.T) {
 }
 
 func TestWithHTTPUpstreamRedirectsDisabled(t *testing.T) {
-	ctx := WithHTTPUpstreamRedirectsDisabled(context.TODO())
+	//nolint:staticcheck // Exercises the defensive nil-context fallback.
+	ctx := WithHTTPUpstreamRedirectsDisabled(nil)
 	if !HTTPUpstreamRedirectsDisabled(ctx) {
 		t.Fatal("expected redirects to be disabled")
 	}

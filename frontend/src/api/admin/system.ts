@@ -45,49 +45,6 @@ export interface UpdateResult {
   need_restart: boolean
 }
 
-export interface DeployConfig {
-  enabled: boolean
-  mode: string
-  execution_mode: string
-  source_type: string
-  default_image: string
-  archive_url?: string
-  loaded_image?: string
-  service_name: string
-  compose_project_dir: string
-  compose_file?: string
-  docker_binary?: string
-  compose_binary?: string
-  agent_url?: string
-  agent_token?: string
-  agent_timeout_seconds: number
-  agent_insecure_tls: boolean
-}
-
-export interface DeployState {
-  status: string
-  requested_image?: string
-  requested_image_id?: string
-  running_image_id?: string
-  already_up_to_date?: boolean
-  last_message?: string
-  last_error?: string
-  last_output?: string
-  started_at?: number
-  finished_at?: number
-}
-
-export interface DeployResult {
-  message: string
-  need_restart: boolean
-  status: string
-  image: string
-  service_name: string
-  compose_dir: string
-  already_up_to_date?: boolean
-  commands?: string[]
-}
-
 export interface RollbackVersionInfo {
   version: string
   published_at: string
@@ -105,31 +62,21 @@ export async function getRollbackVersions(): Promise<{ versions: RollbackVersion
 }
 
 /**
+ * In-place update/rollback downloads a full release binary from GitHub, which
+ * can take several minutes on slow links. The global 30s axios timeout would
+ * abort the request mid-download (#4504), so these calls wait as long as the
+ * backend allows (15 minutes server-side).
+ */
+const UPDATE_REQUEST_TIMEOUT_MS = 15 * 60 * 1000
+
+/**
  * Perform system update
  * Downloads and applies the latest version
  */
 export async function performUpdate(): Promise<UpdateResult> {
-  const { data } = await apiClient.post<UpdateResult>('/admin/system/update')
-  return data
-}
-
-export async function getDeployConfig(): Promise<DeployConfig> {
-  const { data } = await apiClient.get<DeployConfig>('/admin/system/deploy-config')
-  return data
-}
-
-export async function updateDeployConfig(payload: DeployConfig): Promise<DeployConfig> {
-  const { data } = await apiClient.put<DeployConfig>('/admin/system/deploy-config', payload)
-  return data
-}
-
-export async function getDeployStatus(): Promise<DeployState> {
-  const { data } = await apiClient.get<DeployState>('/admin/system/deploy-status')
-  return data
-}
-
-export async function triggerDeploy(payload?: { image?: string; dry_run?: boolean }): Promise<DeployResult> {
-  const { data } = await apiClient.post<DeployResult>('/admin/system/deploy', payload ?? {})
+  const { data } = await apiClient.post<UpdateResult>('/admin/system/update', undefined, {
+    timeout: UPDATE_REQUEST_TIMEOUT_MS
+  })
   return data
 }
 
@@ -140,7 +87,8 @@ export async function triggerDeploy(payload?: { image?: string; dry_run?: boolea
 export async function rollback(version?: string): Promise<UpdateResult> {
   const { data } = await apiClient.post<UpdateResult>(
     '/admin/system/rollback',
-    version ? { version } : undefined
+    version ? { version } : undefined,
+    { timeout: UPDATE_REQUEST_TIMEOUT_MS }
   )
   return data
 }
@@ -157,10 +105,6 @@ export const systemAPI = {
   getVersion,
   checkUpdates,
   performUpdate,
-  getDeployConfig,
-  updateDeployConfig,
-  getDeployStatus,
-  triggerDeploy,
   getRollbackVersions,
   rollback,
   restartService

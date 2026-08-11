@@ -40,6 +40,8 @@ const (
 	FieldIsExclusive = "is_exclusive"
 	// FieldStatus holds the string denoting the status field in the database.
 	FieldStatus = "status"
+	// FieldDuplicateOperationID holds the string denoting the duplicate_operation_id field in the database.
+	FieldDuplicateOperationID = "duplicate_operation_id"
 	// FieldPlatform holds the string denoting the platform field in the database.
 	FieldPlatform = "platform"
 	// FieldSubscriptionType holds the string denoting the subscription_type field in the database.
@@ -80,6 +82,18 @@ const (
 	FieldVideoPrice720p = "video_price_720p"
 	// FieldVideoPrice1080p holds the string denoting the video_price_1080p field in the database.
 	FieldVideoPrice1080p = "video_price_1080p"
+	// FieldVideoModelPrices holds the string denoting the video_model_prices field in the database.
+	FieldVideoModelPrices = "video_model_prices"
+	// FieldWebSearchPricePerCall holds the string denoting the web_search_price_per_call field in the database.
+	FieldWebSearchPricePerCall = "web_search_price_per_call"
+	// FieldSearchPricePer1k holds the string denoting the search_price_per_1k field in the database.
+	FieldSearchPricePer1k = "search_price_per_1k"
+	// FieldAudioRealtimePricePerMin holds the string denoting the audio_realtime_price_per_min field in the database.
+	FieldAudioRealtimePricePerMin = "audio_realtime_price_per_min"
+	// FieldAudioTtsPricePerMillionChars holds the string denoting the audio_tts_price_per_million_chars field in the database.
+	FieldAudioTtsPricePerMillionChars = "audio_tts_price_per_million_chars"
+	// FieldAudioSttPricePerHour holds the string denoting the audio_stt_price_per_hour field in the database.
+	FieldAudioSttPricePerHour = "audio_stt_price_per_hour"
 	// FieldClaudeCodeOnly holds the string denoting the claude_code_only field in the database.
 	FieldClaudeCodeOnly = "claude_code_only"
 	// FieldFallbackGroupID holds the string denoting the fallback_group_id field in the database.
@@ -112,6 +126,16 @@ const (
 	FieldModelsListConfig = "models_list_config"
 	// FieldRpmLimit holds the string denoting the rpm_limit field in the database.
 	FieldRpmLimit = "rpm_limit"
+	// FieldMaxReasoningEffort holds the string denoting the max_reasoning_effort field in the database.
+	FieldMaxReasoningEffort = "max_reasoning_effort"
+	// FieldReasoningEffortMappings holds the string denoting the reasoning_effort_mappings field in the database.
+	FieldReasoningEffortMappings = "reasoning_effort_mappings"
+	// FieldProfitControlEnabled holds the string denoting the profit_control_enabled field in the database.
+	FieldProfitControlEnabled = "profit_control_enabled"
+	// FieldProfitMinMargin holds the string denoting the profit_min_margin field in the database.
+	FieldProfitMinMargin = "profit_min_margin"
+	// FieldProfitSafetyBuffer holds the string denoting the profit_safety_buffer field in the database.
+	FieldProfitSafetyBuffer = "profit_safety_buffer"
 	// EdgeAPIKeys holds the string denoting the api_keys edge name in mutations.
 	EdgeAPIKeys = "api_keys"
 	// EdgeRedeemCodes holds the string denoting the redeem_codes edge name in mutations.
@@ -199,6 +223,7 @@ var Columns = []string{
 	FieldPeakRateMultiplier,
 	FieldIsExclusive,
 	FieldStatus,
+	FieldDuplicateOperationID,
 	FieldPlatform,
 	FieldSubscriptionType,
 	FieldDailyLimitUsd,
@@ -219,6 +244,12 @@ var Columns = []string{
 	FieldVideoPrice480p,
 	FieldVideoPrice720p,
 	FieldVideoPrice1080p,
+	FieldVideoModelPrices,
+	FieldWebSearchPricePerCall,
+	FieldSearchPricePer1k,
+	FieldAudioRealtimePricePerMin,
+	FieldAudioTtsPricePerMillionChars,
+	FieldAudioSttPricePerHour,
 	FieldClaudeCodeOnly,
 	FieldFallbackGroupID,
 	FieldFallbackGroupIDOnInvalidRequest,
@@ -235,6 +266,11 @@ var Columns = []string{
 	FieldMessagesDispatchModelConfig,
 	FieldModelsListConfig,
 	FieldRpmLimit,
+	FieldMaxReasoningEffort,
+	FieldReasoningEffortMappings,
+	FieldProfitControlEnabled,
+	FieldProfitMinMargin,
+	FieldProfitSafetyBuffer,
 }
 
 var (
@@ -292,6 +328,8 @@ var (
 	DefaultStatus string
 	// StatusValidator is a validator for the "status" field. It is called by the builders before save.
 	StatusValidator func(string) error
+	// DuplicateOperationIDValidator is a validator for the "duplicate_operation_id" field. It is called by the builders before save.
+	DuplicateOperationIDValidator func(string) error
 	// DefaultPlatform holds the default value on creation for the "platform" field.
 	DefaultPlatform string
 	// PlatformValidator is a validator for the "platform" field. It is called by the builders before save.
@@ -318,6 +356,14 @@ var (
 	DefaultVideoRateIndependent bool
 	// DefaultVideoRateMultiplier holds the default value on creation for the "video_rate_multiplier" field.
 	DefaultVideoRateMultiplier float64
+	// SearchPricePer1kValidator is a validator for the "search_price_per_1k" field. It is called by the builders before save.
+	SearchPricePer1kValidator func(float64) error
+	// AudioRealtimePricePerMinValidator is a validator for the "audio_realtime_price_per_min" field. It is called by the builders before save.
+	AudioRealtimePricePerMinValidator func(float64) error
+	// AudioTtsPricePerMillionCharsValidator is a validator for the "audio_tts_price_per_million_chars" field. It is called by the builders before save.
+	AudioTtsPricePerMillionCharsValidator func(float64) error
+	// AudioSttPricePerHourValidator is a validator for the "audio_stt_price_per_hour" field. It is called by the builders before save.
+	AudioSttPricePerHourValidator func(float64) error
 	// DefaultClaudeCodeOnly holds the default value on creation for the "claude_code_only" field.
 	DefaultClaudeCodeOnly bool
 	// DefaultModelRoutingEnabled holds the default value on creation for the "model_routing_enabled" field.
@@ -346,6 +392,18 @@ var (
 	DefaultModelsListConfig domain.GroupModelsListConfig
 	// DefaultRpmLimit holds the default value on creation for the "rpm_limit" field.
 	DefaultRpmLimit int
+	// DefaultMaxReasoningEffort holds the default value on creation for the "max_reasoning_effort" field.
+	DefaultMaxReasoningEffort string
+	// MaxReasoningEffortValidator is a validator for the "max_reasoning_effort" field. It is called by the builders before save.
+	MaxReasoningEffortValidator func(string) error
+	// DefaultReasoningEffortMappings holds the default value on creation for the "reasoning_effort_mappings" field.
+	DefaultReasoningEffortMappings []domain.ReasoningEffortMapping
+	// DefaultProfitControlEnabled holds the default value on creation for the "profit_control_enabled" field.
+	DefaultProfitControlEnabled bool
+	// DefaultProfitMinMargin holds the default value on creation for the "profit_min_margin" field.
+	DefaultProfitMinMargin float64
+	// DefaultProfitSafetyBuffer holds the default value on creation for the "profit_safety_buffer" field.
+	DefaultProfitSafetyBuffer float64
 )
 
 // OrderOption defines the ordering options for the Group queries.
@@ -414,6 +472,11 @@ func ByIsExclusive(opts ...sql.OrderTermOption) OrderOption {
 // ByStatus orders the results by the status field.
 func ByStatus(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldStatus, opts...).ToFunc()
+}
+
+// ByDuplicateOperationID orders the results by the duplicate_operation_id field.
+func ByDuplicateOperationID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDuplicateOperationID, opts...).ToFunc()
 }
 
 // ByPlatform orders the results by the platform field.
@@ -516,6 +579,31 @@ func ByVideoPrice1080p(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldVideoPrice1080p, opts...).ToFunc()
 }
 
+// ByWebSearchPricePerCall orders the results by the web_search_price_per_call field.
+func ByWebSearchPricePerCall(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldWebSearchPricePerCall, opts...).ToFunc()
+}
+
+// BySearchPricePer1k orders the results by the search_price_per_1k field.
+func BySearchPricePer1k(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSearchPricePer1k, opts...).ToFunc()
+}
+
+// ByAudioRealtimePricePerMin orders the results by the audio_realtime_price_per_min field.
+func ByAudioRealtimePricePerMin(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAudioRealtimePricePerMin, opts...).ToFunc()
+}
+
+// ByAudioTtsPricePerMillionChars orders the results by the audio_tts_price_per_million_chars field.
+func ByAudioTtsPricePerMillionChars(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAudioTtsPricePerMillionChars, opts...).ToFunc()
+}
+
+// ByAudioSttPricePerHour orders the results by the audio_stt_price_per_hour field.
+func ByAudioSttPricePerHour(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAudioSttPricePerHour, opts...).ToFunc()
+}
+
 // ByClaudeCodeOnly orders the results by the claude_code_only field.
 func ByClaudeCodeOnly(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldClaudeCodeOnly, opts...).ToFunc()
@@ -574,6 +662,26 @@ func ByDefaultMappedModel(opts ...sql.OrderTermOption) OrderOption {
 // ByRpmLimit orders the results by the rpm_limit field.
 func ByRpmLimit(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldRpmLimit, opts...).ToFunc()
+}
+
+// ByMaxReasoningEffort orders the results by the max_reasoning_effort field.
+func ByMaxReasoningEffort(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldMaxReasoningEffort, opts...).ToFunc()
+}
+
+// ByProfitControlEnabled orders the results by the profit_control_enabled field.
+func ByProfitControlEnabled(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldProfitControlEnabled, opts...).ToFunc()
+}
+
+// ByProfitMinMargin orders the results by the profit_min_margin field.
+func ByProfitMinMargin(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldProfitMinMargin, opts...).ToFunc()
+}
+
+// ByProfitSafetyBuffer orders the results by the profit_safety_buffer field.
+func ByProfitSafetyBuffer(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldProfitSafetyBuffer, opts...).ToFunc()
 }
 
 // ByAPIKeysCount orders the results by api_keys count.

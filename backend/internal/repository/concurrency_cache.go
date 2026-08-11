@@ -180,6 +180,28 @@ var (
 		return 1
 	`)
 
+	// trackSlotScript 记录 stats-only 槽位，不做并发上限判断。
+	// KEYS[1] = 有序集合键
+	// ARGV[1] = TTL（秒）
+	// ARGV[2] = requestID
+	trackSlotScript = redis.NewScript(`
+		-- Redis 3.2-4.x compat: opt into effects replication so redis.call('TIME')
+		-- replicates correctly. No-op on Redis 5.0+ (effects replication is default).
+		redis.replicate_commands()
+		local key = KEYS[1]
+		local ttl = tonumber(ARGV[1])
+		local requestID = ARGV[2]
+
+		local timeResult = redis.call('TIME')
+		local now = tonumber(timeResult[1])
+		local expireBefore = now - ttl
+
+		redis.call('ZREMRANGEBYSCORE', key, '-inf', expireBefore)
+		redis.call('ZADD', key, now, requestID)
+		redis.call('EXPIRE', key, ttl)
+		return 1
+	`)
+
 	// acquireOpenAIWSIngressLeaseScript atomically reaps crashed members and
 	// acquires or refreshes one API-key-scoped ingress lease using Redis TIME.
 	acquireOpenAIWSIngressLeaseScript = redis.NewScript(`
@@ -219,28 +241,6 @@ var (
 			return 0
 		end
 		redis.call('ZADD', key, now, leaseID)
-		redis.call('EXPIRE', key, ttl)
-		return 1
-	`)
-
-	// trackSlotScript 记录 stats-only 槽位，不做并发上限判断。
-	// KEYS[1] = 有序集合键
-	// ARGV[1] = TTL（秒）
-	// ARGV[2] = requestID
-	trackSlotScript = redis.NewScript(`
-		-- Redis 3.2-4.x compat: opt into effects replication so redis.call('TIME')
-		-- replicates correctly. No-op on Redis 5.0+ (effects replication is default).
-		redis.replicate_commands()
-		local key = KEYS[1]
-		local ttl = tonumber(ARGV[1])
-		local requestID = ARGV[2]
-
-		local timeResult = redis.call('TIME')
-		local now = tonumber(timeResult[1])
-		local expireBefore = now - ttl
-
-		redis.call('ZREMRANGEBYSCORE', key, '-inf', expireBefore)
-		redis.call('ZADD', key, now, requestID)
 		redis.call('EXPIRE', key, ttl)
 		return 1
 	`)
@@ -1139,7 +1139,8 @@ func (c *concurrencyCache) reconcileExpiredIndexCandidates(ctx context.Context, 
 // CleanupStaleProcessSlots 启动时清理非当前进程前缀的槽位。
 // 清理范围来自活跃索引（含 score 已过期的成员——它们往往正是崩溃进程留下的残留），
 // 避免在 Redis 上 SCAN 全部 concurrency:* 键；另有一次性迁移清扫兜底索引机制上线前的遗留等待计数。
-// API Key 槽位暂未接入活跃索引，仅保留 concurrency:api_key:* 窄范围启动清理。
+// API Key 槽位（concurrency:api_key:*）是 stats-only 数据：每次 Track/读取都会按分数
+// 裁剪过期成员，key 自带 TTL，可在一个 slot TTL 内自愈，因此不参与启动清理。
 func (c *concurrencyCache) CleanupStaleProcessSlots(ctx context.Context, activeRequestPrefix string) error {
 	if activeRequestPrefix == "" {
 		return nil
@@ -1164,12 +1165,7 @@ func (c *concurrencyCache) CleanupStaleProcessSlots(ctx context.Context, activeR
 	if err != nil {
 		return err
 	}
-	if err := c.cleanupStaleProcessSlotsForIndex(ctx, userSlotIndex, userMembers, activeRequestPrefix, now); err != nil {
-		return err
-	}
-
-	// API key 槽位还没有活跃索引，保留窄范围扫描以清理重启前的旧进程槽位。
-	return c.cleanupStaleProcessSlotsByPattern(ctx, apiKeySlotKeyPrefix+"*", activeRequestPrefix)
+	return c.cleanupStaleProcessSlotsForIndex(ctx, userSlotIndex, userMembers, activeRequestPrefix, now)
 }
 
 // sweepLegacyWaitKeysOnce 一次性清扫活跃索引机制上线前遗留的等待计数键。
@@ -1260,27 +1256,5 @@ func (c *concurrencyCache) cleanupStaleProcessSlotsForIndex(
 		}
 	}
 	c.removeActiveIndexMembers(ctx, spec.indexKey, staleMembers)
-	return nil
-}
-
-// cleanupStaleProcessSlotsByPattern 扫描少量无活跃索引的槽位键，并按单 key Lua 清理，避免 Redis Cluster CROSSSLOT。
-func (c *concurrencyCache) cleanupStaleProcessSlotsByPattern(ctx context.Context, pattern, activeRequestPrefix string) error {
-	const scanCount = 200
-	var cursor uint64
-	for {
-		keys, nextCursor, err := c.rdb.Scan(ctx, cursor, pattern, scanCount).Result()
-		if err != nil {
-			return fmt.Errorf("scan %s: %w", pattern, err)
-		}
-		for _, key := range keys {
-			if _, err := startupCleanupSlotScript.Run(ctx, c.rdb, []string{key}, activeRequestPrefix, c.slotTTLSeconds).Result(); err != nil {
-				return fmt.Errorf("cleanup stale process slots %s: %w", key, err)
-			}
-		}
-		cursor = nextCursor
-		if cursor == 0 {
-			break
-		}
-	}
 	return nil
 }

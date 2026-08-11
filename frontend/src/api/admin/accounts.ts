@@ -41,7 +41,6 @@ export async function list(
     platform?: string
     type?: string
     status?: string
-    health_status?: string
     group?: string
     search?: string
     privacy_mode?: string
@@ -78,7 +77,6 @@ export async function listWithEtag(
     platform?: string
     type?: string
     status?: string
-    health_status?: string
     group?: string
     search?: string
     privacy_mode?: string
@@ -141,6 +139,50 @@ export async function getById(id: number): Promise<Account> {
  */
 export async function create(accountData: CreateAccountRequest): Promise<Account> {
   const { data } = await apiClient.post<Account>('/admin/accounts', accountData)
+  return data
+}
+
+/**
+ * Duplicate an account while keeping credentials on the server.
+ * @param id - Source account ID
+ * @returns Newly created account
+ */
+const duplicateOperationKeys = new Map<number, string>()
+
+function duplicateOperationStorageKey(id: number): string {
+  return `sub2api:admin:account-duplicate:${id}`
+}
+
+function getStoredDuplicateOperationKey(id: number): string | null {
+  try {
+    return globalThis.sessionStorage?.getItem(duplicateOperationStorageKey(id)) ?? null
+  } catch {
+    return null
+  }
+}
+
+function storeDuplicateOperationKey(id: number, key: string | null): void {
+  try {
+    if (key) globalThis.sessionStorage?.setItem(duplicateOperationStorageKey(id), key)
+    else globalThis.sessionStorage?.removeItem(duplicateOperationStorageKey(id))
+  } catch {
+    // In-memory retry protection still works when browser storage is unavailable.
+  }
+}
+
+export async function duplicate(id: number): Promise<Account> {
+  let idempotencyKey = duplicateOperationKeys.get(id) ?? getStoredDuplicateOperationKey(id)
+  if (!idempotencyKey) {
+    const requestID = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
+    idempotencyKey = `account-duplicate-${id}-${requestID}`
+  }
+  duplicateOperationKeys.set(id, idempotencyKey)
+  storeDuplicateOperationKey(id, idempotencyKey)
+  const { data } = await apiClient.post<Account>(`/admin/accounts/${id}/duplicate`, undefined, {
+    headers: { 'Idempotency-Key': idempotencyKey }
+  })
+  duplicateOperationKeys.delete(id)
+  storeDuplicateOperationKey(id, null)
   return data
 }
 
@@ -271,6 +313,19 @@ export async function getUsage(id: number, source?: 'passive' | 'active', force?
   if (force) params.force = 'true'
   const { data } = await apiClient.get<AccountUsageInfo>(`/admin/accounts/${id}/usage`, {
     params: Object.keys(params).length > 0 ? params : undefined
+  })
+  return data
+}
+
+export interface BatchAccountUsageResponse {
+  usage: Record<string, AccountUsageInfo>
+  errors: Record<string, string>
+}
+
+export async function getBatchUsage(accountIds: number[], force?: boolean): Promise<BatchAccountUsageResponse> {
+  const { data } = await apiClient.post<BatchAccountUsageResponse>('/admin/accounts/usage/batch', {
+    account_ids: accountIds,
+    force: force === true
   })
   return data
 }
@@ -447,103 +502,6 @@ export interface BatchTodayStatsResponse {
   stats: Record<string, WindowStats>
 }
 
-export interface AccountHealthSummary {
-  total_accounts: number
-  healthy_accounts: number
-  constrained_accounts: number
-  unavailable_accounts: number
-  unchecked_accounts: number
-  last_checked_at?: string
-}
-
-export interface AccountHealthAutoCheckConfig {
-  enabled: boolean
-  interval_minutes: number
-  model_id: string
-  running?: boolean
-  current_total?: number
-  current_success?: number
-  current_failed?: number
-  queue_running?: string
-  queue_pending?: string
-  last_run_at?: number | null
-  progress_updated_at?: number | null
-}
-
-export interface AccountHealthCheckRunResult {
-  started: boolean
-  running: boolean
-  message: string
-  run_at: number
-  total: number
-}
-
-export interface AccountTokenAutoRefreshConfig {
-  enabled: boolean
-  interval_value: number
-  interval_unit: 'hour' | 'day'
-  batch_size: number
-  scope?: 'all' | 'group'
-  group_id?: number
-  health_status?: '' | 'healthy' | 'constrained' | 'unavailable' | 'unchecked'
-  running?: boolean
-  current_total?: number
-  current_success?: number
-  current_failed?: number
-  queue_running?: string
-  queue_pending?: string
-  last_run_at?: number | null
-  last_run_total?: number
-  last_run_success?: number
-  last_run_failed?: number
-}
-
-export interface AccountTokenAutoRefreshRunResult {
-  started: boolean
-  running: boolean
-  message: string
-  run_at: number
-  batch_size: number
-}
-
-export interface AccountHealthCheckItem {
-  account_id: number
-  name: string
-  platform: string
-  type: string
-  health_status: 'healthy' | 'constrained' | 'unavailable' | 'unchecked'
-  result_status: string
-  message?: string
-  latency_ms: number
-  last_checked_at: string
-}
-
-export interface AccountHealthCheckResponse {
-  summary: AccountHealthSummary
-  items: AccountHealthCheckItem[]
-}
-
-export interface DeduplicateAccountsResult {
-  duplicate_groups: number
-  deleted_count: number
-  kept_count: number
-}
-
-export interface DeleteUnhealthyAccountsResult {
-  deleted_count: number
-}
-
-export type DeleteAccountStatus =
-  | 'active'
-  | 'disabled'
-  | 'inactive'
-  | 'error'
-  | 'rate_limited'
-  | 'temp_unschedulable'
-  | 'unschedulable'
-
-export type DeleteHealthStatus = 'healthy' | 'constrained' | 'unavailable' | 'unchecked'
-
 /**
  * 批量获取多个账号的今日统计
  * @param accountIds - 账号 ID 列表
@@ -552,129 +510,6 @@ export type DeleteHealthStatus = 'healthy' | 'constrained' | 'unavailable' | 'un
 export async function getBatchTodayStats(accountIds: number[]): Promise<BatchTodayStatsResponse> {
   const { data } = await apiClient.post<BatchTodayStatsResponse>('/admin/accounts/today-stats/batch', {
     account_ids: accountIds
-  })
-  return data
-}
-
-export async function getHealthSummary(filters?: {
-  platform?: string
-  type?: string
-  status?: string
-  health_status?: string
-  group?: string
-  privacy_mode?: string
-  search?: string
-  sort_by?: string
-  sort_order?: 'asc' | 'desc'
-}): Promise<AccountHealthSummary> {
-  const { data } = await apiClient.get<AccountHealthSummary>('/admin/accounts/health-summary', {
-    params: filters
-  })
-  return data
-}
-
-export async function runHealthCheck(payload?: {
-  account_ids?: number[]
-  model_id?: string
-  filters?: {
-    platform?: string
-    type?: string
-    status?: string
-    health_status?: string
-    group?: string
-    privacy_mode?: string
-    search?: string
-    sort_by?: string
-    sort_order?: 'asc' | 'desc'
-  }
-}): Promise<AccountHealthCheckRunResult> {
-  const { data } = await apiClient.post<AccountHealthCheckRunResult>('/admin/accounts/health-check', payload ?? {}, {
-    timeout: 300000
-  })
-  return data
-}
-
-export async function getAccountHealthAutoCheckConfig(): Promise<AccountHealthAutoCheckConfig> {
-  const { data } = await apiClient.get<AccountHealthAutoCheckConfig>('/admin/settings/account-health-auto-check')
-  return data
-}
-
-export async function updateAccountHealthAutoCheckConfig(payload: {
-  enabled: boolean
-  interval_minutes: number
-  model_id: string
-}): Promise<AccountHealthAutoCheckConfig> {
-  const { data } = await apiClient.put<AccountHealthAutoCheckConfig>('/admin/settings/account-health-auto-check', payload)
-  return data
-}
-
-export async function getAccountTokenAutoRefreshConfig(): Promise<AccountTokenAutoRefreshConfig> {
-  const { data } = await apiClient.get<AccountTokenAutoRefreshConfig>('/admin/settings/account-token-auto-refresh')
-  return data
-}
-
-export async function updateAccountTokenAutoRefreshConfig(payload: {
-  enabled: boolean
-  interval_value: number
-  interval_unit: 'hour' | 'day'
-  batch_size: number
-  scope?: 'all' | 'group'
-  group_id?: number
-  health_status?: '' | 'healthy' | 'constrained' | 'unavailable' | 'unchecked'
-}): Promise<AccountTokenAutoRefreshConfig> {
-  const { data } = await apiClient.put<AccountTokenAutoRefreshConfig>('/admin/settings/account-token-auto-refresh', payload)
-  return data
-}
-
-export async function runAccountTokenAutoRefreshNow(payload?: {
-  enabled?: boolean
-  interval_value?: number
-  interval_unit?: 'hour' | 'day'
-  batch_size?: number
-  scope?: 'all' | 'group'
-  group_id?: number
-  health_status?: '' | 'healthy' | 'constrained' | 'unavailable' | 'unchecked'
-}): Promise<AccountTokenAutoRefreshRunResult> {
-  const { data } = await apiClient.post<AccountTokenAutoRefreshRunResult>('/admin/settings/account-token-auto-refresh/run', payload)
-  return data
-}
-
-export async function deduplicateAccounts(payload?: {
-  filters?: {
-    platform?: string
-    type?: string
-    status?: string
-    health_status?: string
-    group?: string
-    privacy_mode?: string
-    search?: string
-    sort_by?: string
-    sort_order?: 'asc' | 'desc'
-  }
-}): Promise<DeduplicateAccountsResult> {
-  const { data } = await apiClient.post<DeduplicateAccountsResult>('/admin/accounts/deduplicate', payload ?? {}, {
-    timeout: 300000
-  })
-  return data
-}
-
-export async function deleteUnhealthyAccounts(payload?: {
-  filters?: {
-    platform?: string
-    type?: string
-    status?: string
-    health_status?: string
-    group?: string
-    privacy_mode?: string
-    search?: string
-    sort_by?: string
-    sort_order?: 'asc' | 'desc'
-  }
-  account_statuses?: DeleteAccountStatus[]
-  health_statuses?: DeleteHealthStatus[]
-}): Promise<DeleteUnhealthyAccountsResult> {
-  const { data } = await apiClient.post<DeleteUnhealthyAccountsResult>('/admin/accounts/delete-unhealthy', payload ?? {}, {
-    timeout: 300000
   })
   return data
 }
@@ -829,12 +664,10 @@ export async function exportData(options?: {
 
 export async function importData(payload: {
   data: AdminDataPayload
-  group_ids?: number[]
   skip_default_group_bind?: boolean
 }): Promise<AdminDataImportResult> {
   const { data } = await apiClient.post<AdminDataImportResult>('/admin/accounts/data', {
     data: payload.data,
-    group_ids: payload.group_ids,
     skip_default_group_bind: payload.skip_default_group_bind
   })
   return data
@@ -895,6 +728,8 @@ export interface BatchOperationResult {
   total: number
   success: number
   failed: number
+  success_ids?: number[]
+  failed_ids?: number[]
   errors?: Array<{ account_id: number; error: string }>
   warnings?: Array<{ account_id: number; warning: string }>
 }
@@ -906,6 +741,16 @@ export interface BatchOperationResult {
  */
 export async function revertProxyFallback(id: number): Promise<{ message: string }> {
   const { data } = await apiClient.post<{ message: string }>(`/admin/accounts/${id}/revert-proxy-fallback`)
+  return data
+}
+
+/**
+ * Delete multiple accounts with bounded server-side concurrency.
+ */
+export async function batchDelete(accountIds: number[]): Promise<BatchOperationResult> {
+  const { data } = await apiClient.post<BatchOperationResult>('/admin/accounts/batch-delete', {
+    account_ids: accountIds
+  })
   return data
 }
 
@@ -1002,21 +847,51 @@ export interface OpenAIQuotaResetResult {
   code: string
   credit?: OpenAIQuotaResetCredit | null
   windows_reset: number
+  quota?: OpenAIQuotaUsage | null
+  account?: Account | null
+  cache_refreshed: boolean
+  account_state_recovered: boolean
+  warning_code?:
+    | 'reset_credit_cache_refresh_failed'
+    | 'account_state_recovery_failed'
+    | 'account_state_refresh_failed'
+}
+
+/** Usage payload plus whether the reset-credit snapshot was persisted. */
+export interface OpenAIQuotaRefreshResult extends OpenAIQuotaUsage {
+  cache_persisted: boolean
 }
 
 /**
- * Query OpenAI/Codex rate-limit usage for an OAuth account.
+ * Query the upstream quota AND persist the reset-credit snapshot on the account
+ * so the card can be rehydrated without an upstream round-trip. It is a POST
+ * because it writes account state (and must therefore be audited).
+ *
+ * The read-only `GET /admin/openai/accounts/:id/quota` endpoint still exists for
+ * API consumers; the panel always wants the snapshot persisted, so it has no
+ * client binding here.
  */
-export async function queryOpenAIQuota(id: number): Promise<OpenAIQuotaUsage> {
-  const { data } = await apiClient.get<OpenAIQuotaUsage>(`/admin/openai/accounts/${id}/quota`)
+export async function refreshOpenAIQuota(id: number): Promise<OpenAIQuotaRefreshResult> {
+  const { data } = await apiClient.post<OpenAIQuotaRefreshResult>(
+    `/admin/openai/accounts/${id}/quota/refresh`
+  )
   return data
 }
 
 /**
  * Consume one rate-limit-reset credit for an OpenAI/Codex OAuth account.
+ *
+ * The credit is non-refundable and the endpoint chains an upstream reset with an
+ * upstream re-query, so it needs a larger budget than the default client
+ * timeout: aborting locally would report a successful consumption as a failure
+ * and invite a retry that spends a second credit.
  */
 export async function resetOpenAIQuota(id: number): Promise<OpenAIQuotaResetResult> {
-  const { data } = await apiClient.post<OpenAIQuotaResetResult>(`/admin/openai/accounts/${id}/reset-quota`)
+  const { data } = await apiClient.post<OpenAIQuotaResetResult>(
+    `/admin/openai/accounts/${id}/reset-quota`,
+    undefined,
+    { timeout: 90_000 }
+  )
   return data
 }
 
@@ -1113,6 +988,7 @@ export const accountsAPI = {
   listWithEtag,
   getById,
   create,
+  duplicate,
   update,
   checkMixedChannelRisk,
   delete: deleteAccount,
@@ -1123,17 +999,9 @@ export const accountsAPI = {
   getStats,
   clearError,
   getUsage,
+  getBatchUsage,
   getTodayStats,
   getBatchTodayStats,
-  getHealthSummary,
-  runHealthCheck,
-  getAccountHealthAutoCheckConfig,
-  updateAccountHealthAutoCheckConfig,
-  getAccountTokenAutoRefreshConfig,
-  updateAccountTokenAutoRefreshConfig,
-  runAccountTokenAutoRefreshNow,
-  deduplicateAccounts,
-  deleteUnhealthyAccounts,
   clearRateLimit,
   recoverState,
   resetAccountQuota,
@@ -1156,11 +1024,12 @@ export const accountsAPI = {
   importCodexSession,
   createOpenAICodexPAT,
   getAntigravityDefaultModelMapping,
+  batchDelete,
   batchClearError,
   batchRefresh,
   setPrivacy,
   revertProxyFallback,
-  queryOpenAIQuota,
+  refreshOpenAIQuota,
   resetOpenAIQuota,
   createSparkShadow,
   getUpstreamBillingProbeSettings,

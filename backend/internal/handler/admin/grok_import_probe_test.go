@@ -27,25 +27,6 @@ type grokImportProbeStub struct {
 	done         chan int64
 }
 
-type grokImportProbeSchedulerSnapshot struct {
-	Queued     int
-	Workers    int
-	MaxWorkers int
-}
-
-func (s *grokImportProbeScheduler) snapshot() grokImportProbeSchedulerSnapshot {
-	if s == nil {
-		return grokImportProbeSchedulerSnapshot{}
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return grokImportProbeSchedulerSnapshot{
-		Queued:     len(s.queue),
-		Workers:    s.workers,
-		MaxWorkers: s.maxWorkers,
-	}
-}
-
 func newGrokImportProbeStub(buffer int) *grokImportProbeStub {
 	return &grokImportProbeStub{
 		calls:    make(map[int64]int),
@@ -55,7 +36,7 @@ func newGrokImportProbeStub(buffer int) *grokImportProbeStub {
 	}
 }
 
-func (s *grokImportProbeStub) ProbeUsage(ctx context.Context, accountID int64) (*service.GrokQuotaProbeResult, error) {
+func (s *grokImportProbeStub) QueryQuota(ctx context.Context, accountID int64) (*service.GrokQuotaProbeResult, error) {
 	_, deadlineSeen := ctx.Deadline()
 	s.mu.Lock()
 	s.calls[accountID]++
@@ -88,7 +69,7 @@ func (s *grokImportProbeStub) ProbeUsage(ctx context.Context, accountID int64) (
 		return nil, failure
 	}
 	return &service.GrokQuotaProbeResult{
-		Source:         "active_probe",
+		Source:         "hybrid_probe",
 		Model:          "grok-4.5",
 		StatusCode:     200,
 		ResetSupported: false,
@@ -103,6 +84,25 @@ func (s *grokImportProbeStub) snapshot() (map[int64]int, int, bool) {
 		calls[id] = count
 	}
 	return calls, s.maxActive, s.deadlineSeen
+}
+
+type grokImportProbeSchedulerTestSnapshot struct {
+	queued     int
+	workers    int
+	maxWorkers int
+}
+
+func snapshotGrokImportProbeScheduler(s *grokImportProbeScheduler) grokImportProbeSchedulerTestSnapshot {
+	if s == nil {
+		return grokImportProbeSchedulerTestSnapshot{}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return grokImportProbeSchedulerTestSnapshot{
+		queued:     len(s.queue),
+		workers:    s.workers,
+		maxWorkers: s.maxWorkers,
+	}
 }
 
 func newGrokOAuthImportAccount(id int64) *service.Account {
@@ -136,13 +136,13 @@ func TestGrokImportProbeSchedulerProbesSingleAccountOnce(t *testing.T) {
 	require.Equal(t, 1, maxActive)
 	require.True(t, deadlineSeen)
 	require.Eventually(t, func() bool {
-		snapshot := scheduler.snapshot()
-		return snapshot.Queued == 0 && snapshot.Workers == 0
+		snapshot := snapshotGrokImportProbeScheduler(scheduler)
+		return snapshot.queued == 0 && snapshot.workers == 0
 	}, time.Second, 10*time.Millisecond)
 }
 
 func TestGrokImportProbeSchedulerQueuesBatchWithoutPerTaskGoroutines(t *testing.T) {
-	const taskCount = 100
+	const taskCount = 50
 	release := make(chan struct{})
 	scheduler := newGrokImportProbeScheduler(3, time.Second)
 	prober := newGrokImportProbeStub(taskCount)
@@ -155,10 +155,10 @@ func TestGrokImportProbeSchedulerQueuesBatchWithoutPerTaskGoroutines(t *testing.
 	for i := 0; i < 3; i++ {
 		awaitGrokProbeSignal(t, prober.started)
 	}
-	snapshot := scheduler.snapshot()
-	require.Equal(t, 97, snapshot.Queued)
-	require.Equal(t, 3, snapshot.Workers)
-	require.Equal(t, 3, snapshot.MaxWorkers)
+	snapshot := snapshotGrokImportProbeScheduler(scheduler)
+	require.Equal(t, taskCount-3, snapshot.queued)
+	require.Equal(t, 3, snapshot.workers)
+	require.Equal(t, 3, snapshot.maxWorkers)
 	select {
 	case id := <-prober.started:
 		t.Fatalf("probe %d started before a concurrency slot was released", id)
@@ -176,10 +176,59 @@ func TestGrokImportProbeSchedulerQueuesBatchWithoutPerTaskGoroutines(t *testing.
 	}
 	require.Equal(t, 3, maxActive)
 	require.Eventually(t, func() bool {
-		snapshot = scheduler.snapshot()
-		return snapshot.Queued == 0 && snapshot.Workers == 0
+		snapshot = snapshotGrokImportProbeScheduler(scheduler)
+		return snapshot.queued == 0 && snapshot.workers == 0
 	}, time.Second, 10*time.Millisecond)
-	require.Equal(t, 3, snapshot.MaxWorkers)
+	require.Equal(t, 3, snapshot.maxWorkers)
+}
+
+func TestGrokImportProbeSchedulerDeduplicatesPendingAndInFlightAccounts(t *testing.T) {
+	scheduler := newGrokImportProbeScheduler(1, time.Second)
+	prober := newGrokImportProbeStub(2)
+	release := make(chan struct{})
+	prober.block = release
+	account := newGrokOAuthImportAccount(501)
+	queued := newGrokOAuthImportAccount(502)
+
+	scheduler.schedule(prober, account)
+	require.Equal(t, int64(501), awaitGrokProbeSignal(t, prober.started))
+	scheduler.schedule(prober, account)
+	scheduler.schedule(prober, queued)
+	scheduler.schedule(prober, queued)
+
+	scheduler.mu.Lock()
+	require.Len(t, scheduler.queue, 1)
+	require.Contains(t, scheduler.inFlight, int64(501))
+	require.Contains(t, scheduler.pending, int64(502))
+	scheduler.mu.Unlock()
+
+	close(release)
+	require.Equal(t, int64(501), awaitGrokProbeSignal(t, prober.done))
+	require.Equal(t, int64(502), awaitGrokProbeSignal(t, prober.done))
+	calls, _, _ := prober.snapshot()
+	require.Equal(t, 1, calls[501])
+	require.Equal(t, 1, calls[502])
+}
+
+func TestGrokImportProbeSchedulerBoundsPendingQueue(t *testing.T) {
+	scheduler := newGrokImportProbeScheduler(1, time.Second)
+	prober := newGrokImportProbeStub(grokImportProbeQueueLimit + 1)
+	release := make(chan struct{})
+	prober.block = release
+	scheduler.schedule(prober, newGrokOAuthImportAccount(600))
+	require.Equal(t, int64(600), awaitGrokProbeSignal(t, prober.started))
+	for id := int64(601); id < 601+grokImportProbeQueueLimit+10; id++ {
+		scheduler.schedule(prober, newGrokOAuthImportAccount(id))
+	}
+
+	scheduler.mu.Lock()
+	require.Len(t, scheduler.queue, grokImportProbeQueueLimit)
+	scheduler.mu.Unlock()
+
+	close(release)
+	for i := 0; i < grokImportProbeQueueLimit+1; i++ {
+		awaitGrokProbeSignal(t, prober.done)
+	}
 }
 
 func TestGrokImportProbeSchedulerTimeoutCancelsProbe(t *testing.T) {

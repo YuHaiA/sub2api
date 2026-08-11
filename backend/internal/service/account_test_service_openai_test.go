@@ -4,7 +4,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -224,7 +223,7 @@ func TestAccountTestService_OpenAIShadowUsesParentCredentialsAndShadowModel(t *t
 	require.Contains(t, recorder.Body.String(), `"success":true`)
 }
 
-func TestAccountTestService_OpenAIStreamEOFWithContentSucceeds(t *testing.T) {
+func TestAccountTestService_OpenAIStreamEOFBeforeCompletedFails(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ctx, recorder := newTestContext()
 
@@ -237,33 +236,6 @@ func TestAccountTestService_OpenAIStreamEOFWithContentSucceeds(t *testing.T) {
 	svc := &AccountTestService{httpUpstream: upstream}
 	account := &Account{
 		ID:          90,
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
-		Concurrency: 1,
-		Credentials: map[string]any{"access_token": "test-token"},
-	}
-
-	// Connectivity probes should treat any real output as success even if the
-	// upstream stream ends without an explicit response.completed event.
-	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "")
-	require.NoError(t, err)
-	require.Contains(t, recorder.Body.String(), `"type":"content"`)
-	require.Contains(t, recorder.Body.String(), `"success":true`)
-}
-
-func TestAccountTestService_OpenAIStreamEOFWithoutContentFails(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	ctx, recorder := newTestContext()
-
-	resp := newJSONResponse(http.StatusOK, "")
-	resp.Body = io.NopCloser(strings.NewReader(`data: {"type":"response.created"}
-
-`))
-
-	upstream := &queuedHTTPUpstream{responses: []*http.Response{resp}}
-	svc := &AccountTestService{httpUpstream: upstream}
-	account := &Account{
-		ID:          91,
 		Platform:    PlatformOpenAI,
 		Type:        AccountTypeOAuth,
 		Concurrency: 1,
@@ -452,6 +424,37 @@ func TestAccountTestService_OpenAI401SetsPermanentErrorOnly(t *testing.T) {
 	require.Nil(t, account.RateLimitResetAt)
 }
 
+func TestAccountTestService_OpenAIAPIKeyResponsesUsesCodexProbeHeaders(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := newTestContext()
+
+	resp := newJSONResponse(http.StatusOK, "")
+	resp.Body = io.NopCloser(strings.NewReader("data: {\"type\":\"response.completed\"}\n\n"))
+	upstream := &queuedHTTPUpstream{responses: []*http.Response{resp}}
+	svc := &AccountTestService{
+		httpUpstream: upstream,
+		cfg:          &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
+	}
+	account := &Account{
+		ID:          95,
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"api_key":  "sk-test",
+			"base_url": "https://compat-upstream.example/v1",
+		},
+		Extra: map[string]any{openai_compat.ExtraKeyResponsesSupported: true},
+	}
+
+	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "")
+	require.NoError(t, err)
+	require.Len(t, upstream.requests, 1)
+	req := upstream.requests[0]
+	require.Equal(t, "https://compat-upstream.example/v1/responses", req.URL.String())
+	requireOpenAICodexProbeHeaders(t, req.Header)
+}
+
 func TestAccountTestService_OpenAIAPIKeyResponsesUnsupportedUsesChatCompletionsPath(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ctx, recorder := newTestContext()
@@ -593,105 +596,4 @@ func TestAccountTestService_OpenAIChatCompletionsPathRejectsNonJSONStream(t *tes
 	require.Contains(t, err.Error(), "Invalid Chat Completions response from /v1/chat/completions")
 	require.Contains(t, recorder.Body.String(), "/v1/chat/completions")
 	require.NotContains(t, recorder.Body.String(), `"success":true`)
-}
-
-func TestCreateOpenAITestPayload_DefaultTextPromptUsesProbePool(t *testing.T) {
-	t.Parallel()
-
-	payload := createOpenAITestPayload("gpt-5.4", false, "", false)
-	text := gjson.GetBytes(mustMarshalJSON(t, payload), "input.0.content.0.text").String()
-
-	require.Contains(t, defaultTextTestPromptPool, text)
-	require.NotContains(t, []string{"hi", "hello", "你好"}, text)
-}
-
-func TestCreateOpenAITestPayload_HealthProbeUsesFixedPrompt(t *testing.T) {
-	t.Parallel()
-
-	oauthPayload := createOpenAITestPayload("gpt-5.5", true, "What time is it?", true)
-	require.Equal(t, defaultTextTestPrompt, gjson.GetBytes(mustMarshalJSON(t, oauthPayload), "input.0.content.0.text").String())
-	require.False(t, gjson.GetBytes(mustMarshalJSON(t, oauthPayload), "max_output_tokens").Exists())
-	require.NotContains(t, gjson.GetBytes(mustMarshalJSON(t, oauthPayload), "instructions").String(), "connectivity probe")
-	require.NotEmpty(t, gjson.GetBytes(mustMarshalJSON(t, oauthPayload), "instructions").String())
-	require.Equal(t, false, gjson.GetBytes(mustMarshalJSON(t, oauthPayload), "store").Bool())
-
-	apiKeyPayload := createOpenAITestPayload("gpt-5.5", false, "What time is it?", true)
-	require.Equal(t, defaultTextTestPrompt, gjson.GetBytes(mustMarshalJSON(t, apiKeyPayload), "input.0.content.0.text").String())
-	require.Equal(t, float64(32), gjson.GetBytes(mustMarshalJSON(t, apiKeyPayload), "max_output_tokens").Float())
-}
-
-func TestFormatOpenAIUpstreamRequestError_OAuthEOFHintsCorrectEndpoint(t *testing.T) {
-	t.Parallel()
-
-	msg := formatOpenAIUpstreamRequestError(
-		chatgptCodexAPIURL,
-		true,
-		fmt.Errorf(`Post "%s": EOF`, chatgptCodexAPIURL),
-	)
-	require.Contains(t, msg, "ChatGPT Codex upstream connection failed")
-	require.Contains(t, msg, chatgptCodexAPIURL)
-	require.Contains(t, msg, "correct OAuth URL")
-}
-
-func TestCreateOpenAIChatCompletionsTestPayload_DefaultTextPromptUsesProbePool(t *testing.T) {
-	t.Parallel()
-
-	payload := createOpenAIChatCompletionsTestPayload("gpt-5.4", "")
-	text := gjson.GetBytes(mustMarshalJSON(t, payload), "messages.0.content").String()
-
-	require.Contains(t, defaultTextTestPromptPool, text)
-	require.NotContains(t, []string{"hi", "hello", "你好"}, text)
-}
-
-func TestCreateTestPayload_DefaultTextPromptUsesProbePool(t *testing.T) {
-	t.Parallel()
-
-	payload, err := createTestPayload("claude-sonnet-4-5", "")
-	require.NoError(t, err)
-
-	text := gjson.GetBytes(mustMarshalJSON(t, payload), "messages.0.content.0.text").String()
-	require.Contains(t, defaultTextTestPromptPool, text)
-	require.NotContains(t, []string{"hi", "hello", "你好"}, text)
-}
-
-func mustMarshalJSON(t *testing.T, value any) []byte {
-	t.Helper()
-
-	data, err := json.Marshal(value)
-	require.NoError(t, err)
-	return data
-}
-
-
-func TestAccountTestService_OpenAIStreamOutputItemDoneSucceeds(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	ctx, recorder := newTestContext()
-
-	resp := newJSONResponse(http.StatusOK, "")
-	resp.Body = io.NopCloser(strings.NewReader(`data: {"type":"response.output_item.done","item":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"probe-ok"}]}}
-
-`))
-
-	upstream := &queuedHTTPUpstream{responses: []*http.Response{resp}}
-	svc := &AccountTestService{httpUpstream: upstream}
-	account := &Account{
-		ID:          92,
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
-		Concurrency: 1,
-		Credentials: map[string]any{"access_token": "test-token"},
-	}
-
-	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.5", "", AccountTestModeHealth)
-	require.NoError(t, err)
-	require.Contains(t, recorder.Body.String(), `"type":"content"`)
-	require.Contains(t, recorder.Body.String(), "probe-ok")
-	require.Contains(t, recorder.Body.String(), `"success":true`)
-}
-
-func TestIsTransientAccountHealthProbeFailure(t *testing.T) {
-	require.True(t, isTransientAccountHealthProbeFailure("ChatGPT Codex upstream connection failed (EOF)", nil))
-	require.True(t, isTransientAccountHealthProbeFailure("context deadline exceeded", nil))
-	require.True(t, isTransientAccountHealthProbeFailure("Stream ended before response.completed", nil))
-	require.False(t, isTransientAccountHealthProbeFailure("Authentication failed (401)", nil))
 }

@@ -9,8 +9,22 @@ import (
 const (
 	openAIResponsesEndpoint          = "/v1/responses"
 	openAIResponsesCompactEndpoint   = "/v1/responses/compact"
+	responsesLiteHeader              = "X-OpenAI-Internal-Codex-Responses-Lite"
+	responsesLiteHeaderKey           = "x-openai-internal-codex-responses-lite"
+	responsesLiteWSMetadataKey       = "ws_request_header_x_openai_internal_codex_responses_lite"
 	imageGenerationPermissionMessage = "Image generation is not enabled for this group"
 )
+
+func isOpenAIResponsesLiteHeader(value string) bool {
+	return strings.EqualFold(strings.TrimSpace(value), "true")
+}
+
+func isOpenAIResponsesLiteWebSocketPayload(body []byte) bool {
+	if len(body) == 0 || !gjson.ValidBytes(body) {
+		return false
+	}
+	return isOpenAIResponsesLiteHeader(gjson.GetBytes(body, "client_metadata."+responsesLiteWSMetadataKey).String())
+}
 
 // ImageGenerationPermissionMessage returns the stable end-user error text for disabled groups.
 func ImageGenerationPermissionMessage() string {
@@ -33,22 +47,81 @@ func IsImageGenerationIntent(endpoint string, requestedModel string, body []byte
 	if len(body) == 0 || !gjson.ValidBytes(body) {
 		return false
 	}
-	if model := strings.TrimSpace(gjson.GetBytes(body, "model").String()); isOpenAIImageGenerationModel(model) {
+
+	var modelSeen, toolsSeen, inputSeen, toolChoiceSeen bool
+	imageIntent := false
+	parseRawJSONView(body).ForEach(func(key, value gjson.Result) bool {
+		// GetBytes returns the first duplicate key; retain that behavior while walking the root once.
+		switch key.Str {
+		case "model":
+			if !modelSeen {
+				modelSeen = true
+				imageIntent = isOpenAIImageGenerationModel(strings.TrimSpace(value.String()))
+			}
+		case "tools":
+			if !toolsSeen {
+				toolsSeen = true
+				imageIntent = openAIJSONToolsContainImageGeneration(value)
+			}
+		case "input":
+			if !inputSeen {
+				inputSeen = true
+				imageIntent = openAIJSONInputContainsImageGenTool(value)
+			}
+		case "tool_choice":
+			if !toolChoiceSeen {
+				toolChoiceSeen = true
+				imageIntent = openAIJSONToolChoiceSelectsImageGeneration(value)
+			}
+		}
+		return !imageIntent && (!modelSeen || !toolsSeen || !inputSeen || !toolChoiceSeen)
+	})
+	return imageIntent
+}
+
+// IsExplicitImageGenerationIntent 仅检测原生 image_generation 工具、图片模型和显式 tool_choice，
+// 不检测被动的 image_gen namespace 声明。用于 capability 路由决策——被动 namespace 不应
+// 强制要求原生 Responses 能力，否则 Chat Completions-only 账号会被误过滤（#4476）。
+func IsExplicitImageGenerationIntent(endpoint string, requestedModel string, body []byte) bool {
+	if IsImageGenerationEndpoint(endpoint) || isOpenAIImageGenerationModel(requestedModel) {
 		return true
 	}
-	if openAIJSONToolsContainImageGeneration(gjson.GetBytes(body, "tools")) {
-		return true
+	if len(body) == 0 || !gjson.ValidBytes(body) {
+		return false
 	}
-	if openAIJSONInputContainsImageGenTool(gjson.GetBytes(body, "input")) {
-		return true
-	}
-	return openAIJSONToolChoiceSelectsImageGeneration(gjson.GetBytes(body, "tool_choice"))
+	var modelSeen, toolsSeen, toolChoiceSeen bool
+	imageIntent := false
+	parseRawJSONView(body).ForEach(func(key, value gjson.Result) bool {
+		switch key.Str {
+		case "model":
+			if !modelSeen {
+				modelSeen = true
+				imageIntent = isOpenAIImageGenerationModel(strings.TrimSpace(value.String()))
+			}
+		case "tools":
+			if !toolsSeen {
+				toolsSeen = true
+				imageIntent = openAIJSONToolsContainNativeImageGeneration(value)
+			}
+		case "tool_choice":
+			if !toolChoiceSeen {
+				toolChoiceSeen = true
+				imageIntent = openAIJSONToolChoiceSelectsExplicitImageGeneration(value)
+			}
+		}
+		return !imageIntent && (!modelSeen || !toolsSeen || !toolChoiceSeen)
+	})
+	return imageIntent
 }
 
 // IsImageGenerationIntentForPlatform applies platform-specific intent rules.
-// Grok strips passive image_gen namespace declarations before forwarding, so
-// those declarations alone must not classify an ordinary Codex request as an
-// image request. Native tools, explicit selection and image models still do.
+//
+// Codex advertises the image_gen namespace on ordinary Responses requests so
+// that it is available if the model needs it. Grok strips namespace and
+// Responses Lite additional_tools declarations before forwarding, so those
+// declarations alone must not turn every Codex request into an image request.
+// Native image_generation tools, explicit image selection and image models
+// remain image intent. Other platforms retain the original declaration rule.
 func IsImageGenerationIntentForPlatform(endpoint string, requestedModel string, body []byte, platform string) bool {
 	if !strings.EqualFold(strings.TrimSpace(platform), PlatformGrok) {
 		return IsImageGenerationIntent(endpoint, requestedModel, body)
@@ -76,6 +149,8 @@ func isExplicitGrokImageGenerationIntent(endpoint string, requestedModel string,
 		case "tools":
 			if !toolsSeen {
 				toolsSeen = true
+				// Grok removes namespace catalogs before forwarding. Native
+				// image_generation remains an explicit capability request.
 				imageIntent = openAIJSONToolsContainNativeImageGeneration(value)
 			}
 		case "tool_choice":
@@ -170,9 +245,8 @@ func isOpenAIImageGenNamespaceName(value string) bool {
 	return strings.TrimSpace(value) == "image_gen"
 }
 
-// isImageGenNamespaceTool detects the Codex namespace-style image generation
-// tool declaration: { "type": "namespace", "name": "image_gen", ... }.
-// Codex /image uses this instead of the flat { "type": "image_generation" }.
+// isImageGenNamespaceTool detects the namespace advertised by Codex's built-in
+// image-generation extension instead of a hosted image_generation tool.
 func isImageGenNamespaceTool(tool gjson.Result) bool {
 	return openAIJSONString(tool.Get("type")) == "namespace" &&
 		isOpenAIImageGenNamespaceName(openAIJSONString(tool.Get("name")))

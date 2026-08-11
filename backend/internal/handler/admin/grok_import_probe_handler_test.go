@@ -4,6 +4,7 @@ package admin
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -62,6 +63,10 @@ func (grokImportOAuthClientStub) RefreshToken(context.Context, string, string, s
 	return &xai.TokenResponse{AccessToken: "access-token", RefreshToken: "refresh-token", ExpiresIn: 3600}, nil
 }
 
+func (grokImportOAuthClientStub) LoginWithPassword(context.Context, string, string, string) (*service.GrokPasswordLoginResult, error) {
+	return nil, errors.New("unexpected password login")
+}
+
 func (grokImportOAuthClientStub) ConvertSSOToBuild(context.Context, string, string) (*xai.TokenResponse, error) {
 	return &xai.TokenResponse{AccessToken: "access-token", RefreshToken: "refresh-token", ExpiresIn: 3600}, nil
 }
@@ -73,7 +78,7 @@ func TestGrokSSOBatchImportKeepsCreatedAccountsWhenOneAutomaticProbeFails(t *tes
 	defer oauthService.Stop()
 	prober := newGrokImportProbeStub(3)
 	prober.failures[502] = infraerrors.New(502, "GROK_TEST_PROBE_FAILED", "sensitive-upstream-body")
-	handler := NewGrokOAuthHandler(oauthService, adminService, nil)
+	handler := NewGrokOAuthHandler(oauthService, adminService, nil, nil)
 	handler.importProber = prober
 
 	router := gin.New()

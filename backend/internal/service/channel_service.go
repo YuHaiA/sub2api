@@ -93,7 +93,6 @@ type channelCache struct {
 	// 热路径查找
 	pricingByGroupModel     map[channelModelKey]*ChannelModelPricing            // (groupID, platform, model) → 定价
 	wildcardByGroupPlatform map[channelGroupPlatformKey][]*wildcardPricingEntry // (groupID, platform) → 通配符定价（按配置顺序，先匹配先使用）
-	pricingAllowlistByGroup map[channelGroupPlatformKey]bool                    // (groupID, platform) → 是否存在定价 allowlist
 	mappingByGroupModel     map[channelModelKey]string                          // (groupID, platform, model) → 映射目标
 	wildcardMappingByGP     map[channelGroupPlatformKey][]*wildcardMappingEntry // (groupID, platform) → 通配符映射（按配置顺序，先匹配先使用）
 	channelByGroupID        map[int64]*Channel                                  // groupID → 渠道
@@ -109,7 +108,7 @@ type ChannelMappingResult struct {
 	MappedModel        string // 映射后的模型名（无映射时等于原始模型名）
 	ChannelID          int64  // 渠道 ID（0 = 无渠道关联）
 	Mapped             bool   // 是否发生了映射
-	BillingModelSource string // 计费模型来源（"requested" / "upstream" / "channel_mapped"）
+	BillingModelSource string // 计费模型来源（"requested" / "upstream" / "channel_mapped" / "response_model"）
 }
 
 // BuildModelMappingChain 根据映射结果和上游实际模型构建映射链描述。
@@ -206,7 +205,6 @@ func newEmptyChannelCache() *channelCache {
 	return &channelCache{
 		pricingByGroupModel:     make(map[channelModelKey]*ChannelModelPricing),
 		wildcardByGroupPlatform: make(map[channelGroupPlatformKey][]*wildcardPricingEntry),
-		pricingAllowlistByGroup: make(map[channelGroupPlatformKey]bool),
 		mappingByGroupModel:     make(map[channelModelKey]string),
 		wildcardMappingByGP:     make(map[channelGroupPlatformKey][]*wildcardMappingEntry),
 		channelByGroupID:        make(map[int64]*Channel),
@@ -228,11 +226,6 @@ func expandPricingToCache(cache *channelCache, ch *Channel, gid int64, platform 
 		pricingPlatform := pricing.Platform
 		gpKey := channelGroupPlatformKey{groupID: gid, platform: pricingPlatform}
 		for _, model := range pricing.Models {
-			model = strings.TrimSpace(model)
-			if model == "" {
-				continue
-			}
-			cache.pricingAllowlistByGroup[gpKey] = true
 			if strings.HasSuffix(model, "*") {
 				prefix := normalizeChannelPricingModelName(strings.TrimSuffix(model, "*"))
 				cache.wildcardByGroupPlatform[gpKey] = append(cache.wildcardByGroupPlatform[gpKey], &wildcardPricingEntry{
@@ -435,15 +428,6 @@ func lookupPricingAcrossPlatforms(cache *channelCache, groupID int64, groupPlatf
 	return nil
 }
 
-func hasPricingAllowlistForGroupPlatform(cache *channelCache, groupID int64, groupPlatform string) bool {
-	for _, p := range matchingPlatforms(groupPlatform) {
-		if cache.pricingAllowlistByGroup[channelGroupPlatformKey{groupID: groupID, platform: p}] {
-			return true
-		}
-	}
-	return false
-}
-
 // lookupMappingAcrossPlatforms 在分组平台内查找模型映射。
 // 逻辑与 lookupPricingAcrossPlatforms 相同：先精确查找，再通配符。
 func lookupMappingAcrossPlatforms(cache *channelCache, groupID int64, groupPlatform, modelLower string) string {
@@ -599,9 +583,6 @@ func checkRestricted(lk *channelLookup, groupID int64, model string) bool {
 	if !lk.channel.RestrictModels {
 		return false
 	}
-	if !hasPricingAllowlistForGroupPlatform(lk.cache, groupID, lk.platform) {
-		return false
-	}
 	modelLower := strings.ToLower(model)
 	// 使用与查找定价相同的跨平台逻辑
 	if lookupPricingAcrossPlatforms(lk.cache, groupID, lk.platform, modelLower) != nil {
@@ -698,6 +679,7 @@ func checkPricesNotNegative(p ChannelModelPricing) error {
 		{"output_price", p.OutputPrice},
 		{"cache_write_price", p.CacheWritePrice},
 		{"cache_read_price", p.CacheReadPrice},
+		{"image_input_price", p.ImageInputPrice},
 		{"image_output_price", p.ImageOutputPrice},
 		{"per_request_price", p.PerRequestPrice},
 	}

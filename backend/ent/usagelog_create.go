@@ -85,6 +85,34 @@ func (_c *UsageLogCreate) SetNillableUpstreamModel(v *string) *UsageLogCreate {
 	return _c
 }
 
+// SetUpstreamResponseModel sets the "upstream_response_model" field.
+func (_c *UsageLogCreate) SetUpstreamResponseModel(v string) *UsageLogCreate {
+	_c.mutation.SetUpstreamResponseModel(v)
+	return _c
+}
+
+// SetNillableUpstreamResponseModel sets the "upstream_response_model" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableUpstreamResponseModel(v *string) *UsageLogCreate {
+	if v != nil {
+		_c.SetUpstreamResponseModel(*v)
+	}
+	return _c
+}
+
+// SetUpstreamModelMismatch sets the "upstream_model_mismatch" field.
+func (_c *UsageLogCreate) SetUpstreamModelMismatch(v bool) *UsageLogCreate {
+	_c.mutation.SetUpstreamModelMismatch(v)
+	return _c
+}
+
+// SetNillableUpstreamModelMismatch sets the "upstream_model_mismatch" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableUpstreamModelMismatch(v *bool) *UsageLogCreate {
+	if v != nil {
+		_c.SetUpstreamModelMismatch(*v)
+	}
+	return _c
+}
+
 // SetChannelID sets the "channel_id" field.
 func (_c *UsageLogCreate) SetChannelID(v int64) *UsageLogCreate {
 	_c.mutation.SetChannelID(v)
@@ -347,6 +375,20 @@ func (_c *UsageLogCreate) SetRateMultiplier(v float64) *UsageLogCreate {
 func (_c *UsageLogCreate) SetNillableRateMultiplier(v *float64) *UsageLogCreate {
 	if v != nil {
 		_c.SetRateMultiplier(*v)
+	}
+	return _c
+}
+
+// SetLongContextBillingApplied sets the "long_context_billing_applied" field.
+func (_c *UsageLogCreate) SetLongContextBillingApplied(v bool) *UsageLogCreate {
+	_c.mutation.SetLongContextBillingApplied(v)
+	return _c
+}
+
+// SetNillableLongContextBillingApplied sets the "long_context_billing_applied" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableLongContextBillingApplied(v *bool) *UsageLogCreate {
+	if v != nil {
+		_c.SetLongContextBillingApplied(*v)
 	}
 	return _c
 }
@@ -707,6 +749,10 @@ func (_c *UsageLogCreate) defaults() {
 		v := usagelog.DefaultRateMultiplier
 		_c.mutation.SetRateMultiplier(v)
 	}
+	if _, ok := _c.mutation.LongContextBillingApplied(); !ok {
+		v := usagelog.DefaultLongContextBillingApplied
+		_c.mutation.SetLongContextBillingApplied(v)
+	}
 	if _, ok := _c.mutation.BillingType(); !ok {
 		v := usagelog.DefaultBillingType
 		_c.mutation.SetBillingType(v)
@@ -770,6 +816,11 @@ func (_c *UsageLogCreate) check() error {
 			return &ValidationError{Name: "upstream_model", err: fmt.Errorf(`ent: validator failed for field "UsageLog.upstream_model": %w`, err)}
 		}
 	}
+	if v, ok := _c.mutation.UpstreamResponseModel(); ok {
+		if err := usagelog.UpstreamResponseModelValidator(v); err != nil {
+			return &ValidationError{Name: "upstream_response_model", err: fmt.Errorf(`ent: validator failed for field "UsageLog.upstream_response_model": %w`, err)}
+		}
+	}
 	if v, ok := _c.mutation.ModelMappingChain(); ok {
 		if err := usagelog.ModelMappingChainValidator(v); err != nil {
 			return &ValidationError{Name: "model_mapping_chain", err: fmt.Errorf(`ent: validator failed for field "UsageLog.model_mapping_chain": %w`, err)}
@@ -823,6 +874,9 @@ func (_c *UsageLogCreate) check() error {
 	}
 	if _, ok := _c.mutation.RateMultiplier(); !ok {
 		return &ValidationError{Name: "rate_multiplier", err: errors.New(`ent: missing required field "UsageLog.rate_multiplier"`)}
+	}
+	if _, ok := _c.mutation.LongContextBillingApplied(); !ok {
+		return &ValidationError{Name: "long_context_billing_applied", err: errors.New(`ent: missing required field "UsageLog.long_context_billing_applied"`)}
 	}
 	if _, ok := _c.mutation.BillingType(); !ok {
 		return &ValidationError{Name: "billing_type", err: errors.New(`ent: missing required field "UsageLog.billing_type"`)}
@@ -929,6 +983,14 @@ func (_c *UsageLogCreate) createSpec() (*UsageLog, *sqlgraph.CreateSpec) {
 		_spec.SetField(usagelog.FieldUpstreamModel, field.TypeString, value)
 		_node.UpstreamModel = &value
 	}
+	if value, ok := _c.mutation.UpstreamResponseModel(); ok {
+		_spec.SetField(usagelog.FieldUpstreamResponseModel, field.TypeString, value)
+		_node.UpstreamResponseModel = &value
+	}
+	if value, ok := _c.mutation.UpstreamModelMismatch(); ok {
+		_spec.SetField(usagelog.FieldUpstreamModelMismatch, field.TypeBool, value)
+		_node.UpstreamModelMismatch = &value
+	}
 	if value, ok := _c.mutation.ChannelID(); ok {
 		_spec.SetField(usagelog.FieldChannelID, field.TypeInt64, value)
 		_node.ChannelID = &value
@@ -996,6 +1058,10 @@ func (_c *UsageLogCreate) createSpec() (*UsageLog, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.RateMultiplier(); ok {
 		_spec.SetField(usagelog.FieldRateMultiplier, field.TypeFloat64, value)
 		_node.RateMultiplier = value
+	}
+	if value, ok := _c.mutation.LongContextBillingApplied(); ok {
+		_spec.SetField(usagelog.FieldLongContextBillingApplied, field.TypeBool, value)
+		_node.LongContextBillingApplied = value
 	}
 	if value, ok := _c.mutation.AccountRateMultiplier(); ok {
 		_spec.SetField(usagelog.FieldAccountRateMultiplier, field.TypeFloat64, value)
@@ -1299,6 +1365,42 @@ func (u *UsageLogUpsert) UpdateUpstreamModel() *UsageLogUpsert {
 // ClearUpstreamModel clears the value of the "upstream_model" field.
 func (u *UsageLogUpsert) ClearUpstreamModel() *UsageLogUpsert {
 	u.SetNull(usagelog.FieldUpstreamModel)
+	return u
+}
+
+// SetUpstreamResponseModel sets the "upstream_response_model" field.
+func (u *UsageLogUpsert) SetUpstreamResponseModel(v string) *UsageLogUpsert {
+	u.Set(usagelog.FieldUpstreamResponseModel, v)
+	return u
+}
+
+// UpdateUpstreamResponseModel sets the "upstream_response_model" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateUpstreamResponseModel() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldUpstreamResponseModel)
+	return u
+}
+
+// ClearUpstreamResponseModel clears the value of the "upstream_response_model" field.
+func (u *UsageLogUpsert) ClearUpstreamResponseModel() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldUpstreamResponseModel)
+	return u
+}
+
+// SetUpstreamModelMismatch sets the "upstream_model_mismatch" field.
+func (u *UsageLogUpsert) SetUpstreamModelMismatch(v bool) *UsageLogUpsert {
+	u.Set(usagelog.FieldUpstreamModelMismatch, v)
+	return u
+}
+
+// UpdateUpstreamModelMismatch sets the "upstream_model_mismatch" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateUpstreamModelMismatch() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldUpstreamModelMismatch)
+	return u
+}
+
+// ClearUpstreamModelMismatch clears the value of the "upstream_model_mismatch" field.
+func (u *UsageLogUpsert) ClearUpstreamModelMismatch() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldUpstreamModelMismatch)
 	return u
 }
 
@@ -1647,6 +1749,18 @@ func (u *UsageLogUpsert) UpdateRateMultiplier() *UsageLogUpsert {
 // AddRateMultiplier adds v to the "rate_multiplier" field.
 func (u *UsageLogUpsert) AddRateMultiplier(v float64) *UsageLogUpsert {
 	u.Add(usagelog.FieldRateMultiplier, v)
+	return u
+}
+
+// SetLongContextBillingApplied sets the "long_context_billing_applied" field.
+func (u *UsageLogUpsert) SetLongContextBillingApplied(v bool) *UsageLogUpsert {
+	u.Set(usagelog.FieldLongContextBillingApplied, v)
+	return u
+}
+
+// UpdateLongContextBillingApplied sets the "long_context_billing_applied" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateLongContextBillingApplied() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldLongContextBillingApplied)
 	return u
 }
 
@@ -2125,6 +2239,48 @@ func (u *UsageLogUpsertOne) ClearUpstreamModel() *UsageLogUpsertOne {
 	})
 }
 
+// SetUpstreamResponseModel sets the "upstream_response_model" field.
+func (u *UsageLogUpsertOne) SetUpstreamResponseModel(v string) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetUpstreamResponseModel(v)
+	})
+}
+
+// UpdateUpstreamResponseModel sets the "upstream_response_model" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateUpstreamResponseModel() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateUpstreamResponseModel()
+	})
+}
+
+// ClearUpstreamResponseModel clears the value of the "upstream_response_model" field.
+func (u *UsageLogUpsertOne) ClearUpstreamResponseModel() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearUpstreamResponseModel()
+	})
+}
+
+// SetUpstreamModelMismatch sets the "upstream_model_mismatch" field.
+func (u *UsageLogUpsertOne) SetUpstreamModelMismatch(v bool) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetUpstreamModelMismatch(v)
+	})
+}
+
+// UpdateUpstreamModelMismatch sets the "upstream_model_mismatch" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateUpstreamModelMismatch() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateUpstreamModelMismatch()
+	})
+}
+
+// ClearUpstreamModelMismatch clears the value of the "upstream_model_mismatch" field.
+func (u *UsageLogUpsertOne) ClearUpstreamModelMismatch() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearUpstreamModelMismatch()
+	})
+}
+
 // SetChannelID sets the "channel_id" field.
 func (u *UsageLogUpsertOne) SetChannelID(v int64) *UsageLogUpsertOne {
 	return u.Update(func(s *UsageLogUpsert) {
@@ -2528,6 +2684,20 @@ func (u *UsageLogUpsertOne) AddRateMultiplier(v float64) *UsageLogUpsertOne {
 func (u *UsageLogUpsertOne) UpdateRateMultiplier() *UsageLogUpsertOne {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.UpdateRateMultiplier()
+	})
+}
+
+// SetLongContextBillingApplied sets the "long_context_billing_applied" field.
+func (u *UsageLogUpsertOne) SetLongContextBillingApplied(v bool) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetLongContextBillingApplied(v)
+	})
+}
+
+// UpdateLongContextBillingApplied sets the "long_context_billing_applied" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateLongContextBillingApplied() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateLongContextBillingApplied()
 	})
 }
 
@@ -3225,6 +3395,48 @@ func (u *UsageLogUpsertBulk) ClearUpstreamModel() *UsageLogUpsertBulk {
 	})
 }
 
+// SetUpstreamResponseModel sets the "upstream_response_model" field.
+func (u *UsageLogUpsertBulk) SetUpstreamResponseModel(v string) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetUpstreamResponseModel(v)
+	})
+}
+
+// UpdateUpstreamResponseModel sets the "upstream_response_model" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateUpstreamResponseModel() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateUpstreamResponseModel()
+	})
+}
+
+// ClearUpstreamResponseModel clears the value of the "upstream_response_model" field.
+func (u *UsageLogUpsertBulk) ClearUpstreamResponseModel() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearUpstreamResponseModel()
+	})
+}
+
+// SetUpstreamModelMismatch sets the "upstream_model_mismatch" field.
+func (u *UsageLogUpsertBulk) SetUpstreamModelMismatch(v bool) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetUpstreamModelMismatch(v)
+	})
+}
+
+// UpdateUpstreamModelMismatch sets the "upstream_model_mismatch" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateUpstreamModelMismatch() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateUpstreamModelMismatch()
+	})
+}
+
+// ClearUpstreamModelMismatch clears the value of the "upstream_model_mismatch" field.
+func (u *UsageLogUpsertBulk) ClearUpstreamModelMismatch() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearUpstreamModelMismatch()
+	})
+}
+
 // SetChannelID sets the "channel_id" field.
 func (u *UsageLogUpsertBulk) SetChannelID(v int64) *UsageLogUpsertBulk {
 	return u.Update(func(s *UsageLogUpsert) {
@@ -3628,6 +3840,20 @@ func (u *UsageLogUpsertBulk) AddRateMultiplier(v float64) *UsageLogUpsertBulk {
 func (u *UsageLogUpsertBulk) UpdateRateMultiplier() *UsageLogUpsertBulk {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.UpdateRateMultiplier()
+	})
+}
+
+// SetLongContextBillingApplied sets the "long_context_billing_applied" field.
+func (u *UsageLogUpsertBulk) SetLongContextBillingApplied(v bool) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetLongContextBillingApplied(v)
+	})
+}
+
+// UpdateLongContextBillingApplied sets the "long_context_billing_applied" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateLongContextBillingApplied() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateLongContextBillingApplied()
 	})
 }
 

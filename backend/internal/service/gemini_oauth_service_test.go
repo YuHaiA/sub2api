@@ -805,10 +805,6 @@ func (m *mockGeminiProxyRepo) CountAccountsByProxyID(ctx context.Context, proxyI
 func (m *mockGeminiProxyRepo) ListAccountSummariesByProxyID(ctx context.Context, proxyID int64) ([]ProxyAccountSummary, error) {
 	panic("not impl")
 }
-func (m *mockGeminiProxyRepo) MarkProxyUnhealthyAndReroute(ctx context.Context, proxyID int64, now time.Time) (int64, error) {
-	return 0, nil
-}
-
 func (m *mockGeminiProxyRepo) SweepExpiredProxies(ctx context.Context, now time.Time) (int64, error) {
 	panic("not impl")
 }

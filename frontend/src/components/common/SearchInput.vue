@@ -1,15 +1,12 @@
 <template>
   <div class="relative w-full">
     <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-      <Icon name="search" :size="size === 'sm' ? 'sm' : 'md'" class="text-gray-400" />
+      <Icon name="search" size="md" class="text-gray-400" />
     </div>
     <input
       :value="modelValue"
       type="text"
-      :class="[
-        'input pl-10',
-        size === 'sm' && 'h-9 rounded-xl text-sm'
-      ]"
+      class="input pl-10"
       :placeholder="placeholder"
       @input="handleInput"
     />
@@ -24,11 +21,9 @@ const props = withDefaults(defineProps<{
   modelValue: string
   placeholder?: string
   debounceMs?: number
-  size?: 'md' | 'sm'
 }>(), {
   placeholder: 'Search...',
-  debounceMs: 300,
-  size: 'md'
+  debounceMs: 300
 })
 
 const emit = defineEmits<{
