@@ -2,23 +2,30 @@ package service
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/robfig/cron/v3"
 )
 
 const scheduledTestDefaultMaxWorkers = 10
+const autoHealthCheckBatchSize = 10
+const autoHealthCheckBatchPause = 2 * time.Second
 
 // ScheduledTestRunnerService periodically scans due test plans and executes them.
 type ScheduledTestRunnerService struct {
-	planRepo       ScheduledTestPlanRepository
-	scheduledSvc   *ScheduledTestService
-	accountTestSvc *AccountTestService
-	rateLimitSvc   *RateLimitService
-	cfg            *config.Config
+	planRepo        ScheduledTestPlanRepository
+	scheduledSvc    *ScheduledTestService
+	accountTestSvc  *AccountTestService
+	rateLimitSvc    *RateLimitService
+	settingService  *SettingService
+	accountRepo     AccountRepository
+	tokenRefreshSvc *TokenRefreshService
+	cfg             *config.Config
 
 	cron      *cron.Cron
 	startOnce sync.Once
@@ -31,14 +38,20 @@ func NewScheduledTestRunnerService(
 	scheduledSvc *ScheduledTestService,
 	accountTestSvc *AccountTestService,
 	rateLimitSvc *RateLimitService,
+	settingService *SettingService,
+	accountRepo AccountRepository,
+	tokenRefreshSvc *TokenRefreshService,
 	cfg *config.Config,
 ) *ScheduledTestRunnerService {
 	return &ScheduledTestRunnerService{
-		planRepo:       planRepo,
-		scheduledSvc:   scheduledSvc,
-		accountTestSvc: accountTestSvc,
-		rateLimitSvc:   rateLimitSvc,
-		cfg:            cfg,
+		planRepo:        planRepo,
+		scheduledSvc:    scheduledSvc,
+		accountTestSvc:  accountTestSvc,
+		rateLimitSvc:    rateLimitSvc,
+		settingService:  settingService,
+		accountRepo:     accountRepo,
+		tokenRefreshSvc: tokenRefreshSvc,
+		cfg:             cfg,
 	}
 }
 
@@ -92,6 +105,10 @@ func (s *ScheduledTestRunnerService) runScheduled() {
 	defer cancel()
 
 	now := time.Now()
+	s.runAutoAccountHealthCheck(ctx, now)
+	if s.tokenRefreshSvc != nil {
+		s.tokenRefreshSvc.RunConfiguredBatchRefresh(ctx, now)
+	}
 	plans, err := s.planRepo.ListDue(ctx, now)
 	if err != nil {
 		logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] ListDue error: %v", err)
@@ -117,6 +134,234 @@ func (s *ScheduledTestRunnerService) runScheduled() {
 	}
 
 	wg.Wait()
+}
+
+func (s *ScheduledTestRunnerService) runAutoAccountHealthCheck(ctx context.Context, now time.Time) {
+	if s.settingService == nil || s.accountRepo == nil || s.accountTestSvc == nil {
+		return
+	}
+	cfg, err := s.settingService.GetAccountHealthAutoCheckConfig(ctx)
+	if err != nil || cfg == nil || !cfg.Enabled {
+		return
+	}
+	interval := time.Duration(cfg.IntervalMinutes) * time.Minute
+	if interval <= 0 {
+		interval = time.Duration(DefaultAccountHealthIntervalMinutes) * time.Minute
+	}
+	if cfg.LastRunAt != nil {
+		lastRunAt := time.Unix(*cfg.LastRunAt, 0)
+		if now.Sub(lastRunAt) < interval {
+			return
+		}
+	}
+
+	mode, relatedTask := EnqueueBackgroundMaintenance(BackgroundMaintenanceTask{
+		Name: "account_health_auto",
+		Run: func() {
+			runCtx, cancel := context.WithTimeout(context.Background(), 6*time.Hour)
+			defer cancel()
+
+			finished := false
+			defer func() {
+				if !finished {
+					if err := s.settingService.MarkAccountHealthAutoCheckRun(context.Background(), time.Now()); err != nil {
+						logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health mark last run error: %v", err)
+					}
+				}
+			}()
+
+			accounts, listErr := s.listAllAccountsForAutoHealthCheck(runCtx)
+			if listErr != nil {
+				logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health list accounts error: %v", listErr)
+				return
+			}
+			if len(accounts) == 0 {
+				if err := s.settingService.MarkAccountHealthAutoCheckRun(context.Background(), now); err != nil {
+					logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health mark last run error: %v", err)
+				}
+				finished = true
+				return
+			}
+
+			logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health check started (accounts=%d interval=%dmin)", len(accounts), cfg.IntervalMinutes)
+			_ = s.settingService.MarkAccountHealthAutoCheckProgress(context.Background(), len(accounts), 0, 0)
+			processedSuccess := 0
+			processedFailed := 0
+			var mu sync.Mutex
+			for start := 0; start < len(accounts); start += autoHealthCheckBatchSize {
+				end := start + autoHealthCheckBatchSize
+				if end > len(accounts) {
+					end = len(accounts)
+				}
+
+				sem := make(chan struct{}, scheduledTestDefaultMaxWorkers)
+				var wg sync.WaitGroup
+				for i := start; i < end; i++ {
+					account := accounts[i]
+					sem <- struct{}{}
+					wg.Add(1)
+					go func(acc *Account) {
+						defer wg.Done()
+						defer func() { <-sem }()
+						failed := s.runOneAutoHealthCheck(runCtx, acc, strings.TrimSpace(cfg.ModelID), now)
+						mu.Lock()
+						if failed {
+							processedFailed++
+						} else {
+							processedSuccess++
+						}
+						currentSuccess := processedSuccess
+						currentFailed := processedFailed
+						mu.Unlock()
+						_ = s.settingService.MarkAccountHealthAutoCheckProgress(context.Background(), len(accounts), currentSuccess, currentFailed)
+					}(&account)
+				}
+				wg.Wait()
+
+				if end < len(accounts) {
+					select {
+					case <-runCtx.Done():
+						logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health check interrupted: %v", runCtx.Err())
+						return
+					case <-time.After(autoHealthCheckBatchPause):
+					}
+				}
+			}
+			if err := s.settingService.MarkAccountHealthAutoCheckRun(context.Background(), now); err != nil {
+				logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health mark last run error: %v", err)
+			}
+			finished = true
+		},
+	})
+	if mode != BackgroundMaintenanceRunNow {
+		logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health deferred mode=%s related_task=%s", mode, relatedTask)
+	}
+}
+
+func (s *ScheduledTestRunnerService) listAllAccountsForAutoHealthCheck(ctx context.Context) ([]Account, error) {
+	page := 1
+	pageSize := 200
+	out := make([]Account, 0)
+	for {
+		items, result, err := s.accountRepo.ListWithFilters(ctx, pagination.PaginationParams{
+			Page:      page,
+			PageSize:  pageSize,
+			SortBy:    "name",
+			SortOrder: "asc",
+		}, "", "", "", "", 0, "")
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, items...)
+		if result == nil || len(out) >= int(result.Total) || len(items) == 0 {
+			break
+		}
+		page++
+	}
+	return out, nil
+}
+
+func (s *ScheduledTestRunnerService) runOneAutoHealthCheck(ctx context.Context, account *Account, modelID string, checkedAt time.Time) bool {
+	if account == nil {
+		return true
+	}
+	release, err := AcquireBackgroundTaskSlot(ctx)
+	if err != nil {
+		logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health account=%d slot error: %v", account.ID, err)
+		return true
+	}
+	defer release()
+
+	failed := false
+	result, err := s.accountTestSvc.RunTestBackground(ctx, account.ID, ResolveHealthCheckModelID(account, modelID))
+	if err != nil {
+		logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health account=%d test error: %v", account.ID, err)
+		failed = true
+	}
+	snapshot := map[string]any{
+		"status":          autoHealthStatusFromResult(result),
+		"result_status":   "",
+		"message":         "",
+		"latency_ms":      int64(0),
+		"last_checked_at": checkedAt.UTC().Format(time.RFC3339),
+	}
+	if result != nil {
+		snapshot["result_status"] = result.Status
+		snapshot["message"] = result.ErrorMessage
+		snapshot["latency_ms"] = result.LatencyMs
+	}
+	extra := cloneAutoHealthExtra(account.Extra)
+	extra["health_check"] = snapshot
+	if err := s.accountRepo.UpdateExtra(ctx, account.ID, extra); err != nil {
+		logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health account=%d persist error: %v", account.ID, err)
+		failed = true
+	}
+	if result != nil && strings.EqualFold(result.Status, "success") && s.rateLimitSvc != nil {
+		if _, recoverErr := s.rateLimitSvc.RecoverAccountAfterSuccessfulTest(ctx, account.ID); recoverErr != nil {
+			logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] auto health account=%d recover error: %v", account.ID, recoverErr)
+			failed = true
+		}
+	}
+	return failed
+}
+
+func cloneAutoHealthExtra(src map[string]any) map[string]any {
+	if len(src) == 0 {
+		return map[string]any{}
+	}
+	dst := make(map[string]any, len(src))
+	for key, value := range src {
+		dst[key] = value
+	}
+	return dst
+}
+
+func autoHealthStatusFromResult(result *ScheduledTestResult) string {
+	if result == nil {
+		return "unchecked"
+	}
+	if strings.EqualFold(result.Status, "success") {
+		return "healthy"
+	}
+	lower := strings.ToLower(strings.TrimSpace(result.ErrorMessage))
+	switch {
+	case lower == "":
+		return "unavailable"
+	case strings.Contains(lower, "too many requests"),
+		strings.Contains(lower, "rate limit"),
+		strings.Contains(lower, "rate_limit"),
+		strings.Contains(lower, "rate-limited"),
+		strings.Contains(lower, "retry after"),
+		strings.Contains(lower, "api returned 429"),
+		strings.Contains(lower, "(429)"):
+		return "constrained"
+	case strings.Contains(lower, "quota exhausted"),
+		strings.Contains(lower, "quota_exhausted"),
+		strings.Contains(lower, "insufficient quota"),
+		strings.Contains(lower, "insufficient balance"),
+		strings.Contains(lower, "insufficient credit"),
+		strings.Contains(lower, "credits exhausted"),
+		strings.Contains(lower, "credit exhausted"),
+		strings.Contains(lower, "resource_exhausted"),
+		strings.Contains(lower, "payment required"),
+		strings.Contains(lower, "api returned 402"),
+		strings.Contains(lower, "(402)"),
+		strings.Contains(lower, "eof"),
+		strings.Contains(lower, "timeout"),
+		strings.Contains(lower, "deadline exceeded"),
+		strings.Contains(lower, "connection reset"),
+		strings.Contains(lower, "proxy connection failed"),
+		strings.Contains(lower, "chatgpt codex upstream connection failed"),
+		strings.Contains(lower, "stream ended before response.completed"),
+		strings.Contains(lower, "stream read error"):
+		return "constrained"
+	case strings.Contains(lower, "banned"),
+		strings.Contains(lower, "suspend"),
+		strings.Contains(lower, "violation"):
+		return "unavailable"
+	default:
+		return "unavailable"
+	}
 }
 
 func (s *ScheduledTestRunnerService) runOnePlan(ctx context.Context, plan *ScheduledTestPlan) {

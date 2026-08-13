@@ -54,6 +54,7 @@ type AccountHandler struct {
 	antigravityOAuthService *service.AntigravityOAuthService
 	grokOAuthService        service.GrokOAuthTokenService
 	rateLimitService        *service.RateLimitService
+	settingService          *service.SettingService
 	accountUsageService     *service.AccountUsageService
 	accountTestService      *service.AccountTestService
 	concurrencyService      *service.ConcurrencyService
@@ -73,6 +74,10 @@ func (h *AccountHandler) SetUpstreamBillingProbeService(probe *service.UpstreamB
 
 func (h *AccountHandler) SetOllamaCloudUsageService(usage *service.OllamaCloudUsageService) {
 	h.ollamaCloudUsage = usage
+}
+
+func (h *AccountHandler) SetSettingService(settingService *service.SettingService) {
+	h.settingService = settingService
 }
 
 // NewAccountHandler creates a new admin account handler

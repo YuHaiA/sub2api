@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
@@ -55,16 +56,18 @@ type GrokOAuthRefreshMutationRepository interface {
 // TokenRefreshService OAuth token自动刷新服务
 // 定期检查并刷新即将过期的token
 type TokenRefreshService struct {
-	accountRepo      AccountRepository
-	candidatePager   OAuthRefreshCandidatePager
-	registrations    []tokenRefreshRegistration
-	refreshPolicy    BackgroundRefreshPolicy
-	cfg              *config.TokenRefreshConfig
-	cacheInvalidator TokenCacheInvalidator
-	schedulerCache   SchedulerCache   // 用于同步更新调度器缓存，解决 token 刷新后缓存不一致问题
-	tempUnschedCache TempUnschedCache // 用于清除 Redis 中的临时不可调度缓存
-	refreshAPI       *OAuthRefreshAPI // 统一刷新 API
-	runtimeBlocker   AccountRuntimeBlocker
+	accountRepo         AccountRepository
+	candidatePager      OAuthRefreshCandidatePager
+	registrations       []tokenRefreshRegistration
+	refreshPolicy       BackgroundRefreshPolicy
+	cfg                 *config.TokenRefreshConfig
+	cacheInvalidator    TokenCacheInvalidator
+	schedulerCache      SchedulerCache   // 用于同步更新调度器缓存，解决 token 刷新后缓存不一致问题
+	tempUnschedCache    TempUnschedCache // 用于清除 Redis 中的临时不可调度缓存
+	refreshAPI          *OAuthRefreshAPI // 统一刷新 API
+	runtimeBlocker      AccountRuntimeBlocker
+	settingService      *SettingService
+	manualRunInProgress atomic.Bool
 
 	// OpenAI privacy: 刷新成功后检查并设置 training opt-out
 	privacyClientFactory PrivacyClientFactory

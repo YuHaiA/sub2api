@@ -1,0 +1,306 @@
+package service
+
+import (
+	"context"
+	"log/slog"
+	"sync"
+	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
+)
+
+const tokenAutoRefreshBatchPause = 2 * time.Second
+const tokenAutoRefreshMaxWorkers = 4
+
+type accountTokenAutoRefreshRunStats struct {
+	Total   int
+	Success int
+	Failed  int
+}
+
+type AccountTokenAutoRefreshRunResult struct {
+	Started   bool   `json:"started"`
+	Running   bool   `json:"running"`
+	Message   string `json:"message"`
+	RunAt     int64  `json:"run_at"`
+	BatchSize int    `json:"batch_size"`
+}
+
+func (s *TokenRefreshService) SetSettingService(settingService *SettingService) {
+	s.settingService = settingService
+}
+
+func (s *TokenRefreshService) RunConfiguredBatchRefresh(ctx context.Context, now time.Time) {
+	if s == nil || s.settingService == nil || s.accountRepo == nil {
+		return
+	}
+	cfg, err := s.settingService.GetAccountTokenAutoRefreshConfig(ctx)
+	if err != nil || cfg == nil || !cfg.Enabled {
+		return
+	}
+	if cfg.LastRunAt != nil {
+		lastRunAt := time.Unix(*cfg.LastRunAt, 0)
+		if now.Sub(lastRunAt) < accountTokenAutoRefreshDuration(cfg) {
+			return
+		}
+	}
+
+	mode, relatedTask := EnqueueBackgroundMaintenance(BackgroundMaintenanceTask{
+		Name: "token_refresh_auto",
+		Run: func() {
+			runCtx, cancel := context.WithTimeout(context.Background(), 6*time.Hour)
+			defer cancel()
+
+			stats, runErr := s.runConfiguredBatchRefresh(runCtx, cfg)
+			if runErr != nil {
+				slog.Warn("token_refresh.auto_batch_failed", "error", runErr)
+			}
+			if err := s.settingService.MarkAccountTokenAutoRefreshRun(context.Background(), now, stats.Total, stats.Success, stats.Failed); err != nil {
+				slog.Warn("token_refresh.auto_batch_mark_failed", "error", err)
+			}
+		},
+	})
+	if mode != BackgroundMaintenanceRunNow {
+		slog.Info("token_refresh.auto_batch_deferred", "mode", mode, "related_task", relatedTask)
+	}
+}
+
+func (s *TokenRefreshService) RunManualBatchRefresh(ctx context.Context, override *AccountTokenAutoRefreshConfig) (*AccountTokenAutoRefreshRunResult, error) {
+	if s == nil || s.settingService == nil || s.accountRepo == nil {
+		return nil, nil
+	}
+	cfg, err := s.settingService.GetAccountTokenAutoRefreshConfig(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if cfg == nil {
+		cfg = defaultAccountTokenAutoRefreshConfig()
+	}
+	cfg = normalizeAccountTokenAutoRefreshConfig(cfg)
+	if override != nil {
+		cfg = normalizeAccountTokenAutoRefreshConfig(override)
+		if err := validateAccountTokenAutoRefreshConfig(cfg); err != nil {
+			return nil, err
+		}
+	}
+	now := time.Now()
+
+	if !s.manualRunInProgress.CompareAndSwap(false, true) {
+		return &AccountTokenAutoRefreshRunResult{
+			Started:   false,
+			Running:   true,
+			Message:   "Token refresh is already running",
+			RunAt:     now.Unix(),
+			BatchSize: cfg.BatchSize,
+		}, nil
+	}
+
+	mode, relatedTask := EnqueueBackgroundMaintenance(BackgroundMaintenanceTask{
+		Name: "token_refresh_manual",
+		Run: func() {
+			defer s.manualRunInProgress.Store(false)
+
+			runCtx, cancel := context.WithTimeout(context.Background(), 6*time.Hour)
+			defer cancel()
+
+			_ = s.settingService.MarkAccountTokenAutoRefreshProgress(context.Background(), 0, 0, 0)
+
+			stats, runErr := s.runConfiguredBatchRefresh(runCtx, cfg)
+			if runErr != nil {
+				slog.Warn("token_refresh.manual_batch_failed", "error", runErr)
+				return
+			}
+			if markErr := s.settingService.MarkAccountTokenAutoRefreshRun(context.Background(), now, stats.Total, stats.Success, stats.Failed); markErr != nil {
+				slog.Warn("token_refresh.manual_batch_mark_failed", "error", markErr)
+			}
+		},
+	})
+
+	switch mode {
+	case BackgroundMaintenanceRunNow:
+		return &AccountTokenAutoRefreshRunResult{
+			Started:   true,
+			Running:   true,
+			Message:   "Token refresh started in background",
+			RunAt:     now.Unix(),
+			BatchSize: cfg.BatchSize,
+		}, nil
+	case BackgroundMaintenanceQueued:
+		return &AccountTokenAutoRefreshRunResult{
+			Started:   true,
+			Running:   true,
+			Message:   "Token refresh queued behind: " + relatedTask,
+			RunAt:     now.Unix(),
+			BatchSize: cfg.BatchSize,
+		}, nil
+	default:
+		s.manualRunInProgress.Store(false)
+		return &AccountTokenAutoRefreshRunResult{
+			Started:   false,
+			Running:   true,
+			Message:   "Token refresh is already running or queued",
+			RunAt:     now.Unix(),
+			BatchSize: cfg.BatchSize,
+		}, nil
+	}
+}
+
+func (s *TokenRefreshService) runConfiguredBatchRefresh(
+	ctx context.Context,
+	cfg *AccountTokenAutoRefreshConfig,
+) (accountTokenAutoRefreshRunStats, error) {
+	eligible, err := s.listAutoRefreshEligibleAccounts(ctx, cfg)
+	if err != nil {
+		return accountTokenAutoRefreshRunStats{}, err
+	}
+	stats := accountTokenAutoRefreshRunStats{Total: len(eligible)}
+	if len(eligible) == 0 {
+		return stats, nil
+	}
+	_ = s.settingService.MarkAccountTokenAutoRefreshProgress(context.Background(), stats.Total, 0, 0)
+
+	batchSize := normalizeAccountTokenAutoRefreshConfig(cfg).BatchSize
+	for start := 0; start < len(eligible); start += batchSize {
+		end := start + batchSize
+		if end > len(eligible) {
+			end = len(eligible)
+		}
+		batchStats := s.runAutoRefreshBatch(ctx, eligible[start:end])
+		stats.Success += batchStats.Success
+		stats.Failed += batchStats.Failed
+		_ = s.settingService.MarkAccountTokenAutoRefreshProgress(context.Background(), stats.Total, stats.Success, stats.Failed)
+
+		if end < len(eligible) {
+			select {
+			case <-ctx.Done():
+				return stats, ctx.Err()
+			case <-time.After(tokenAutoRefreshBatchPause):
+			}
+		}
+	}
+	return stats, nil
+}
+
+func (s *TokenRefreshService) listAutoRefreshEligibleAccounts(ctx context.Context, cfg *AccountTokenAutoRefreshConfig) ([]Account, error) {
+	accounts, err := s.listAllAccountsForAutoRefresh(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+	filtered := make([]Account, 0, len(accounts))
+	for i := range accounts {
+		if _, _, ok := s.findRefreshExecutor(&accounts[i]); ok {
+			filtered = append(filtered, accounts[i])
+		}
+	}
+	return filtered, nil
+}
+
+func (s *TokenRefreshService) listAllAccountsForAutoRefresh(ctx context.Context, cfg *AccountTokenAutoRefreshConfig) ([]Account, error) {
+	page := 1
+	pageSize := 200
+	out := make([]Account, 0)
+	groupID := int64(0)
+	if cfg != nil && cfg.Scope == "group" {
+		groupID = cfg.GroupID
+	}
+	for {
+		items, result, err := s.accountRepo.ListWithFilters(ctx, pagination.PaginationParams{
+			Page:      page,
+			PageSize:  pageSize,
+			SortBy:    "name",
+			SortOrder: "asc",
+		}, "", "", "", "", groupID, "")
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, items...)
+		if result == nil || len(out) >= int(result.Total) || len(items) == 0 {
+			break
+		}
+		page++
+	}
+	return filterAccountsByTokenRefreshHealthStatus(out, normalizeAccountTokenAutoRefreshHealthStatus(cfg.HealthStatus)), nil
+}
+
+func (s *TokenRefreshService) runAutoRefreshBatch(ctx context.Context, accounts []Account) accountTokenAutoRefreshRunStats {
+	stats := accountTokenAutoRefreshRunStats{Total: len(accounts)}
+	if len(accounts) == 0 {
+		return stats
+	}
+
+	workerCount := tokenAutoRefreshMaxWorkers
+	if len(accounts) < workerCount {
+		workerCount = len(accounts)
+	}
+
+	jobs := make(chan Account, len(accounts))
+	results := make(chan bool, len(accounts))
+	var wg sync.WaitGroup
+
+	for i := 0; i < workerCount; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for account := range jobs {
+				results <- s.runAutoRefreshAccount(ctx, account)
+			}
+		}()
+	}
+
+	for i := range accounts {
+		jobs <- accounts[i]
+	}
+	close(jobs)
+	wg.Wait()
+	close(results)
+
+	for ok := range results {
+		if ok {
+			stats.Success++
+		} else {
+			stats.Failed++
+		}
+	}
+	return stats
+}
+
+func (s *TokenRefreshService) runAutoRefreshAccount(ctx context.Context, account Account) bool {
+	release, err := AcquireBackgroundTaskSlot(ctx)
+	if err != nil {
+		slog.Warn("token_refresh.auto_batch_slot_failed", "account_id", account.ID, "error", err)
+		return false
+	}
+	defer release()
+
+	refresher, executor, ok := s.findRefreshExecutor(&account)
+	if !ok {
+		return false
+	}
+	if err := s.refreshNowWithRetry(ctx, &account, refresher, executor); err != nil {
+		slog.Warn("token_refresh.auto_batch_account_failed", "account_id", account.ID, "error", err)
+		return false
+	}
+	return true
+}
+
+func (s *TokenRefreshService) findRefreshExecutor(account *Account) (TokenRefresher, OAuthRefreshExecutor, bool) {
+	for _, registration := range s.registrations {
+		if registration.refresher == nil || !registration.refresher.CanRefresh(account) {
+			continue
+		}
+		return registration.refresher, registration.executor, true
+	}
+	return nil, nil, false
+}
+
+func (s *TokenRefreshService) refreshNowWithRetry(
+	ctx context.Context,
+	account *Account,
+	refresher TokenRefresher,
+	executor OAuthRefreshExecutor,
+) error {
+	// A very large refresh window makes the existing lock-safe refresh path
+	// behave as an explicit manual refresh while retaining upstream safeguards.
+	const forceRefreshWindow = 100 * 365 * 24 * time.Hour
+	return s.refreshWithRetry(ctx, account, refresher, executor, forceRefreshWindow)
+}

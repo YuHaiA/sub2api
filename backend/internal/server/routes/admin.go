@@ -349,6 +349,11 @@ func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAu
 	accounts := admin.Group("/accounts")
 	{
 		accounts.GET("", h.Admin.Account.List)
+		// Keep static collection routes before /:id so Gin does not parse them as IDs.
+		accounts.POST("/deduplicate", h.Admin.Account.Deduplicate)
+		accounts.POST("/delete-unhealthy", h.Admin.Account.DeleteUnhealthy)
+		accounts.GET("/health-summary", h.Admin.Account.GetHealthSummary)
+		accounts.POST("/health-check", h.Admin.Account.RunHealthCheck)
 		accounts.GET("/upstream-billing-probe/settings", h.Admin.Account.GetUpstreamBillingProbeSettings)
 		accounts.PUT("/upstream-billing-probe/settings", h.Admin.Account.UpdateUpstreamBillingProbeSettings)
 		accounts.POST("/upstream-billing-probe/batch", h.Admin.Account.ProbeUpstreamBillingBatch)
@@ -570,6 +575,11 @@ func registerSettingsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		adminSettings.PUT("/web-search-emulation", h.Admin.Setting.UpdateWebSearchEmulationConfig)
 		adminSettings.POST("/web-search-emulation/test", h.Admin.Setting.TestWebSearchEmulation)
 		adminSettings.POST("/web-search-emulation/reset-usage", h.Admin.Setting.ResetWebSearchUsage)
+		adminSettings.GET("/account-health-auto-check", h.Admin.Setting.GetAccountHealthAutoCheckConfig)
+		adminSettings.PUT("/account-health-auto-check", h.Admin.Setting.UpdateAccountHealthAutoCheckConfig)
+		adminSettings.GET("/account-token-auto-refresh", h.Admin.Setting.GetAccountTokenAutoRefreshConfig)
+		adminSettings.PUT("/account-token-auto-refresh", h.Admin.Setting.UpdateAccountTokenAutoRefreshConfig)
+		adminSettings.POST("/account-token-auto-refresh/run", h.Admin.Setting.RunAccountTokenAutoRefreshNow)
 	}
 }
 

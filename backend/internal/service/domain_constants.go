@@ -610,9 +610,11 @@ const (
 	SettingKeyAccountQuotaNotifyEmails  = "account_quota_notify_emails"  // 管理员通知邮箱列表（JSON 数组）
 
 	// Web Search Emulation
-	SettingKeyWebSearchEmulationConfig = "web_search_emulation_config" // JSON 配置
-	SettingKeySystemDeployConfig       = "system_deploy_config"        // JSON 配置
-	SettingKeySystemDeployState        = "system_deploy_state"         // JSON 状态
+	SettingKeyWebSearchEmulationConfig      = "web_search_emulation_config" // JSON 配置
+	SettingKeySystemDeployConfig            = "system_deploy_config"        // JSON 配置
+	SettingKeySystemDeployState             = "system_deploy_state"         // JSON 状态
+	SettingKeyAccountHealthAutoCheckConfig  = "account_health_auto_check_config"
+	SettingKeyAccountTokenAutoRefreshConfig = "account_token_auto_refresh_config"
 )
 
 // SettingKeyDefaultPlatformQuotas —— 系统全局：每用户 × 平台日/周/月 USD 上限（JSON）。

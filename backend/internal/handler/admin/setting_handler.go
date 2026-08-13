@@ -62,6 +62,7 @@ type SettingHandler struct {
 	notificationEmailService *service.NotificationEmailService
 	totpService              *service.TotpService
 	userService              *service.UserService
+	tokenRefreshService      *service.TokenRefreshService
 }
 
 // NewSettingHandler 创建系统设置处理器
@@ -81,6 +82,10 @@ func NewSettingHandler(settingService *service.SettingService, emailService *ser
 // the constructor signature used by existing unit tests.
 func (h *SettingHandler) SetNotificationEmailService(notificationEmailService *service.NotificationEmailService) {
 	h.notificationEmailService = notificationEmailService
+}
+
+func (h *SettingHandler) SetTokenRefreshService(tokenRefreshService *service.TokenRefreshService) {
+	h.tokenRefreshService = tokenRefreshService
 }
 
 // SetAliyunCaptchaService attaches the Aliyun captcha credential validator without

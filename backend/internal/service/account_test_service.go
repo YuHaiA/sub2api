@@ -38,6 +38,54 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+// ResolveHealthCheckModelID keeps a saved probe model within its compatible
+// platform family; an empty result lets the account use its platform default.
+func ResolveHealthCheckModelID(account *Account, configuredModelID string) string {
+	modelID := strings.TrimSpace(configuredModelID)
+	if modelID == "" || account == nil {
+		return modelID
+	}
+	switch healthCheckModelFamily(modelID) {
+	case "anthropic":
+		if account.IsAnthropic() || account.Platform == PlatformAntigravity {
+			return modelID
+		}
+	case "gemini":
+		if account.IsGemini() || account.Platform == PlatformAntigravity {
+			return modelID
+		}
+	case "grok":
+		if account.IsGrok() {
+			return modelID
+		}
+	case "openai":
+		if account.IsOpenAI() {
+			return modelID
+		}
+	default:
+		if account.IsOpenAI() {
+			return modelID
+		}
+	}
+	return ""
+}
+
+func healthCheckModelFamily(modelID string) string {
+	lower := strings.ToLower(strings.TrimSpace(modelID))
+	switch {
+	case strings.HasPrefix(lower, "claude-"), strings.Contains(lower, "anthropic"):
+		return "anthropic"
+	case strings.HasPrefix(lower, "gemini-"):
+		return "gemini"
+	case strings.HasPrefix(lower, "grok-"):
+		return "grok"
+	case strings.HasPrefix(lower, "gpt-"), strings.HasPrefix(lower, "chatgpt-"), strings.HasPrefix(lower, "o1"), strings.HasPrefix(lower, "o3"), strings.HasPrefix(lower, "o4"), strings.Contains(lower, "codex"):
+		return "openai"
+	default:
+		return ""
+	}
+}
+
 // sseDataPrefix matches SSE data lines with optional whitespace after colon.
 // Some upstream APIs return non-standard "data:" without space (should be "data: ").
 var sseDataPrefix = regexp.MustCompile(`^data:\s*`)
