@@ -185,3 +185,9 @@ func TestUpdateServiceRollbackToVersionAcceptsVPrefix(t *testing.T) {
 	require.NotErrorIs(t, err, ErrRollbackVersionNotAllowed)
 	require.Contains(t, err.Error(), "no compatible release found")
 }
+
+func TestParseVersionIgnoresPrereleaseAndBuildMetadata(t *testing.T) {
+	require.Equal(t, [3]int{0, 1, 175}, parseVersion("0.1.175-main.abcdef0"))
+	require.Equal(t, [3]int{0, 1, 175}, parseVersion("v0.1.175+build.42"))
+	require.Equal(t, 0, compareVersions("0.1.175-main.abcdef0", "v0.1.175"))
+}

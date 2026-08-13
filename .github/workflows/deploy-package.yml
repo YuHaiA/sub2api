@@ -1,0 +1,123 @@
+name: Deploy Fork Image
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: deploy-fork-main
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve image metadata
+        id: meta
+        shell: bash
+        run: |
+          owner="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          repository="$(echo '${{ github.event.repository.name }}' | tr '[:upper:]' '[:lower:]')"
+          short_sha="${GITHUB_SHA::7}"
+          base_version="$(tr -d '\r\n' < backend/cmd/server/VERSION)"
+          build_date="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          image="ghcr.io/${owner}/${repository}"
+          version="${base_version}-main.${short_sha}"
+
+          echo "image=${image}" >> "${GITHUB_OUTPUT}"
+          echo "short_sha=${short_sha}" >> "${GITHUB_OUTPUT}"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "build_date=${build_date}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build and push fork image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.image }}:latest
+            ${{ steps.meta.outputs.image }}:main-${{ steps.meta.outputs.short_sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            COMMIT=${{ github.sha }}
+            DATE=${{ steps.meta.outputs.build_date }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Make the fork image public
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          owner_type="$(gh api "repos/${GITHUB_REPOSITORY}" --jq .owner.type)"
+          repository="$(echo '${{ github.event.repository.name }}' | tr '[:upper:]' '[:lower:]')"
+          if [ "${owner_type}" = "Organization" ]; then
+            gh api --method PATCH \
+              "orgs/${{ github.repository_owner }}/packages/container/${repository}" \
+              -f visibility=public
+          else
+            gh api --method PATCH \
+              "user/packages/container/${repository}" \
+              -f visibility=public
+          fi
+
+      - name: Export fixed deploy package
+        shell: bash
+        run: |
+          docker pull "${{ steps.meta.outputs.image }}:latest"
+          docker tag "${{ steps.meta.outputs.image }}:latest" sub2api-gha:docker-deploy
+          docker save -o sub2api-docker-image.tar sub2api-gha:docker-deploy
+          sha256sum sub2api-docker-image.tar > sub2api-docker-image.tar.sha256
+
+      - name: Move fixed deploy tag to this commit
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -f docker-deploy "${GITHUB_SHA}"
+          git push -f origin refs/tags/docker-deploy
+
+      - name: Publish fixed deploy package
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: docker-deploy
+          name: Docker Deploy Package
+          body: |
+            Fixed Docker package built from `${{ github.sha }}`.
+
+            GHCR image: `${{ steps.meta.outputs.image }}:latest`
+            Runtime version: `${{ steps.meta.outputs.version }}`
+          files: |
+            sub2api-docker-image.tar
+            sub2api-docker-image.tar.sha256
+          make_latest: false
+          prerelease: true
+          append_body: false
+          generate_release_notes: false
+          fail_on_unmatched_files: true
+          target_commitish: ${{ github.sha }}
+          overwrite_files: true
