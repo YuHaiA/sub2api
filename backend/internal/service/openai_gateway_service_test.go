@@ -3008,6 +3008,30 @@ func TestOpenAIBuildUpstreamRequestCompactForcesJSONAcceptForOAuth(t *testing.T)
 	require.Equal(t, HTTPUpstreamProfileOpenAI, HTTPUpstreamProfileFromContext(req.Context()))
 }
 
+func TestOpenAIBuildUpstreamRequestOAuthAppliesSessionGovernanceAfterIsolation(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader([]byte(`{"model":"gpt-5"}`)))
+
+	svc := &OpenAIGatewayService{}
+	account := &Account{
+		Type:        AccountTypeOAuth,
+		Credentials: map[string]any{"chatgpt_account_id": "chatgpt-acc"},
+	}
+	promptCacheKey := "client-cache-key"
+
+	req, err := svc.buildUpstreamRequest(c.Request.Context(), c, account, []byte(`{"model":"gpt-5"}`), "token", false, promptCacheKey, true)
+	require.NoError(t, err)
+
+	isolated := isolateOpenAISessionID(0, promptCacheKey)
+	require.Equal(t, isolated, req.Header.Get("session_id"))
+	require.Equal(t, isolated, req.Header.Get("conversation_id"))
+	require.Equal(t, isolated, req.Header.Get("X-Client-Request-Id"))
+	require.Equal(t, isolated, req.Header.Get("Thread-Id"))
+	require.Equal(t, isolated+":0", req.Header.Get("X-Codex-Window-Id"))
+}
+
 func TestOpenAIBuildUpstreamRequestOAuthMessagesBridgeUsesSessionOnly(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()
