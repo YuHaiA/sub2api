@@ -68,23 +68,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Make the fork image public
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          owner_type="$(gh api "repos/${GITHUB_REPOSITORY}" --jq .owner.type)"
-          repository="$(echo '${{ github.event.repository.name }}' | tr '[:upper:]' '[:lower:]')"
-          if [ "${owner_type}" = "Organization" ]; then
-            gh api --method PATCH \
-              "orgs/${{ github.repository_owner }}/packages/container/${repository}" \
-              -f visibility=public
-          else
-            gh api --method PATCH \
-              "user/packages/container/${repository}" \
-              -f visibility=public
-          fi
-
       - name: Export fixed deploy package
         shell: bash
         run: |
