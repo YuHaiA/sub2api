@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -45,10 +46,55 @@ func systemUpdateContext(ctx context.Context) (context.Context, context.CancelFu
 
 type systemUpdateService interface {
 	CheckUpdate(ctx context.Context, force bool) (*service.UpdateInfo, error)
+	GetDeployConfig(ctx context.Context) (*service.DeployConfig, error)
+	SaveDeployConfig(ctx context.Context, cfg *service.DeployConfig) error
+	GetDeployState(ctx context.Context) (*service.DeployState, error)
+	TriggerDeploy(ctx context.Context, req *service.DeployTriggerRequest) (*service.DeployResult, error)
 	PerformUpdate(ctx context.Context) error
 	Rollback() error
 	ListRollbackVersions(ctx context.Context) ([]service.RollbackVersion, error)
 	RollbackToVersion(ctx context.Context, version string) error
+}
+
+func (h *SystemHandler) GetDeployConfig(c *gin.Context) {
+	cfg, err := h.updateSvc.GetDeployConfig(c.Request.Context())
+	if response.ErrorFrom(c, err) {
+		return
+	}
+	response.Success(c, cfg)
+}
+
+func (h *SystemHandler) UpdateDeployConfig(c *gin.Context) {
+	var cfg service.DeployConfig
+	if err := c.ShouldBindJSON(&cfg); err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	if response.ErrorFrom(c, h.updateSvc.SaveDeployConfig(c.Request.Context(), &cfg)) {
+		return
+	}
+	response.Success(c, cfg)
+}
+
+func (h *SystemHandler) GetDeployStatus(c *gin.Context) {
+	state, err := h.updateSvc.GetDeployState(c.Request.Context())
+	if response.ErrorFrom(c, err) {
+		return
+	}
+	response.Success(c, state)
+}
+
+func (h *SystemHandler) TriggerDeploy(c *gin.Context) {
+	var req service.DeployTriggerRequest
+	if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
+		response.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	result, err := h.updateSvc.TriggerDeploy(c.Request.Context(), &req)
+	if response.ErrorFrom(c, err) {
+		return
+	}
+	response.Success(c, result)
 }
 
 // NewSystemHandler creates a new SystemHandler

@@ -58,6 +58,7 @@ func TestUpdateServicePerformUpdateNoUpdateReturnsSentinel(t *testing.T) {
 				Name:    "v0.1.132",
 			},
 		},
+		nil,
 		"0.1.132",
 		"release",
 	)
@@ -73,6 +74,7 @@ func newRollbackTestService(current string, releases []*GitHubRelease) *UpdateSe
 	return NewUpdateService(
 		&updateServiceCacheStub{},
 		&updateServiceGitHubClientStub{recentReleases: releases},
+		nil,
 		current,
 		"release",
 	)
@@ -135,6 +137,7 @@ func TestUpdateServiceListRollbackVersionsPropagatesFetchError(t *testing.T) {
 	svc := NewUpdateService(
 		&updateServiceCacheStub{},
 		&updateServiceGitHubClientStub{recentErr: errors.New("github unavailable")},
+		nil,
 		"0.1.147",
 		"release",
 	)

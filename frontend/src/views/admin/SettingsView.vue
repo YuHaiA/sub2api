@@ -8579,8 +8579,101 @@
           <BackupSettings />
         </div>
 
+        <!-- Tab: Deploy -->
+        <div v-show="activeTab === 'deploy'" class="space-y-6">
+          <div class="card">
+            <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                {{ localText("Docker 宿主机更新", "Docker Host Update") }}
+              </h2>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {{ localText("通过宿主机代理下载本仓库发布的镜像包，并只重建 Sub2API 服务。", "Use the host agent to download this fork's image package and recreate only the Sub2API service.") }}
+              </p>
+            </div>
+            <div class="space-y-5 p-6">
+              <div v-if="deployLoading" class="flex items-center gap-2 text-gray-500">
+                <div class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"></div>
+                {{ t("common.loading") }}
+              </div>
+              <template v-else>
+                <div class="flex items-center justify-between gap-4">
+                  <div>
+                    <div class="font-medium text-gray-900 dark:text-white">
+                      {{ localText("启用后台部署", "Enable Admin Deploy") }}
+                    </div>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                      {{ localText("启用后，版本面板的“立即更新”也会改为通知宿主机更新 Docker 镜像。", "When enabled, Update Now also asks the host agent to update the Docker image.") }}
+                    </p>
+                  </div>
+                  <Toggle v-model="deployConfig.enabled" />
+                </div>
+
+                <div class="grid gap-4 md:grid-cols-2">
+                  <label class="block md:col-span-2">
+                    <span class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Archive URL</span>
+                    <input v-model="deployConfig.archive_url" type="url" class="input" />
+                  </label>
+                  <label class="block">
+                    <span class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Loaded Image</span>
+                    <input v-model="deployConfig.loaded_image" type="text" class="input" />
+                  </label>
+                  <label class="block">
+                    <span class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Runtime Image</span>
+                    <input v-model="deployConfig.default_image" type="text" class="input" />
+                  </label>
+                  <label class="block">
+                    <span class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Service Name</span>
+                    <input v-model="deployConfig.service_name" type="text" class="input" />
+                  </label>
+                  <label class="block">
+                    <span class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Agent URL</span>
+                    <input v-model="deployConfig.agent_url" type="url" class="input" />
+                  </label>
+                  <label class="block md:col-span-2">
+                    <span class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Compose Project Dir</span>
+                    <input v-model="deployConfig.compose_project_dir" type="text" class="input" />
+                  </label>
+                  <label class="block">
+                    <span class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Agent Token</span>
+                    <input v-model="deployConfig.agent_token" type="password" autocomplete="new-password" class="input" />
+                  </label>
+                  <label class="block">
+                    <span class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Agent Timeout Seconds</span>
+                    <input v-model.number="deployConfig.agent_timeout_seconds" type="number" min="30" class="input" />
+                  </label>
+                </div>
+
+                <div class="rounded-lg border border-gray-100 p-4 dark:border-dark-700">
+                  <div class="text-sm font-medium text-gray-900 dark:text-white">
+                    {{ localText("部署状态", "Deploy Status") }}: {{ deployState.status || "idle" }}
+                  </div>
+                  <p v-if="deployState.last_message" class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ deployState.last_message }}</p>
+                  <p v-if="deployState.last_error" class="mt-1 text-sm text-red-600 dark:text-red-400">{{ deployState.last_error }}</p>
+                  <div v-if="deployState.requested_image_id || deployState.running_image_id" class="mt-3 grid gap-2 text-xs text-gray-500 dark:text-gray-400 md:grid-cols-2">
+                    <div>Requested: {{ deployState.requested_image_id || "-" }}</div>
+                    <div>Running: {{ deployState.running_image_id || "-" }}</div>
+                  </div>
+                  <pre v-if="deployState.last_output" class="mt-3 max-h-64 overflow-auto rounded-lg bg-gray-950 p-3 text-xs text-gray-100">{{ deployState.last_output }}</pre>
+                </div>
+
+                <div class="flex flex-wrap justify-end gap-2 border-t border-gray-100 pt-4 dark:border-dark-700">
+                  <button type="button" class="btn btn-secondary" :disabled="deploySaving" @click="saveDeployConfig">
+                    {{ deploySaving ? t("common.saving") : t("common.save") }}
+                  </button>
+                  <button type="button" class="btn btn-secondary" :disabled="deployRunning || !deployConfig.enabled" @click="runDeploy(true)">
+                    {{ localText("演练", "Dry Run") }}
+                  </button>
+                  <button type="button" class="btn btn-primary" :disabled="deployRunning || !deployConfig.enabled" @click="runDeploy(false)">
+                    {{ deployRunning ? localText("更新中...", "Updating...") : localText("立即更新", "Update Now") }}
+                  </button>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+
         <!-- Save Button -->
-        <div v-show="activeTab !== 'backup'" class="flex justify-end">
+        <div v-show="activeTab !== 'backup' && activeTab !== 'deploy'" class="flex justify-end">
           <button
             type="submit"
             :disabled="saving || loadFailed"
@@ -8682,6 +8775,7 @@ import type {
   WebSearchProviderConfig,
   WebSearchTestResult,
 } from "@/api/admin/settings";
+import type { DeployConfig, DeployState } from "@/api/admin/system";
 import type {
   AdminGroup,
   LoginAgreementDocument,
@@ -8761,7 +8855,8 @@ type SettingsTab =
   | "gateway"
   | "payment"
   | "email"
-  | "backup";
+  | "backup"
+  | "deploy";
 const activeTab = ref<SettingsTab>("general");
 const settingsTabs = [
   { key: "general" as SettingsTab, icon: "home" as const },
@@ -8773,6 +8868,7 @@ const settingsTabs = [
   { key: "payment" as SettingsTab, icon: "creditCard" as const },
   { key: "email" as SettingsTab, icon: "mail" as const },
   { key: "backup" as SettingsTab, icon: "database" as const },
+  { key: "deploy" as SettingsTab, icon: "download" as const },
 ];
 
 const settingsTabKeyboardActions = {
@@ -8830,6 +8926,89 @@ const { copyToClipboard } = useClipboard();
 const loading = ref(true);
 const loadFailed = ref(false);
 const saving = ref(false);
+const deployLoading = ref(false);
+const deploySaving = ref(false);
+const deployRunning = ref(false);
+const deployConfig = reactive<DeployConfig>({
+  enabled: false,
+  mode: "docker_compose",
+  execution_mode: "host_agent",
+  source_type: "docker_archive_url",
+  default_image: "sub2api:rollback",
+  archive_url: "https://github.com/YuHaiA/sub2api/releases/download/docker-deploy/sub2api-docker-image.tar",
+  loaded_image: "sub2api-gha:docker-deploy",
+  service_name: "sub2api",
+  compose_project_dir: "/home/ec2-user/sub2api-deploy",
+  compose_file: "",
+  docker_binary: "docker",
+  compose_binary: "docker-compose",
+  agent_url: "http://172.17.0.1:18080",
+  agent_token: "",
+  agent_timeout_seconds: 900,
+  agent_insecure_tls: false,
+});
+const deployState = reactive<DeployState>({ status: "idle" });
+
+function applyDeployConfig(config: DeployConfig): void {
+  Object.assign(deployConfig, {
+    ...config,
+    mode: config.mode || "docker_compose",
+    execution_mode: config.execution_mode || "host_agent",
+    source_type: config.source_type || "docker_archive_url",
+    default_image: config.default_image || "sub2api:rollback",
+    archive_url: config.archive_url || "https://github.com/YuHaiA/sub2api/releases/download/docker-deploy/sub2api-docker-image.tar",
+    loaded_image: config.loaded_image || "sub2api-gha:docker-deploy",
+    service_name: config.service_name || "sub2api",
+    compose_project_dir: config.compose_project_dir || "/home/ec2-user/sub2api-deploy",
+    agent_url: config.agent_url || "http://172.17.0.1:18080",
+    agent_timeout_seconds: config.agent_timeout_seconds || 900,
+  });
+}
+
+async function loadDeploySettings(): Promise<void> {
+  deployLoading.value = true;
+  try {
+    const [config, state] = await Promise.all([
+      adminAPI.system.getDeployConfig(),
+      adminAPI.system.getDeployStatus(),
+    ]);
+    applyDeployConfig(config);
+    Object.assign(deployState, state);
+  } catch (err) {
+    appStore.showError(extractApiErrorMessage(err, t("common.error")));
+  } finally {
+    deployLoading.value = false;
+  }
+}
+
+async function saveDeployConfig(): Promise<boolean> {
+  deploySaving.value = true;
+  try {
+    applyDeployConfig(await adminAPI.system.updateDeployConfig({ ...deployConfig }));
+    appStore.showSuccess(t("common.saved"));
+    return true;
+  } catch (err) {
+    appStore.showError(extractApiErrorMessage(err, t("common.error")));
+    return false;
+  } finally {
+    deploySaving.value = false;
+  }
+}
+
+async function runDeploy(dryRun: boolean): Promise<void> {
+  deployRunning.value = true;
+  try {
+    if (!(await saveDeployConfig())) return;
+    const result = await adminAPI.system.triggerDeploy({ dry_run: dryRun });
+    appStore.showSuccess(result.already_up_to_date ? localText("当前运行镜像已是最新，已跳过更新。", "The running image is already up to date; update skipped.") : result.message);
+    Object.assign(deployState, await adminAPI.system.getDeployStatus());
+  } catch (err) {
+    appStore.showError(extractApiErrorMessage(err, t("common.error")));
+    try { Object.assign(deployState, await adminAPI.system.getDeployStatus()); } catch { /* keep last state */ }
+  } finally {
+    deployRunning.value = false;
+  }
+}
 const testingSmtp = ref(false);
 const sendingTestEmail = ref(false);
 const smtpPasswordManuallyEdited = ref(false);
@@ -12423,6 +12602,7 @@ onMounted(() => {
   loadRectifierSettings();
   loadBetaPolicySettings();
   loadProviders();
+  loadDeploySettings();
 });
 
 // =========================

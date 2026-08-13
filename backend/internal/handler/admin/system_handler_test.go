@@ -41,6 +41,22 @@ func (s *systemHandlerUpdateServiceStub) CheckUpdate(_ context.Context, force bo
 	return s.updateInfo, s.checkErr
 }
 
+func (s *systemHandlerUpdateServiceStub) GetDeployConfig(context.Context) (*service.DeployConfig, error) {
+	return &service.DeployConfig{}, nil
+}
+
+func (s *systemHandlerUpdateServiceStub) SaveDeployConfig(context.Context, *service.DeployConfig) error {
+	return nil
+}
+
+func (s *systemHandlerUpdateServiceStub) GetDeployState(context.Context) (*service.DeployState, error) {
+	return &service.DeployState{}, nil
+}
+
+func (s *systemHandlerUpdateServiceStub) TriggerDeploy(context.Context, *service.DeployTriggerRequest) (*service.DeployResult, error) {
+	return &service.DeployResult{}, nil
+}
+
 func (s *systemHandlerUpdateServiceStub) PerformUpdate(ctx context.Context) error {
 	s.performCall++
 	s.performCtxErr = ctx.Err()

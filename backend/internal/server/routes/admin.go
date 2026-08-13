@@ -634,6 +634,10 @@ func registerSystemRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	{
 		system.GET("/version", h.Admin.System.GetVersion)
 		system.GET("/check-updates", h.Admin.System.CheckUpdates)
+		system.GET("/deploy-config", h.Admin.System.GetDeployConfig)
+		system.PUT("/deploy-config", h.Admin.System.UpdateDeployConfig)
+		system.GET("/deploy-status", h.Admin.System.GetDeployStatus)
+		system.POST("/deploy", h.Admin.System.TriggerDeploy)
 		system.GET("/rollback-versions", h.Admin.System.GetRollbackVersions)
 		system.POST("/update", h.Admin.System.PerformUpdate)
 		system.POST("/rollback", h.Admin.System.Rollback)

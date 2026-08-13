@@ -45,6 +45,49 @@ export interface UpdateResult {
   need_restart: boolean
 }
 
+export interface DeployConfig {
+  enabled: boolean
+  mode: string
+  execution_mode: string
+  source_type: string
+  default_image: string
+  archive_url?: string
+  loaded_image?: string
+  service_name: string
+  compose_project_dir: string
+  compose_file?: string
+  docker_binary?: string
+  compose_binary?: string
+  agent_url?: string
+  agent_token?: string
+  agent_timeout_seconds: number
+  agent_insecure_tls: boolean
+}
+
+export interface DeployState {
+  status: string
+  requested_image?: string
+  requested_image_id?: string
+  running_image_id?: string
+  already_up_to_date?: boolean
+  last_message?: string
+  last_error?: string
+  last_output?: string
+  started_at?: number
+  finished_at?: number
+}
+
+export interface DeployResult {
+  message: string
+  need_restart: boolean
+  status: string
+  image: string
+  service_name: string
+  compose_project_dir: string
+  already_up_to_date?: boolean
+  commands?: string[]
+}
+
 export interface RollbackVersionInfo {
   version: string
   published_at: string
@@ -80,6 +123,26 @@ export async function performUpdate(): Promise<UpdateResult> {
   return data
 }
 
+export async function getDeployConfig(): Promise<DeployConfig> {
+  const { data } = await apiClient.get<DeployConfig>('/admin/system/deploy-config')
+  return data
+}
+
+export async function updateDeployConfig(payload: DeployConfig): Promise<DeployConfig> {
+  const { data } = await apiClient.put<DeployConfig>('/admin/system/deploy-config', payload)
+  return data
+}
+
+export async function getDeployStatus(): Promise<DeployState> {
+  const { data } = await apiClient.get<DeployState>('/admin/system/deploy-status')
+  return data
+}
+
+export async function triggerDeploy(payload?: { image?: string; dry_run?: boolean }): Promise<DeployResult> {
+  const { data } = await apiClient.post<DeployResult>('/admin/system/deploy', payload ?? {})
+  return data
+}
+
 /**
  * Rollback to a previous version
  * @param version - Target version (e.g. "0.1.146"); omit to restore the local backup binary
@@ -105,6 +168,10 @@ export const systemAPI = {
   getVersion,
   checkUpdates,
   performUpdate,
+  getDeployConfig,
+  updateDeployConfig,
+  getDeployStatus,
+  triggerDeploy,
   getRollbackVersions,
   rollback,
   restartService
