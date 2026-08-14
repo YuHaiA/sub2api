@@ -1,3 +1,5 @@
+//go:build unit
+
 package service
 
 import (
@@ -7,10 +9,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type mihomoPoolAccountRepo struct {
+	AccountRepository
+	accounts []Account
+}
+
+func (r *mihomoPoolAccountRepo) ListByPlatform(_ context.Context, platform string) ([]Account, error) {
+	accounts := make([]Account, 0, len(r.accounts))
+	for _, account := range r.accounts {
+		if account.Platform == platform {
+			accounts = append(accounts, account)
+		}
+	}
+	return accounts, nil
+}
+
 func TestExpandMihomoPoolProxyExclusionsExcludesSiblingEgressAccount(t *testing.T) {
 	proxyOne := int64(101)
 	proxyTwo := int64(102)
-	repo := &mockAccountRepoForPlatform{accounts: []Account{
+	repo := &mihomoPoolAccountRepo{accounts: []Account{
 		{ID: 1, Platform: PlatformGrok, ProxyID: &proxyOne, Extra: map[string]any{"mihomo_pool_managed": true}},
 		{ID: 2, Platform: PlatformGrok, ProxyID: &proxyOne, Extra: map[string]any{"mihomo_pool_managed": true}},
 		{ID: 3, Platform: PlatformGrok, ProxyID: &proxyTwo, Extra: map[string]any{"mihomo_pool_managed": true}},
@@ -28,7 +45,7 @@ func TestExpandMihomoPoolProxyExclusionsExcludesSiblingEgressAccount(t *testing.
 
 func TestExpandMihomoPoolProxyExclusionsLeavesNonPoolAccountAlone(t *testing.T) {
 	proxyID := int64(101)
-	repo := &mockAccountRepoForPlatform{accounts: []Account{
+	repo := &mihomoPoolAccountRepo{accounts: []Account{
 		{ID: 1, Platform: PlatformGrok, ProxyID: &proxyID},
 		{ID: 2, Platform: PlatformGrok, ProxyID: &proxyID, Extra: map[string]any{"mihomo_pool_managed": true}},
 	}}
