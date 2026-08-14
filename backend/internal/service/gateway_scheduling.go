@@ -32,6 +32,7 @@ func (s *GatewayService) SelectAccountForModel(ctx context.Context, groupID *int
 
 // SelectAccountForModelWithExclusions selects an account supporting the requested model while excluding specified accounts.
 func (s *GatewayService) SelectAccountForModelWithExclusions(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}) (*Account, error) {
+	excludedIDs = s.expandMihomoPoolProxyExclusions(ctx, excludedIDs)
 	// 优先检查 context 中的强制平台（/antigravity 路由）
 	var platform string
 	forcePlatform, hasForcePlatform := ctx.Value(ctxkey.ForcePlatform).(string)
@@ -98,6 +99,7 @@ func (s *GatewayService) SelectAccountForModelWithExclusions(ctx context.Context
 // metadataUserID: 用于客户端亲和调度，从中提取客户端 ID
 // sub2apiUserID: 系统用户 ID，用于二维亲和调度
 func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}, metadataUserID string, sub2apiUserID int64) (*AccountSelectionResult, error) {
+	excludedIDs = s.expandMihomoPoolProxyExclusions(ctx, excludedIDs)
 	// 调试日志：记录调度入口参数
 	excludedIDsList := make([]int64, 0, len(excludedIDs))
 	for id := range excludedIDs {
@@ -764,6 +766,46 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 		})
 	}
 	return nil, ErrNoAvailableAccounts
+}
+
+// expandMihomoPoolProxyExclusions keeps request failover on a different fixed
+// Mihomo egress. When one pool-managed Grok account fails, the other account
+// sharing the same proxy is excluded for this request as well. If the expanded
+// set exhausts selection, callers can still retry through their existing
+// selection-exhausted path after clearing exclusions.
+func (s *GatewayService) expandMihomoPoolProxyExclusions(ctx context.Context, excludedIDs map[int64]struct{}) map[int64]struct{} {
+	if len(excludedIDs) == 0 || s.accountRepo == nil {
+		return excludedIDs
+	}
+	accounts, err := s.accountRepo.ListByPlatform(ctx, PlatformGrok)
+	if err != nil || len(accounts) == 0 {
+		return excludedIDs
+	}
+	excludedProxyIDs := make(map[int64]struct{})
+	for i := range accounts {
+		account := &accounts[i]
+		if _, excluded := excludedIDs[account.ID]; !excluded || account.ProxyID == nil || !account.MihomoPoolManaged() {
+			continue
+		}
+		excludedProxyIDs[*account.ProxyID] = struct{}{}
+	}
+	if len(excludedProxyIDs) == 0 {
+		return excludedIDs
+	}
+	expanded := make(map[int64]struct{}, len(excludedIDs)+len(excludedProxyIDs))
+	for id := range excludedIDs {
+		expanded[id] = struct{}{}
+	}
+	for i := range accounts {
+		account := &accounts[i]
+		if account.ProxyID == nil || !account.MihomoPoolManaged() {
+			continue
+		}
+		if _, excluded := excludedProxyIDs[*account.ProxyID]; excluded {
+			expanded[account.ID] = struct{}{}
+		}
+	}
+	return expanded
 }
 
 func (s *GatewayService) tryAcquireByLegacyOrder(ctx context.Context, candidates []*Account, groupID *int64, sessionHash string, preferOAuth bool) (*AccountSelectionResult, bool, error) {

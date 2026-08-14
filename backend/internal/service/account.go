@@ -958,6 +958,14 @@ func (a *Account) GetExtraString(key string) string {
 	return ""
 }
 
+// MihomoPoolManaged reports whether this account belongs to the fixed
+// server-side Mihomo egress pool. The marker is intentionally stored in Extra
+// so pool automation never conflates its standby state with an administrator's
+// manual schedulable/status choices.
+func (a *Account) MihomoPoolManaged() bool {
+	return a != nil && a.getExtraBool("mihomo_pool_managed")
+}
+
 func (a *Account) GetClaudeUserID() string {
 	if v := strings.TrimSpace(a.GetExtraString("claude_user_id")); v != "" {
 		return v
