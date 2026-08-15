@@ -36,6 +36,10 @@ const getSanitizedConfiguredOptions = (): number[] => {
   ).sort((a, b) => a - b)
 }
 
+const isLegacyDefaultPageSizeOptions = (options: number[]): boolean =>
+  (options.length === 3 && options.every((value, index) => value === [10, 20, 50][index])) ||
+  (options.length === 4 && options.every((value, index) => value === [10, 20, 50, 100][index]))
+
 const normalizePageSizeToOptions = (value: number, options: number[]): number => {
   for (const option of options) {
     if (option >= value) {
@@ -59,7 +63,11 @@ export const getConfiguredTablePageSizeOptions = (): number[] => {
     return [...DEFAULT_TABLE_PAGE_SIZE_OPTIONS]
   }
 
-  return unique.length > 0 ? unique : [...DEFAULT_TABLE_PAGE_SIZE_OPTIONS]
+  if (isLegacyDefaultPageSizeOptions(unique)) {
+    return [...DEFAULT_TABLE_PAGE_SIZE_OPTIONS]
+  }
+
+  return unique
 }
 
 export const normalizeTablePageSize = (value: unknown): number => {

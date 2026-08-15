@@ -71,4 +71,13 @@ describe('tablePreferences', () => {
 
     expect(getConfiguredTablePageSizeOptions()).toEqual([10, 20, 50, 100, 500])
   })
+
+  it('upgrades legacy default options from the server', () => {
+    window.__APP_CONFIG__ = {
+      table_default_page_size: 20,
+      table_page_size_options: [10, 20, 50]
+    } as any
+
+    expect(getConfiguredTablePageSizeOptions()).toEqual([10, 20, 50, 100, 500])
+  })
 })
