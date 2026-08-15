@@ -385,7 +385,7 @@ const baseSettingsResponse = {
   compact_home_enabled: false,
   hide_ccs_import_button: false,
   table_default_page_size: 20,
-  table_page_size_options: [10, 20, 50, 100],
+  table_page_size_options: [10, 20, 50, 100, 500],
   backend_mode_enabled: false,
   custom_menu_items: [],
   custom_endpoints: [],
