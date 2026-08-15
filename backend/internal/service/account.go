@@ -959,9 +959,8 @@ func (a *Account) GetExtraString(key string) string {
 }
 
 // MihomoPoolManaged reports whether this account belongs to the fixed
-// server-side Mihomo egress pool. The marker is intentionally stored in Extra
-// so pool automation never conflates its standby state with an administrator's
-// manual schedulable/status choices.
+// server-side Mihomo egress pool. Pool membership is used only for egress
+// failover preference; each healthy member remains independently schedulable.
 func (a *Account) MihomoPoolManaged() bool {
 	return a != nil && a.getExtraBool("mihomo_pool_managed")
 }

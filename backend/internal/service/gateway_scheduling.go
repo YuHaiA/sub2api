@@ -6,6 +6,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	mathrand "math/rand"
@@ -32,7 +33,18 @@ func (s *GatewayService) SelectAccountForModel(ctx context.Context, groupID *int
 
 // SelectAccountForModelWithExclusions selects an account supporting the requested model while excluding specified accounts.
 func (s *GatewayService) SelectAccountForModelWithExclusions(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}) (*Account, error) {
-	excludedIDs = s.expandMihomoPoolProxyExclusions(ctx, excludedIDs)
+	preferredExcludedIDs := s.expandMihomoPoolProxyExclusions(ctx, excludedIDs)
+	account, err := s.selectAccountForModelWithExclusions(ctx, groupID, sessionHash, requestedModel, preferredExcludedIDs)
+	if err != nil && hasAdditionalAccountExclusions(excludedIDs, preferredExcludedIDs) && errors.Is(err, ErrNoAvailableAccounts) {
+		account, err = s.selectAccountForModelWithExclusions(ctx, groupID, sessionHash, requestedModel, excludedIDs)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return s.hydrateSelectedAccount(ctx, account)
+}
+
+func (s *GatewayService) selectAccountForModelWithExclusions(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}) (*Account, error) {
 	// 优先检查 context 中的强制平台（/antigravity 路由）
 	var platform string
 	forcePlatform, hasForcePlatform := ctx.Value(ctxkey.ForcePlatform).(string)
@@ -79,27 +91,27 @@ func (s *GatewayService) SelectAccountForModelWithExclusions(ctx context.Context
 	// anthropic/gemini 分组支持混合调度（包含启用了 mixed_scheduling 的 antigravity 账户）
 	// 注意：强制平台模式不走混合调度
 	if (platform == PlatformAnthropic || platform == PlatformGemini) && !hasForcePlatform {
-		account, err := s.selectAccountWithMixedScheduling(ctx, groupID, sessionHash, requestedModel, excludedIDs, platform)
-		if err != nil {
-			return nil, err
-		}
-		return s.hydrateSelectedAccount(ctx, account)
+		return s.selectAccountWithMixedScheduling(ctx, groupID, sessionHash, requestedModel, excludedIDs, platform)
 	}
 
 	// antigravity 分组、强制平台模式或无分组使用单平台选择
 	// 注意：强制平台模式也必须遵守分组限制，不再回退到全平台查询
-	account, err := s.selectAccountForModelWithPlatform(ctx, groupID, sessionHash, requestedModel, excludedIDs, platform)
-	if err != nil {
-		return nil, err
-	}
-	return s.hydrateSelectedAccount(ctx, account)
+	return s.selectAccountForModelWithPlatform(ctx, groupID, sessionHash, requestedModel, excludedIDs, platform)
 }
 
 // SelectAccountWithLoadAwareness selects account with load-awareness and wait plan.
 // metadataUserID: 用于客户端亲和调度，从中提取客户端 ID
 // sub2apiUserID: 系统用户 ID，用于二维亲和调度
 func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}, metadataUserID string, sub2apiUserID int64) (*AccountSelectionResult, error) {
-	excludedIDs = s.expandMihomoPoolProxyExclusions(ctx, excludedIDs)
+	preferredExcludedIDs := s.expandMihomoPoolProxyExclusions(ctx, excludedIDs)
+	result, err := s.selectAccountWithLoadAwareness(ctx, groupID, sessionHash, requestedModel, preferredExcludedIDs, metadataUserID, sub2apiUserID)
+	if err != nil && hasAdditionalAccountExclusions(excludedIDs, preferredExcludedIDs) && errors.Is(err, ErrNoAvailableAccounts) {
+		return s.selectAccountWithLoadAwareness(ctx, groupID, sessionHash, requestedModel, excludedIDs, metadataUserID, sub2apiUserID)
+	}
+	return result, err
+}
+
+func (s *GatewayService) selectAccountWithLoadAwareness(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}, metadataUserID string, sub2apiUserID int64) (*AccountSelectionResult, error) {
 	// 调试日志：记录调度入口参数
 	excludedIDsList := make([]int64, 0, len(excludedIDs))
 	for id := range excludedIDs {
@@ -768,11 +780,9 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 	return nil, ErrNoAvailableAccounts
 }
 
-// expandMihomoPoolProxyExclusions keeps request failover on a different fixed
-// Mihomo egress. When one pool-managed Grok account fails, the other account
-// sharing the same proxy is excluded for this request as well. If the expanded
-// set exhausts selection, callers can still retry through their existing
-// selection-exhausted path after clearing exclusions.
+// expandMihomoPoolProxyExclusions builds the preferred first-pass exclusions
+// for Grok failover. Accounts sharing the failed fixed Mihomo egress are tried
+// only after accounts on other exits, but remain eligible for the fallback pass.
 func (s *GatewayService) expandMihomoPoolProxyExclusions(ctx context.Context, excludedIDs map[int64]struct{}) map[int64]struct{} {
 	if len(excludedIDs) == 0 || s.accountRepo == nil {
 		return excludedIDs
@@ -806,6 +816,15 @@ func (s *GatewayService) expandMihomoPoolProxyExclusions(ctx context.Context, ex
 		}
 	}
 	return expanded
+}
+
+func hasAdditionalAccountExclusions(original, expanded map[int64]struct{}) bool {
+	for id := range expanded {
+		if _, exists := original[id]; !exists {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *GatewayService) tryAcquireByLegacyOrder(ctx context.Context, candidates []*Account, groupID *int64, sessionHash string, preferOAuth bool) (*AccountSelectionResult, bool, error) {
