@@ -37,6 +37,10 @@ func (r *mihomoPoolAccountRepo) ListSchedulableByPlatform(_ context.Context, pla
 	return accounts, nil
 }
 
+func init() {
+	mihomoPoolAccountCacheDisabled = true
+}
+
 func TestExpandMihomoPoolProxyExclusionsDefersSiblingEgressAccount(t *testing.T) {
 	proxyOne := int64(101)
 	proxyTwo := int64(102)
@@ -216,6 +220,14 @@ func TestOpenAICompatibleGrokSelectionRestoresMihomoStandbyAccount(t *testing.T)
 	require.NoError(t, err)
 	require.Equal(t, int64(2), selected.ID)
 }
+func TestOpenAISSECommentLine(t *testing.T) {
+	require.True(t, openAISSECommentLine(": ping"))
+	require.True(t, openAISSECommentLine(":"))
+	require.True(t, openAISSECommentLine(" : keepalive"))
+	require.False(t, openAISSECommentLine(""))
+	require.False(t, openAISSECommentLine(`data: {"type":"response.created"}`))
+	require.False(t, openAISSECommentLine("event: response.created"))
+}
 
 func TestExpandMihomoPoolProxyExclusionsLeavesNonPoolAccountAlone(t *testing.T) {
 	proxyID := int64(101)
@@ -228,4 +240,36 @@ func TestExpandMihomoPoolProxyExclusionsLeavesNonPoolAccountAlone(t *testing.T) 
 	excluded := svc.expandMihomoPoolProxyExclusions(context.Background(), map[int64]struct{}{1: {}})
 
 	require.Equal(t, map[int64]struct{}{1: {}}, excluded)
+}
+
+type countingMihomoPoolRepo struct {
+	mihomoPoolAccountRepo
+	listCalls int
+}
+
+func (r *countingMihomoPoolRepo) ListByPlatform(ctx context.Context, platform string) ([]Account, error) {
+	r.listCalls++
+	return r.mihomoPoolAccountRepo.ListByPlatform(ctx, platform)
+}
+
+func TestMihomoPoolAccountListCacheHitsWithinTTL(t *testing.T) {
+	repo := &countingMihomoPoolRepo{mihomoPoolAccountRepo: mihomoPoolAccountRepo{accounts: []Account{
+		{ID: 1, Platform: PlatformGrok, Extra: map[string]any{"mihomo_pool_managed": true}},
+	}}}
+	cache := &mihomoPoolAccountListCache{}
+
+	first, err := cache.listWithTTL(context.Background(), repo, time.Minute)
+	require.NoError(t, err)
+	require.Len(t, first, 1)
+	require.Equal(t, 1, repo.listCalls)
+
+	second, err := cache.listWithTTL(context.Background(), repo, time.Minute)
+	require.NoError(t, err)
+	require.Equal(t, first[0].ID, second[0].ID)
+	require.Equal(t, 1, repo.listCalls)
+
+	third, err := cache.listWithTTL(context.Background(), repo, 0)
+	require.NoError(t, err)
+	require.Equal(t, first[0].ID, third[0].ID)
+	require.Equal(t, 2, repo.listCalls)
 }

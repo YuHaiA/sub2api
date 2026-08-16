@@ -831,6 +831,11 @@ func openAIStreamEventIsPreamble(eventType string) bool {
 	}
 }
 
+func openAISSECommentLine(line string) bool {
+	trimmed := strings.TrimSpace(line)
+	return trimmed == ":" || strings.HasPrefix(trimmed, ":")
+}
+
 func openAIStreamDataStartsClientOutput(data, eventType string) bool {
 	trimmed := strings.TrimSpace(data)
 	if trimmed == "" {

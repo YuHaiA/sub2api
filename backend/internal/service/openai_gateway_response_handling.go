@@ -471,7 +471,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 						UpstreamOutTok: usage.OutputTokens,
 					})
 				}
-				if !openAIStreamClientOutputStarted(c, clientOutputStarted) {
+				if !openAIStreamClientOutputStarted(c, clientOutputStarted) && !c.Writer.Written() {
 					if status, errType, errMsg, matched := applyOpenAIStreamFailedErrorPassthroughRule(c, account.Platform, dataBytes, failedMessage); matched {
 						sawFailedEvent = true
 						// 命中透传规则也要记录 ops 上游错误事件（对齐 CC/Messages 与
@@ -618,10 +618,18 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			}
 			return
 		}
+		// Non-semantic SSE comments (Grok vendor pings rewritten to ": ping")
+		// must leave the 4KB buffer immediately. Otherwise Codex waits for the
+		// first visible token before seeing any bytes.
+		if !guardFirstOutput && openAISSECommentLine(line) {
+			eventShouldFlush = true
+		}
 		// Non-guarded streams retain upstream's event-boundary flushing: a keepalive
 		// or queue-drain flush must never split an open SSE event.
 		shouldFlush := false
+		commentOnlyFlush := false
 		if line == "" {
+			commentOnlyFlush = eventShouldFlush && !clientOutputStarted
 			shouldFlush = eventShouldFlush || (queueDrained && clientOutputStarted)
 			eventShouldFlush = false
 		}
@@ -637,7 +645,9 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 						clientDisconnected = true
 						logger.LegacyPrintf("service.openai_gateway", "Client disconnected during streaming flush, continuing to drain upstream for billing")
 					} else {
-						clientOutputStarted = true
+						if !commentOnlyFlush {
+							clientOutputStarted = true
+						}
 						lastDownstreamWriteAt = time.Now()
 					}
 				}

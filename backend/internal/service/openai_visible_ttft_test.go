@@ -126,3 +126,31 @@ func runSyntheticVisibleTTFTStream(t *testing.T, passthrough bool, visibleDelay 
 	}
 	return result
 }
+
+func TestGrokStreamFlushesPingCommentWithoutStartingTTFT(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := &OpenAIGatewayService{cfg: &config.Config{Gateway: config.GatewayConfig{
+		MaxLineSize: defaultMaxLineSize,
+	}}}
+	reader, writer := io.Pipe()
+	go func() {
+		defer func() { _ = writer.Close() }()
+		_, _ = io.WriteString(writer, ": ping\n\n")
+		_, _ = io.WriteString(writer, "data: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_ping\"}}\n\n")
+		time.Sleep(80 * time.Millisecond)
+		_, _ = io.WriteString(writer, "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hi\"}\n\n")
+		_, _ = io.WriteString(writer, "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_ping\",\"usage\":{\"input_tokens\":1,\"output_tokens\":1}}}\n\n")
+	}()
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: reader}
+	result, err := svc.handleStreamingResponse(context.Background(), resp, c, &Account{ID: 7, Platform: PlatformGrok}, time.Now(), "grok-4.6", "grok-4.6")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, result.firstTokenMs)
+	require.GreaterOrEqual(t, *result.firstTokenMs, 50)
+	require.Contains(t, recorder.Body.String(), ": ping")
+	require.Contains(t, recorder.Body.String(), `"delta":"hi"`)
+}

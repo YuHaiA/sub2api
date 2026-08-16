@@ -12,6 +12,7 @@ import (
 	mathrand "math/rand"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
@@ -827,12 +828,64 @@ func hasAdditionalAccountExclusions(original, expanded map[int64]struct{}) bool 
 	return false
 }
 
+// mihomoPoolAccountCacheTTL matches the 5s Mihomo reconcile interval so
+// Grok /v1/responses does not hydrate every pool account on each request.
+const mihomoPoolAccountCacheTTL = 5 * time.Second
+
+type mihomoPoolAccountListCache struct {
+	mu        sync.Mutex
+	accounts  []Account
+	expiresAt time.Time
+}
+
+// Set to true from tests so in-memory repos are never served stale rows.
+var mihomoPoolAccountCacheDisabled bool
+
+func (c *mihomoPoolAccountListCache) list(ctx context.Context, repo AccountRepository) ([]Account, error) {
+	ttl := mihomoPoolAccountCacheTTL
+	if mihomoPoolAccountCacheDisabled {
+		ttl = 0
+	}
+	return c.listWithTTL(ctx, repo, ttl)
+}
+
+func (c *mihomoPoolAccountListCache) listWithTTL(ctx context.Context, repo AccountRepository, ttl time.Duration) ([]Account, error) {
+	if c == nil || repo == nil {
+		return nil, nil
+	}
+	if ttl > 0 {
+		now := time.Now()
+		c.mu.Lock()
+		if len(c.accounts) > 0 && now.Before(c.expiresAt) {
+			accounts := c.accounts
+			c.mu.Unlock()
+			return accounts, nil
+		}
+		c.mu.Unlock()
+	}
+
+	accounts, err := repo.ListByPlatform(ctx, PlatformGrok)
+	if err != nil {
+		return nil, err
+	}
+	if ttl <= 0 {
+		return accounts, nil
+	}
+	c.mu.Lock()
+	c.accounts = accounts
+	c.expiresAt = time.Now().Add(ttl)
+	c.mu.Unlock()
+	return accounts, nil
+}
+
+var defaultMihomoPoolAccountCache mihomoPoolAccountListCache
+
 func mergeHealthyMihomoPoolAccounts(ctx context.Context, repo AccountRepository, accounts []Account, groupID *int64, platform string, simpleMode bool) []Account {
 	if repo == nil || !strings.EqualFold(strings.TrimSpace(platform), PlatformGrok) {
 		return accounts
 	}
 
-	poolAccounts, err := repo.ListByPlatform(ctx, PlatformGrok)
+	poolAccounts, err := defaultMihomoPoolAccountCache.list(ctx, repo)
 	if err != nil || len(poolAccounts) == 0 {
 		return accounts
 	}
