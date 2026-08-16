@@ -108,3 +108,35 @@ func TestSchedulerMetadataAccountDropsInvalidUpstreamBillingProbe(t *testing.T) 
 		require.NotContains(t, metadata.Extra, service.UpstreamBillingProbeExtraKey)
 	}
 }
+
+func TestSchedulerMetadataAccountKeepsMihomoSchedulingMarkers(t *testing.T) {
+	extra := map[string]any{
+		"mihomo_pool_managed":             true,
+		"mihomo_pool_standby":             true,
+		"mihomo_pool_externally_disabled": true,
+		"unused_large_field":               "drop-me",
+	}
+	extra[service.ManualSchedulingDisabledExtraKey] = true
+
+	account := service.Account{
+		ID:       45,
+		Platform: service.PlatformGrok,
+		Status:   service.StatusActive,
+		Extra:    extra,
+	}
+
+	metadata := buildSchedulerMetadataAccount(account)
+
+	require.Equal(t, true, metadata.Extra["mihomo_pool_managed"])
+	require.Equal(t, true, metadata.Extra["mihomo_pool_standby"])
+	require.Equal(t, true, metadata.Extra[service.ManualSchedulingDisabledExtraKey])
+	require.Equal(t, true, metadata.Extra["mihomo_pool_externally_disabled"])
+	require.NotContains(t, metadata.Extra, "unused_large_field")
+
+	standby := metadata
+	require.False(t, standby.IsSchedulable(), "metadata 快照必须在初筛阶段排除待绑定出口账号")
+
+	standby.Extra[service.ManualSchedulingDisabledExtraKey] = false
+	delete(standby.Extra, "mihomo_pool_standby")
+	require.True(t, standby.IsSchedulable(), "移除 standby 标记后，健康账号应重新成为候选")
+}
