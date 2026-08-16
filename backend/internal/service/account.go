@@ -189,6 +189,9 @@ func (a *Account) IsSchedulable() bool {
 	if a.ManualSchedulingDisabled() {
 		return false
 	}
+	if a.MihomoPoolStandby() {
+		return false
+	}
 	now := time.Now()
 	if a.AutoPauseOnExpired && a.ExpiresAt != nil && !now.Before(*a.ExpiresAt) {
 		return false
@@ -967,10 +970,15 @@ func (a *Account) GetExtraString(key string) string {
 }
 
 // MihomoPoolManaged reports whether this account belongs to the fixed
-// server-side Mihomo egress pool. Pool membership is used only for egress
-// failover preference; each healthy member remains independently schedulable.
+// server-side Mihomo egress pool.
 func (a *Account) MihomoPoolManaged() bool {
 	return a != nil && a.getExtraBool("mihomo_pool_managed")
+}
+
+// MihomoPoolStandby reports whether the account is enabled but waiting for a
+// fixed egress slot. The pool manager clears this marker when it binds a proxy.
+func (a *Account) MihomoPoolStandby() bool {
+	return a != nil && a.getExtraBool("mihomo_pool_standby")
 }
 
 func (a *Account) ManualSchedulingDisabled() bool {

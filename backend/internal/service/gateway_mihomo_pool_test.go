@@ -88,7 +88,7 @@ func TestSelectAccountForModelWithExclusionsPrefersOtherEgressAndFallsBackToSibl
 	require.Equal(t, int64(2), selected.ID, "same-egress sibling remains eligible as fallback")
 }
 
-func TestMihomoPoolManagedAccountIgnoresLegacyStandbyFlagButHonorsCooldown(t *testing.T) {
+func TestMihomoPoolManagedLegacySchedulableFalseHonorsCooldown(t *testing.T) {
 	account := &Account{
 		ID:          10,
 		Platform:    PlatformGrok,
@@ -104,6 +104,25 @@ func TestMihomoPoolManagedAccountIgnoresLegacyStandbyFlagButHonorsCooldown(t *te
 
 	resetAt = time.Now().Add(-time.Second)
 	account.RateLimitResetAt = &resetAt
+	require.True(t, account.IsSchedulable())
+}
+
+func TestMihomoPoolStandbyWaitsForEgressBinding(t *testing.T) {
+	account := &Account{
+		ID:          13,
+		Platform:    PlatformGrok,
+		Type:        AccountTypeOAuth,
+		Status:      StatusActive,
+		Schedulable: true,
+		Extra: map[string]any{
+			"mihomo_pool_managed": true,
+			"mihomo_pool_standby": true,
+		},
+	}
+
+	require.False(t, account.IsSchedulable())
+
+	account.Extra["mihomo_pool_standby"] = false
 	require.True(t, account.IsSchedulable())
 }
 
