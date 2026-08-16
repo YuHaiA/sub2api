@@ -421,7 +421,7 @@ func (s *GrokQuotaService) fetchBilling(
 			return nil, statusCode, nil
 		}
 		if statusCode >= 400 {
-			bodyText := truncate(strings.TrimSpace(string(bodyBytes)), 240)
+			bodyText := grokBillingErrorBody(statusCode, bodyBytes)
 			slog.Warn("grok_quota_billing_failed", "account_id", account.ID, "weekly", weekly, "status", statusCode, "body", bodyText)
 			return nil, statusCode, infraerrors.Newf(mapUpstreamStatus(statusCode), "GROK_QUOTA_PROBE_UPSTREAM_ERROR", "billing returned %d: %s", statusCode, bodyText)
 		}
@@ -434,9 +434,18 @@ func (s *GrokQuotaService) fetchBilling(
 	return nil, 0, infraerrors.New(http.StatusBadGateway, "GROK_QUOTA_PROBE_REQUEST_FAILED", "billing request failed")
 }
 
+func grokBillingErrorBody(statusCode int, bodyBytes []byte) string {
+	if statusCode >= 520 && statusCode <= 524 {
+		return "Cloudflare upstream temporarily unavailable"
+	}
+	return truncate(strings.TrimSpace(string(bodyBytes)), 240)
+}
+
 func isRetryableGrokBillingStatus(statusCode int) bool {
 	switch statusCode {
 	case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+		return true
+	case 520, 521, 522, 523, 524:
 		return true
 	default:
 		return false

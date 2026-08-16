@@ -344,6 +344,41 @@ func TestGrokQuotaServiceFetchBillingRetries502ThenSucceeds(t *testing.T) {
 	require.Equal(t, "format=credits", requests[0].URL.RawQuery)
 }
 
+func TestGrokQuotaServiceFetchBillingRetriesCloudflare520ThenSucceeds(t *testing.T) {
+	account := healthyGrokQuotaOAuthAccount(406)
+	upstream := &grokQuotaSequenceUpstream{steps: []grokQuotaUpstreamStep{
+		{status: 520, body: `The origin web server returned an invalid or incomplete response to Cloudflare.`},
+		{status: http.StatusOK, body: `{"config":{"currentPeriod":{"type":"WEEKLY"},"creditUsagePercent":14}}`},
+	}}
+	svc := &GrokQuotaService{httpUpstream: upstream}
+
+	summary, status, err := svc.fetchBilling(context.Background(), account, "access-token", "", true)
+
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, status)
+	require.NotNil(t, summary)
+	require.NotNil(t, summary.UsagePercent)
+	require.Equal(t, 14.0, *summary.UsagePercent)
+	require.Len(t, upstream.snapshotRequests(), 2)
+}
+
+func TestGrokQuotaServiceFetchBillingReturnsConciseCloudflareErrorAfterRetry(t *testing.T) {
+	account := healthyGrokQuotaOAuthAccount(407)
+	upstream := &grokQuotaSequenceUpstream{steps: []grokQuotaUpstreamStep{
+		{status: 520, body: `The origin web server returned an invalid or incomplete response to Cloudflare.`},
+		{status: 520, body: `<html><body>The origin web server returned an invalid or incomplete response to Cloudflare.</body></html>`},
+	}}
+	svc := &GrokQuotaService{httpUpstream: upstream}
+
+	summary, status, err := svc.fetchBilling(context.Background(), account, "access-token", "", true)
+
+	require.Error(t, err)
+	require.Nil(t, summary)
+	require.Equal(t, 520, status)
+	require.Equal(t, "billing returned 520: Cloudflare upstream temporarily unavailable", infraerrors.Message(err))
+	require.Len(t, upstream.snapshotRequests(), 2)
+}
+
 func TestGrokQuotaServiceFetchBillingRetriesTransportErrorThenSucceeds(t *testing.T) {
 	account := healthyGrokQuotaOAuthAccount(402)
 	upstream := &grokQuotaSequenceUpstream{steps: []grokQuotaUpstreamStep{
@@ -421,6 +456,11 @@ func TestIsRetryableGrokBillingStatus(t *testing.T) {
 		{status: http.StatusBadGateway, want: true},
 		{status: http.StatusServiceUnavailable, want: true},
 		{status: http.StatusGatewayTimeout, want: true},
+		{status: 520, want: true},
+		{status: 521, want: true},
+		{status: 522, want: true},
+		{status: 523, want: true},
+		{status: 524, want: true},
 		{status: http.StatusUnauthorized, want: false},
 		{status: http.StatusForbidden, want: false},
 		{status: http.StatusTooManyRequests, want: false},

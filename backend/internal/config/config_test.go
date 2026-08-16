@@ -72,6 +72,15 @@ func TestLoadServerTimingConfig(t *testing.T) {
 	})
 }
 
+func TestLoadServerShutdownTimeoutFromEnv(t *testing.T) {
+	resetViperWithJWTSecret(t)
+	t.Setenv("SERVER_SHUTDOWN_TIMEOUT", "900")
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	require.Equal(t, 900, cfg.Server.ShutdownTimeout)
+}
+
 func TestLoadRedisUsernameFromEnvironment(t *testing.T) {
 	resetViperWithJWTSecret(t)
 	t.Setenv("REDIS_USERNAME", "app-user")
@@ -87,6 +96,7 @@ func TestLoadHTTPIngressSafetyDefaults(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 10, cfg.Server.ReadHeaderTimeout)
 	require.Equal(t, 64*1024, cfg.Server.MaxHeaderBytes)
+	require.Equal(t, 600, cfg.Server.ShutdownTimeout)
 	require.Empty(t, cfg.Server.TrustedProxies)
 	require.False(t, cfg.Server.TrustedProxiesConfigured)
 	require.True(t, cfg.TrustForwardedIPForAPIKeyACL())
@@ -1547,6 +1557,11 @@ func TestValidateConfigErrors(t *testing.T) {
 			name:    "server read header timeout",
 			mutate:  func(c *Config) { c.Server.ReadHeaderTimeout = 0 },
 			wantErr: "server.read_header_timeout",
+		},
+		{
+			name:    "server shutdown timeout too short",
+			mutate:  func(c *Config) { c.Server.ShutdownTimeout = 4 },
+			wantErr: "server.shutdown_timeout",
 		},
 		{
 			name:    "server max header bytes too small",

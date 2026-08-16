@@ -15,6 +15,7 @@ services:
     image: ${SUB2API_IMAGE:-ghcr.io/yuhaia/sub2api:latest}
     container_name: sub2api
     restart: unless-stopped
+    stop_grace_period: ${STOP_GRACE_PERIOD:-10m30s}
     security_opt:
       - no-new-privileges:true
     ulimits:
@@ -39,6 +40,7 @@ services:
       - SERVER_HOST=0.0.0.0
       - SERVER_PORT=8080
       - SERVER_MODE=${SERVER_MODE:-release}
+      - SERVER_SHUTDOWN_TIMEOUT=${SERVER_SHUTDOWN_TIMEOUT:-600}
       - ENABLE_SERVER_TIMING=${ENABLE_SERVER_TIMING:-false}
       - RUN_MODE=${RUN_MODE:-standard}
       - UPDATE_GITHUB_TOKEN=${UPDATE_GITHUB_TOKEN:-}

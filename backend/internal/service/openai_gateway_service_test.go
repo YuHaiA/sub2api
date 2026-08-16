@@ -1578,6 +1578,8 @@ func TestOpenAIStreamingPostOutputDisconnectQuarantinesSharedProxyWithoutSameStr
 		var failoverErr *UpstreamFailoverError
 		require.False(t, errors.As(err, &failoverErr), "post-output disconnect must not fail over inside the same stream")
 		require.Contains(t, rec.Body.String(), "partial")
+		require.Contains(t, rec.Body.String(), `"type":"error"`)
+		require.Contains(t, rec.Body.String(), "stream_read_error")
 	}
 
 	scheduler := &defaultOpenAIAccountScheduler{service: svc}
