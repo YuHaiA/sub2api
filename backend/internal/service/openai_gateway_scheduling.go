@@ -445,24 +445,13 @@ func shouldAutoPauseOpenAIAccountByQuota(ctx context.Context, account *Account) 
 	if account == nil || !account.IsOpenAI() {
 		return false, openAIQuotaAutoPauseDecision{}
 	}
-	// Per-account explicit-disable flags must take precedence over the global default.
-	// Without these, leaving the account threshold blank means "use global default",
-	// so an admin has no way to exempt a single account from auto-pause once a global
-	// default exists. The disable flag is per-window so an account can opt out of
-	// only 5h or only 7d auto-pause.
-	disabled5h := resolveAccountExtraBool(account.Extra, "auto_pause_5h_disabled")
-	disabled7d := resolveAccountExtraBool(account.Extra, "auto_pause_7d_disabled")
-	threshold5h, threshold7d := resolveOpenAIQuotaAutoPauseThresholds(ctx, account)
+	_ = ctx
 	now := time.Now()
-	if !disabled5h && threshold5h > 0 {
-		if utilization, ok := resolveOpenAIQuotaUtilization(account.Extra, "5h", now); ok && utilization >= threshold5h {
-			return true, openAIQuotaAutoPauseDecision{window: "5h", threshold: threshold5h, utilization: utilization}
-		}
+	if utilization, ok := resolveOpenAIQuotaUtilization(account.Extra, "5h", now); ok && utilization >= 1 {
+		return true, openAIQuotaAutoPauseDecision{window: "5h", threshold: 1, utilization: utilization}
 	}
-	if !disabled7d && threshold7d > 0 {
-		if utilization, ok := resolveOpenAIQuotaUtilization(account.Extra, "7d", now); ok && utilization >= threshold7d {
-			return true, openAIQuotaAutoPauseDecision{window: "7d", threshold: threshold7d, utilization: utilization}
-		}
+	if utilization, ok := resolveOpenAIQuotaUtilization(account.Extra, "7d", now); ok && utilization >= 1 {
+		return true, openAIQuotaAutoPauseDecision{window: "7d", threshold: 1, utilization: utilization}
 	}
 	return false, openAIQuotaAutoPauseDecision{}
 }
@@ -1310,6 +1299,7 @@ func (s *OpenAIGatewayService) listSchedulableAccounts(ctx context.Context, grou
 		if err != nil {
 			return accounts, err
 		}
+		accounts = mergeHealthyMihomoPoolAccounts(ctx, s.accountRepo, accounts, groupID, platform, s.cfg != nil && s.cfg.RunMode == config.RunModeSimple)
 		accounts = s.filterOpenAIAccountsBySchedulingThreshold(ctx, accounts)
 		if platform == PlatformGrok {
 			accounts = s.filterGrokFreeQuotaAccountsForOpenAI(ctx, accounts)
@@ -1328,6 +1318,7 @@ func (s *OpenAIGatewayService) listSchedulableAccounts(ctx context.Context, grou
 	if err != nil {
 		return nil, fmt.Errorf("query accounts failed: %w", err)
 	}
+	accounts = mergeHealthyMihomoPoolAccounts(ctx, s.accountRepo, accounts, groupID, platform, s.cfg != nil && s.cfg.RunMode == config.RunModeSimple)
 	accounts = s.filterOpenAIAccountsBySchedulingThreshold(ctx, accounts)
 	if platform == PlatformGrok {
 		accounts = s.filterGrokFreeQuotaAccountsForOpenAI(ctx, accounts)

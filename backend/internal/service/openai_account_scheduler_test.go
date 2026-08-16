@@ -859,7 +859,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_NoAvailableErrorReports
 			Schedulable: true,
 			Concurrency: 1,
 			Extra: map[string]any{
-				"codex_7d_used_percent":  95.0,
+				"codex_7d_used_percent":  100.0,
 				"codex_7d_reset_at":      time.Now().Add(24 * time.Hour).Format(time.RFC3339),
 				"codex_usage_updated_at": time.Now().Add(-time.Minute).Format(time.RFC3339),
 			},
@@ -931,7 +931,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_NoAvailableErrorAggrega
 		Schedulable: true,
 		Concurrency: 1,
 		Extra: map[string]any{
-			"codex_7d_used_percent":  95.0,
+			"codex_7d_used_percent":  100.0,
 			"codex_7d_reset_at":      time.Now().Add(24 * time.Hour).Format(time.RFC3339),
 			"codex_usage_updated_at": time.Now().Add(-time.Minute).Format(time.RFC3339),
 		},
@@ -1555,7 +1555,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_SessionStickyRateLimite
 	require.Equal(t, openAIAccountScheduleLayerLoadBalance, decision.Layer)
 }
 
-func TestOpenAIGatewayService_SelectAccountForModelWithExclusions_AutoPauseBy5hThreshold(t *testing.T) {
+func TestOpenAIGatewayService_SelectAccountForModelWithExclusions_AutoPauseAt5hExhaustion(t *testing.T) {
 	ctx := context.Background()
 	primary := Account{
 		ID:          35001,
@@ -1566,7 +1566,7 @@ func TestOpenAIGatewayService_SelectAccountForModelWithExclusions_AutoPauseBy5hT
 		Concurrency: 1,
 		Priority:    0,
 		Extra: map[string]any{
-			"codex_5h_used_percent":   95.0,
+			"codex_5h_used_percent":   100.0,
 			"auto_pause_5h_threshold": 0.95,
 		},
 	}
@@ -1603,7 +1603,7 @@ func TestOpenAIGatewayService_SelectAccountForModelWithExclusions_AllowsBelow5hT
 	require.Equal(t, int64(35101), account.ID)
 }
 
-func TestOpenAIGatewayService_SelectAccountForModelWithExclusions_AutoPauseBy7dThreshold(t *testing.T) {
+func TestOpenAIGatewayService_SelectAccountForModelWithExclusions_AutoPauseAt7dExhaustion(t *testing.T) {
 	ctx := context.Background()
 	primary := Account{
 		ID:          35201,
@@ -1614,7 +1614,7 @@ func TestOpenAIGatewayService_SelectAccountForModelWithExclusions_AutoPauseBy7dT
 		Concurrency: 1,
 		Priority:    0,
 		Extra: map[string]any{
-			"codex_7d_used_percent":   95.0,
+			"codex_7d_used_percent":   100.0,
 			"auto_pause_7d_threshold": 0.95,
 		},
 	}
@@ -1639,7 +1639,7 @@ func TestOpenAIGatewayService_SelectAccountForModelWithExclusions_UnconfiguredTh
 	require.Equal(t, int64(35301), account.ID)
 }
 
-func TestOpenAIGatewayService_SelectAccountForModelWithExclusions_UsesGlobalDefaultThreshold(t *testing.T) {
+func TestOpenAIGatewayService_SelectAccountForModelWithExclusions_GlobalThresholdDoesNotPauseEarly(t *testing.T) {
 	ctx := withOpenAIQuotaAutoPauseSettings(context.Background(), OpsOpenAIAccountQuotaAutoPauseSettings{DefaultThreshold5h: 0.95})
 	primary := Account{
 		ID:          35401,
@@ -1659,7 +1659,7 @@ func TestOpenAIGatewayService_SelectAccountForModelWithExclusions_UsesGlobalDefa
 	account, err := svc.SelectAccountForModelWithExclusions(ctx, nil, "", "gpt-5.1", nil)
 	require.NoError(t, err)
 	require.NotNil(t, account)
-	require.Equal(t, int64(35402), account.ID)
+	require.Equal(t, int64(35401), account.ID)
 }
 
 // Regression: a per-account explicit-disable flag exempts the account from auto-pause
@@ -1692,8 +1692,7 @@ func TestOpenAIGatewayService_SelectAccountForModelWithExclusions_PerAccountDisa
 	require.Equal(t, int64(35701), account.ID)
 }
 
-// Disable is per-window: disabling only 5h must still allow 7d auto-pause to fire.
-func TestOpenAIGatewayService_SelectAccountForModelWithExclusions_PerWindowDisableScoped(t *testing.T) {
+func TestOpenAIGatewayService_SelectAccountForModelWithExclusions_PerWindowThresholdDoesNotPauseEarly(t *testing.T) {
 	ctx := context.Background()
 	primary := Account{
 		ID:          35801,
@@ -1716,7 +1715,7 @@ func TestOpenAIGatewayService_SelectAccountForModelWithExclusions_PerWindowDisab
 	account, err := svc.SelectAccountForModelWithExclusions(ctx, nil, "", "gpt-5.1", nil)
 	require.NoError(t, err)
 	require.NotNil(t, account)
-	require.Equal(t, int64(35802), account.ID, "7d auto-pause must still fire even though 5h is disabled")
+	require.Equal(t, int64(35801), account.ID)
 }
 
 func TestOpenAIGatewayService_SelectAccountForModelWithExclusions_StaleUsageWindowResetSkipsPause(t *testing.T) {
@@ -1747,9 +1746,9 @@ func TestOpenAIGatewayService_SelectAccountForModelWithExclusions_StaleUsageWind
 	require.Equal(t, int64(35501), account.ID)
 }
 
-func TestOpenAIGatewayService_SelectAccountForModelWithExclusions_FreshUsageWindowStillPauses(t *testing.T) {
+func TestOpenAIGatewayService_SelectAccountForModelWithExclusions_FreshUsageBelowExhaustionStaysSchedulable(t *testing.T) {
 	ctx := context.Background()
-	// Same as above but the window has not reset yet, so the account stays paused.
+	// A fresh window below 100% remains schedulable regardless of the old threshold.
 	primary := Account{
 		ID:          35601,
 		Platform:    PlatformOpenAI,
@@ -1770,7 +1769,7 @@ func TestOpenAIGatewayService_SelectAccountForModelWithExclusions_FreshUsageWind
 	account, err := svc.SelectAccountForModelWithExclusions(ctx, nil, "", "gpt-5.1", nil)
 	require.NoError(t, err)
 	require.NotNil(t, account)
-	require.Equal(t, int64(35602), account.ID)
+	require.Equal(t, int64(35601), account.ID)
 }
 
 // Issue #2994: an account poisoned with an inflated used% (e.g. from the reverted #2918
@@ -1808,7 +1807,7 @@ func TestOpenAIGatewayService_SelectAccountForModelWithExclusions_StaleUsageSnap
 
 // Issue #2994 guardrail: a genuinely-exhausted account whose snapshot was refreshed recently
 // (codex_usage_updated_at fresh) must STILL be auto-paused. The stale self-heal must not let a
-// real 99%-used account escape pause.
+// real exhausted account escape pause.
 func TestOpenAIGatewayService_SelectAccountForModelWithExclusions_FreshExhaustedSnapshotStillPauses_Issue2994(t *testing.T) {
 	ctx := context.Background()
 	primary := Account{
@@ -1820,7 +1819,7 @@ func TestOpenAIGatewayService_SelectAccountForModelWithExclusions_FreshExhausted
 		Concurrency: 1,
 		Priority:    0,
 		Extra: map[string]any{
-			"codex_5h_used_percent":   99.0,
+			"codex_5h_used_percent":   100.0,
 			"auto_pause_5h_threshold": 0.95,
 			"codex_5h_reset_at":       time.Now().Add(time.Hour).Format(time.RFC3339),
 			// Snapshot refreshed 1 minute ago: not stale, so the account stays paused.
@@ -3050,7 +3049,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_LoadBalanceTopKExcludes
 			Concurrency: 1,
 			Priority:    0,
 			Extra: map[string]any{
-				"codex_5h_used_percent":   96.0,
+				"codex_5h_used_percent":   100.0,
 				"auto_pause_5h_threshold": 0.95,
 			},
 		},

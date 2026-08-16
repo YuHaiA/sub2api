@@ -60,7 +60,7 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_QuotaAutoPausedM
 		Concurrency: 2,
 		Extra: map[string]any{
 			"openai_apikey_responses_websockets_v2_enabled": true,
-			"codex_5h_used_percent":                         96.0,
+			"codex_5h_used_percent":                         100.0,
 			"auto_pause_5h_threshold":                       0.95,
 		},
 	}
@@ -79,7 +79,7 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_QuotaAutoPausedM
 
 	selection, err := svc.SelectAccountByPreviousResponseID(ctx, &groupID, "resp_prev_quota", "gpt-5.1", nil, false)
 	require.NoError(t, err)
-	require.Nil(t, selection, "超过 5h 配额阈值的账号不应继续命中 previous_response_id 粘连")
+	require.Nil(t, selection, "5h 配额耗尽的账号不应继续命中 previous_response_id 粘连")
 
 	// Auto-pause is transient, so the binding is preserved: the chain can resume on the
 	// same account once the quota window resets.

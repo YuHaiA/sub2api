@@ -28,8 +28,9 @@ type accountSchedulingThresholdCandidate struct {
 
 const accountSchedulingThresholdCredentialKey = "account_scheduling_threshold"
 
-// EvaluateAccountSchedulingThreshold evaluates whether an account should be paused
-// based on the current per-platform scheduling threshold snapshot.
+// EvaluateAccountSchedulingThreshold pauses only genuinely exhausted accounts.
+// Historical percentage thresholds remain readable for compatibility, but they
+// no longer stop scheduling before a quota window reaches 100% utilization.
 func EvaluateAccountSchedulingThreshold(account *Account, thresholds map[string]int, now time.Time) AccountSchedulingThresholdDecision {
 	decision := AccountSchedulingThresholdDecision{}
 	if account == nil {
@@ -44,20 +45,18 @@ func EvaluateAccountSchedulingThreshold(account *Account, thresholds map[string]
 		return decision
 	}
 
-	threshold, ok := resolveEffectiveAccountSchedulingThreshold(account, thresholds, decision.Platform)
-	decision.ThresholdPercent = threshold
-	if !ok || threshold >= 100 {
-		return decision
-	}
+	_ = thresholds
+	decision.ThresholdPercent = 100
+	const exhaustionThreshold = 100
 
 	var winner *accountSchedulingThresholdCandidate
 	switch decision.Platform {
 	case PlatformOpenAI:
-		winner = pickLatestResetSchedulingCandidate(openAIThresholdCandidates(account, now), threshold, now)
+		winner = pickLatestResetSchedulingCandidate(openAIThresholdCandidates(account, now), exhaustionThreshold, now)
 	case PlatformAnthropic:
-		winner = pickLatestResetSchedulingCandidate(anthropicThresholdCandidates(account), threshold, now)
+		winner = pickLatestResetSchedulingCandidate(anthropicThresholdCandidates(account), exhaustionThreshold, now)
 	case PlatformGrok:
-		winner = pickLatestResetSchedulingCandidate(grokThresholdCandidates(account), threshold, now)
+		winner = pickLatestResetSchedulingCandidate(grokThresholdCandidates(account), exhaustionThreshold, now)
 	default:
 		return decision
 	}

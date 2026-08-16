@@ -1034,7 +1034,8 @@ type GatewayConfig struct {
 //     OAuth accounts whose subscription_tier/plan_type is explicitly "free".
 //     Default true is safe only because free-tier detection is strict (unknown/paid fail open).
 //   - free_quota_token_limit: nominal rolling-window token allowance.
-//   - free_quota_soft_gate_percent: stop new scheduling before the nominal limit (1-100).
+//   - free_quota_soft_gate_percent: legacy compatibility setting; scheduling now
+//     stops only at 100% of the nominal local limit.
 //   - free_quota_window_hours: local usage rolling window length in hours.
 //   - free_quota_stats_cache_seconds: cache TTL for free-tier usage stats
 //     (hot path never blocks on DB; misses fail open and refresh in background).
@@ -1048,7 +1049,8 @@ type GatewayGrokConfig struct {
 	FreeQuotaSoftGateEnabled bool `mapstructure:"free_quota_soft_gate_enabled"`
 	// FreeQuotaTokenLimit is the nominal rolling-window allowance.
 	FreeQuotaTokenLimit int64 `mapstructure:"free_quota_token_limit"`
-	// FreeQuotaSoftGatePercent stops new scheduling before the nominal limit.
+	// FreeQuotaSoftGatePercent is retained for configuration compatibility.
+	// Runtime scheduling always uses 100% so accounts are not stopped early.
 	FreeQuotaSoftGatePercent int `mapstructure:"free_quota_soft_gate_percent"`
 	// FreeQuotaWindowHours controls the local rolling usage window.
 	FreeQuotaWindowHours int `mapstructure:"free_quota_window_hours"`
@@ -2352,7 +2354,7 @@ func setDefaults() {
 	viper.SetDefault("gateway.grok.password_auth_enabled", false)
 	// Free soft-gate nominal limit: 500k tokens / rolling 24h (operator policy).
 	viper.SetDefault("gateway.grok.free_quota_token_limit", int64(500_000))
-	viper.SetDefault("gateway.grok.free_quota_soft_gate_percent", 95)
+	viper.SetDefault("gateway.grok.free_quota_soft_gate_percent", 100)
 	viper.SetDefault("gateway.grok.free_quota_window_hours", 24)
 	viper.SetDefault("gateway.grok.free_quota_stats_cache_seconds", 60)
 	viper.SetDefault("gateway.image_concurrency.enabled", false)

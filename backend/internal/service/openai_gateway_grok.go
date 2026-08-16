@@ -177,7 +177,7 @@ func (s *OpenAIGatewayService) forwardGrokResponses(
 				StatusCode:             resp.StatusCode,
 				ResponseBody:           respBody,
 				ResponseHeaders:        resp.Header.Clone(),
-				RetryableOnSameAccount: account.IsPoolMode() && account.IsPoolModeRetryableStatus(resp.StatusCode),
+				RetryableOnSameAccount: account.IsPoolMode() && !account.MihomoPoolManaged() && account.IsPoolModeRetryableStatus(resp.StatusCode),
 			}
 		}
 		return s.handleErrorResponse(ctx, resp, c, account, patchedBody, upstreamModel)
@@ -1100,7 +1100,7 @@ func (s *OpenAIGatewayService) describeGrokComposerImage(
 				StatusCode:             resp.StatusCode,
 				ResponseBody:           respBody,
 				ResponseHeaders:        resp.Header.Clone(),
-				RetryableOnSameAccount: account.IsPoolMode() && account.IsPoolModeRetryableStatus(resp.StatusCode),
+				RetryableOnSameAccount: account.IsPoolMode() && !account.MihomoPoolManaged() && account.IsPoolModeRetryableStatus(resp.StatusCode),
 			}
 		}
 		return "", OpenAIUsage{}, fmt.Errorf("grok composer image bridge upstream error: %s", upstreamMsg)
@@ -1316,11 +1316,10 @@ func (s *OpenAIGatewayService) updateGrokUsageSnapshot(ctx context.Context, acco
 	if s.accountRepo != nil {
 		_ = s.accountRepo.UpdateExtra(stateCtx, accountID, updates)
 	}
-	// Error responses are reconciled by handleGrokAccountUpstreamError. Pool-mode
-	// API keys retain the snapshot for observability but leave account health to
-	// the upstream pool. Other accounts install the immediate runtime and durable
-	// rate-limit state when the observed window is exhausted.
-	if hasActiveLimit && !account.IsPoolMode() {
+	// Error responses are reconciled by handleGrokAccountUpstreamError. Ordinary
+	// pool-mode API keys leave account health to the upstream pool; Mihomo-managed
+	// members must still install local cooldowns so the scheduler can switch exits.
+	if hasActiveLimit && (!account.IsPoolMode() || account.MihomoPoolManaged()) {
 		s.rateLimitGrok(stateCtx, account, resetAt)
 	} else if recovery {
 		clearGrokRateLimitAfterRecovery(stateCtx, s.accountRepo, account)
@@ -1678,10 +1677,11 @@ func (s *OpenAIGatewayService) handleGrokAccountUpstreamError(ctx context.Contex
 
 	// Body-first free-usage / empty / billing / capacity must run before the
 	// status switch so non-429 free-usage bodies still cool the account.
-	// Pool-mode still skips durable mutation unless an explicit temp rule matches.
+	// Ordinary pool-mode accounts skip durable mutation unless an explicit temp
+	// rule matches. Mihomo-managed accounts persist cooldowns so failover can move.
 	decision := classifyGrokUpstreamFailure(statusCode, responseBody, grokRequestedModelFromCtx(ctx))
 	if decision.ShouldCooldown && decision.Class != GrokFailureNone && decision.Class != GrokFailureRateLimit {
-		if account.IsPoolMode() {
+		if account.IsPoolMode() && !account.MihomoPoolManaged() {
 			// Allow configured temp rules (403) below; skip default body cools.
 		} else {
 			// A free-tier exhaustion message describes a rolling usage window. Use
@@ -1707,7 +1707,7 @@ func (s *OpenAIGatewayService) handleGrokAccountUpstreamError(ctx context.Contex
 	if statusCode == http.StatusForbidden && s.applyGrokForbiddenPolicy(ctx, account, responseBody) {
 		return
 	}
-	if account.IsPoolMode() {
+	if account.IsPoolMode() && !account.MihomoPoolManaged() {
 		slog.Info("grok_pool_mode_error_state_skipped", "account_id", account.ID, "status_code", statusCode)
 		return
 	}

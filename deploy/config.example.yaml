@@ -450,7 +450,8 @@ gateway:
     password_auth_enabled: false
     free_quota_soft_gate_enabled: true
     free_quota_token_limit: 500000
-    free_quota_soft_gate_percent: 95
+    # Retained for compatibility; runtime scheduling blocks only at 100%.
+    free_quota_soft_gate_percent: 100
     free_quota_window_hours: 24
     # Stats cache for free-tier soft gate. Hot path never waits on DB: misses
     # fail open and refresh in the background. Prefer >= 60s in production.

@@ -827,6 +827,54 @@ func hasAdditionalAccountExclusions(original, expanded map[int64]struct{}) bool 
 	return false
 }
 
+func mergeHealthyMihomoPoolAccounts(ctx context.Context, repo AccountRepository, accounts []Account, groupID *int64, platform string, simpleMode bool) []Account {
+	if repo == nil || !strings.EqualFold(strings.TrimSpace(platform), PlatformGrok) {
+		return accounts
+	}
+
+	poolAccounts, err := repo.ListByPlatform(ctx, PlatformGrok)
+	if err != nil || len(poolAccounts) == 0 {
+		return accounts
+	}
+
+	seen := make(map[int64]struct{}, len(accounts))
+	for i := range accounts {
+		seen[accounts[i].ID] = struct{}{}
+	}
+	for i := range poolAccounts {
+		account := poolAccounts[i]
+		if _, ok := seen[account.ID]; ok || !account.MihomoPoolManaged() || !account.IsSchedulable() {
+			continue
+		}
+		if !simpleMode && !mihomoPoolAccountMatchesGroup(&account, groupID) {
+			continue
+		}
+		accounts = append(accounts, account)
+		seen[account.ID] = struct{}{}
+	}
+	return accounts
+}
+
+func mihomoPoolAccountMatchesGroup(account *Account, groupID *int64) bool {
+	if account == nil {
+		return false
+	}
+	if groupID == nil {
+		return len(account.AccountGroups) == 0 && len(account.GroupIDs) == 0
+	}
+	for _, accountGroup := range account.AccountGroups {
+		if accountGroup.GroupID == *groupID {
+			return true
+		}
+	}
+	for _, id := range account.GroupIDs {
+		if id == *groupID {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *GatewayService) tryAcquireByLegacyOrder(ctx context.Context, candidates []*Account, groupID *int64, sessionHash string, preferOAuth bool) (*AccountSelectionResult, bool, error) {
 	ordered := append([]*Account(nil), candidates...)
 	sortAccountsByPriorityAndLastUsed(ordered, preferOAuth)
@@ -1022,6 +1070,7 @@ func (s *GatewayService) listSchedulableAccounts(ctx context.Context, groupID *i
 	if s.schedulerSnapshot != nil {
 		accounts, useMixed, err := s.schedulerSnapshot.ListSchedulableAccounts(ctx, groupID, platform, hasForcePlatform)
 		if err == nil {
+			accounts = mergeHealthyMihomoPoolAccounts(ctx, s.accountRepo, accounts, groupID, platform, s.cfg != nil && s.cfg.RunMode == config.RunModeSimple)
 			accounts = s.filterAccountsBySchedulingThreshold(ctx, accounts)
 			if platform == PlatformGrok || strings.EqualFold(platform, PlatformGrok) {
 				accounts = s.filterGrokFreeQuotaAccountsForGateway(ctx, accounts)
@@ -1107,6 +1156,7 @@ func (s *GatewayService) listSchedulableAccounts(ctx context.Context, groupID *i
 			"error", err)
 		return nil, useMixed, err
 	}
+	accounts = mergeHealthyMihomoPoolAccounts(ctx, s.accountRepo, accounts, groupID, platform, s.cfg != nil && s.cfg.RunMode == config.RunModeSimple)
 	slog.Debug("account_scheduling_list_single",
 		"group_id", derefGroupID(groupID),
 		"platform", platform,

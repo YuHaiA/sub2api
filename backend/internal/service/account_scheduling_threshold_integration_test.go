@@ -102,7 +102,7 @@ func TestOpenAIGatewayService_ListSchedulableAccounts_FiltersThresholdBlockedAcc
 				Status:      StatusActive,
 				Schedulable: true,
 				Extra: map[string]any{
-					"codex_7d_used_percent": 91.0,
+					"codex_7d_used_percent": 100.0,
 					"codex_7d_reset_at":     time.Now().UTC().Add(12 * time.Hour).Format(time.RFC3339),
 				},
 			},

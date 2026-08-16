@@ -30,7 +30,7 @@ func TestRateLimitService_ApplyAccountSchedulingThreshold_SetsTempUnschedulable(
 		Status:      StatusActive,
 		Schedulable: true,
 		Extra: map[string]any{
-			"codex_7d_used_percent": 91.5,
+			"codex_7d_used_percent": 100.0,
 			"codex_7d_reset_at":     until.Format(time.RFC3339),
 		},
 	}
@@ -47,9 +47,9 @@ func TestRateLimitService_ApplyAccountSchedulingThreshold_SetsTempUnschedulable(
 	require.NoError(t, json.Unmarshal([]byte(accountRepo.lastTempReason), &payload))
 	require.Equal(t, PlatformOpenAI, payload["platform"])
 	require.Equal(t, "7d", payload["window"])
-	require.Equal(t, float64(80), payload["threshold_percent"])
-	require.Equal(t, float64(91.5), payload["used_percent"])
-	require.Contains(t, payload["error_message"], "91.5% used >= 80%")
+	require.Equal(t, float64(100), payload["threshold_percent"])
+	require.Equal(t, float64(100), payload["used_percent"])
+	require.Contains(t, payload["error_message"], "100.0% used >= 100%")
 }
 
 func TestRateLimitService_ApplyAccountSchedulingThreshold_UsesAccountOverrideInReason(t *testing.T) {
@@ -73,7 +73,7 @@ func TestRateLimitService_ApplyAccountSchedulingThreshold_UsesAccountOverrideInR
 			"account_scheduling_threshold": 80,
 		},
 		Extra: map[string]any{
-			"codex_7d_used_percent": 85.5,
+			"codex_7d_used_percent": 100.0,
 			"codex_7d_reset_at":     until.Format(time.RFC3339),
 		},
 	}
@@ -85,9 +85,9 @@ func TestRateLimitService_ApplyAccountSchedulingThreshold_UsesAccountOverrideInR
 
 	var payload map[string]any
 	require.NoError(t, json.Unmarshal([]byte(accountRepo.lastTempReason), &payload))
-	require.Equal(t, float64(80), payload["threshold_percent"])
-	require.Equal(t, float64(85.5), payload["used_percent"])
-	require.Contains(t, payload["error_message"], "85.5% used >= 80%")
+	require.Equal(t, float64(100), payload["threshold_percent"])
+	require.Equal(t, float64(100), payload["used_percent"])
+	require.Contains(t, payload["error_message"], "100.0% used >= 100%")
 }
 
 func TestRateLimitService_ApplyAccountSchedulingThreshold_SkipsDuplicateTempUnschedulable(t *testing.T) {
@@ -105,8 +105,8 @@ func TestRateLimitService_ApplyAccountSchedulingThreshold_SkipsDuplicateTempUnsc
 	existingReason := BuildDetailedAccountSchedulingThresholdReason(AccountSchedulingThresholdReasonInput{
 		Platform:         PlatformOpenAI,
 		Window:           "7d",
-		ThresholdPercent: 80,
-		UsedPercent:      91.5,
+		ThresholdPercent: 100,
+		UsedPercent:      100,
 		Until:            until,
 		Now:              until.Add(-time.Hour),
 	})
@@ -118,7 +118,7 @@ func TestRateLimitService_ApplyAccountSchedulingThreshold_SkipsDuplicateTempUnsc
 		TempUnschedulableUntil:  &until,
 		TempUnschedulableReason: existingReason,
 		Extra: map[string]any{
-			"codex_7d_used_percent": 91.5,
+			"codex_7d_used_percent": 100.0,
 			"codex_7d_reset_at":     until.Format(time.RFC3339),
 		},
 	}

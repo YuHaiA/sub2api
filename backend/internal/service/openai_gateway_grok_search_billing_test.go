@@ -106,7 +106,7 @@ func TestGetSchedulableAccount_AppliesGrokFreeSoftGate(t *testing.T) {
 		accountsByID: map[int64]*Account{account.ID: account},
 	}
 	usageRepo := &grokFreeQuotaUsageRepoStub{stats: map[int64]*usagestats.AccountStats{
-		account.ID: {Tokens: 480_000}, // above 95% of 500k
+		account.ID: {Tokens: 500_000},
 	}}
 	// Clear shared gateway free-gate cache so this test is deterministic.
 	gatewayGrokFreeQuotaGateCache.Range(func(key, _ any) bool {
@@ -153,7 +153,7 @@ func TestOpenAIGetSchedulableAccount_AppliesGrokFreeSoftGate(t *testing.T) {
 		accountsByID: map[int64]*Account{account.ID: account},
 	}
 	usageRepo := &grokFreeQuotaUsageRepoStub{stats: map[int64]*usagestats.AccountStats{
-		account.ID: {Tokens: 480_000},
+		account.ID: {Tokens: 500_000},
 	}}
 	openaiGrokFreeQuotaGateCache.Range(func(key, _ any) bool {
 		openaiGrokFreeQuotaGateCache.Delete(key)

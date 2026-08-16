@@ -18,9 +18,9 @@ func TestEvaluateAccountSchedulingThreshold_OpenAIChoosesLatestResetWindow(t *te
 	account := &Account{
 		Platform: PlatformOpenAI,
 		Extra: map[string]any{
-			"codex_5h_used_percent": 90.0,
+			"codex_5h_used_percent": 100.0,
 			"codex_5h_reset_at":     now.Add(2 * time.Hour).Format(time.RFC3339),
-			"codex_7d_used_percent": 85.0,
+			"codex_7d_used_percent": 100.0,
 			"codex_7d_reset_at":     wantUntil.Format(time.RFC3339),
 		},
 	}
@@ -33,7 +33,7 @@ func TestEvaluateAccountSchedulingThreshold_OpenAIChoosesLatestResetWindow(t *te
 	require.Equal(t, PlatformOpenAI, decision.Platform)
 	require.Equal(t, "7d", decision.Window)
 	require.Empty(t, decision.Scope)
-	require.Equal(t, 85.0, decision.UsedPercent)
+	require.Equal(t, 100.0, decision.UsedPercent)
 	require.NotNil(t, decision.Until)
 	require.True(t, wantUntil.Equal(*decision.Until))
 }
@@ -78,7 +78,7 @@ func TestEvaluateAccountSchedulingThreshold_AnthropicIgnoresExpiredFiveHourWindo
 		SessionWindowEnd: &expiredEnd,
 		Extra: map[string]any{
 			"session_window_utilization":   0.99,
-			"passive_usage_7d_utilization": 0.82,
+			"passive_usage_7d_utilization": 1.0,
 			"passive_usage_7d_reset":       float64(wantUntil.Unix()),
 		},
 	}
@@ -91,7 +91,7 @@ func TestEvaluateAccountSchedulingThreshold_AnthropicIgnoresExpiredFiveHourWindo
 	require.Equal(t, PlatformAnthropic, decision.Platform)
 	require.Equal(t, "7d", decision.Window)
 	require.Empty(t, decision.Scope)
-	require.Equal(t, 82.0, decision.UsedPercent)
+	require.Equal(t, 100.0, decision.UsedPercent)
 	require.NotNil(t, decision.Until)
 	require.True(t, wantUntil.Equal(*decision.Until))
 }
@@ -118,12 +118,18 @@ func TestEvaluateAccountSchedulingThreshold_OpenAIPreservesPercentageSemantics(t
 	}, now)
 	require.False(t, openAIDecision.ShouldPause)
 
-	openAIAccount.Extra["codex_5h_used_percent"] = 91.0
+	openAIAccount.Extra["codex_5h_used_percent"] = 99.0
+	openAIDecision = EvaluateAccountSchedulingThreshold(openAIAccount, map[string]int{
+		PlatformOpenAI: 90,
+	}, now)
+	require.False(t, openAIDecision.ShouldPause)
+
+	openAIAccount.Extra["codex_5h_used_percent"] = 100.0
 	openAIDecision = EvaluateAccountSchedulingThreshold(openAIAccount, map[string]int{
 		PlatformOpenAI: 90,
 	}, now)
 	require.True(t, openAIDecision.ShouldPause)
-	require.Equal(t, 91.0, openAIDecision.UsedPercent)
+	require.Equal(t, 100.0, openAIDecision.UsedPercent)
 }
 
 func TestEvaluateAccountSchedulingThreshold_OpenAISkipsStaleSnapshot(t *testing.T) {
@@ -194,7 +200,7 @@ func TestEvaluateAccountSchedulingThreshold_OpenAIPausesFreshExhaustedSevenDayWi
 		Platform: PlatformOpenAI,
 		Extra: map[string]any{
 			"codex_usage_updated_at": now.Add(-time.Minute).Format(time.RFC3339),
-			"codex_7d_used_percent":  95.0,
+			"codex_7d_used_percent":  100.0,
 			"codex_7d_reset_at":      resetAt.Format(time.RFC3339),
 		},
 	}
@@ -203,7 +209,7 @@ func TestEvaluateAccountSchedulingThreshold_OpenAIPausesFreshExhaustedSevenDayWi
 
 	require.True(t, decision.ShouldPause)
 	require.Equal(t, "7d", decision.Window)
-	require.Equal(t, 95.0, decision.UsedPercent)
+	require.Equal(t, 100.0, decision.UsedPercent)
 	require.NotNil(t, decision.Until)
 	require.True(t, resetAt.Equal(*decision.Until))
 }
@@ -218,7 +224,7 @@ func TestEvaluateAccountSchedulingThreshold_AnthropicPreservesFractionalUtilizat
 		Platform:         PlatformAnthropic,
 		SessionWindowEnd: &anthropicUntil,
 		Extra: map[string]any{
-			"session_window_utilization": 0.92,
+			"session_window_utilization": 0.99,
 		},
 	}
 
@@ -226,11 +232,10 @@ func TestEvaluateAccountSchedulingThreshold_AnthropicPreservesFractionalUtilizat
 		PlatformAnthropic: 90,
 	}, now)
 
-	require.True(t, anthropicDecision.ShouldPause)
-	require.Equal(t, 92.0, anthropicDecision.UsedPercent)
+	require.False(t, anthropicDecision.ShouldPause)
 }
 
-func TestEvaluateAccountSchedulingThreshold_AccountOverrideCanLowerOpenAIThreshold(t *testing.T) {
+func TestEvaluateAccountSchedulingThreshold_AccountOverrideCannotPauseBeforeExhaustion(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 6, 3, 12, 0, 0, 0, time.UTC)
@@ -250,14 +255,9 @@ func TestEvaluateAccountSchedulingThreshold_AccountOverrideCanLowerOpenAIThresho
 		PlatformOpenAI: 90,
 	}, now)
 
-	require.True(t, decision.ShouldPause)
+	require.False(t, decision.ShouldPause)
 	require.Equal(t, PlatformOpenAI, decision.Platform)
-	require.Equal(t, 80, decision.ThresholdPercent)
-	require.Equal(t, "7d", decision.Window)
-	require.Empty(t, decision.Scope)
-	require.Equal(t, 85.0, decision.UsedPercent)
-	require.NotNil(t, decision.Until)
-	require.True(t, wantUntil.Equal(*decision.Until))
+	require.Equal(t, 100, decision.ThresholdPercent)
 }
 
 func TestEvaluateAccountSchedulingThreshold_AccountOverrideHundredDisablesOpenAI(t *testing.T) {
@@ -303,11 +303,8 @@ func TestEvaluateAccountSchedulingThreshold_AccountOverrideRoundsDecimalThreshol
 		PlatformOpenAI: 90,
 	}, now)
 
-	require.True(t, decision.ShouldPause)
-	require.Equal(t, 76, decision.ThresholdPercent)
-	require.Equal(t, 80.0, decision.UsedPercent)
-	require.NotNil(t, decision.Until)
-	require.True(t, wantUntil.Equal(*decision.Until))
+	require.False(t, decision.ShouldPause)
+	require.Equal(t, 100, decision.ThresholdPercent)
 }
 
 func TestEvaluateAccountSchedulingThreshold_UnsupportedPlatformsDoNotPause(t *testing.T) {
@@ -379,7 +376,7 @@ func TestEvaluateAccountSchedulingThreshold_UnsupportedPlatformsDoNotPause(t *te
 	}
 }
 
-func TestEvaluateAccountSchedulingThreshold_GrokUsesConfiguredThresholds(t *testing.T) {
+func TestEvaluateAccountSchedulingThreshold_GrokPausesOnlyAtExhaustion(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 6, 3, 12, 0, 0, 0, time.UTC)
@@ -396,11 +393,15 @@ func TestEvaluateAccountSchedulingThreshold_GrokUsesConfiguredThresholds(t *test
 		PlatformGrok: 90,
 	}, now)
 
+	require.False(t, decision.ShouldPause)
+
+	account.Extra["grok_sched_utilization"] = 100.0
+	decision = EvaluateAccountSchedulingThreshold(account, map[string]int{PlatformGrok: 90}, now)
 	require.True(t, decision.ShouldPause)
 	require.Equal(t, PlatformGrok, decision.Platform)
-	require.Equal(t, 90, decision.ThresholdPercent)
+	require.Equal(t, 100, decision.ThresholdPercent)
 	require.Equal(t, "grok", decision.Scope)
-	require.Equal(t, 92.0, decision.UsedPercent)
+	require.Equal(t, 100.0, decision.UsedPercent)
 	require.NotNil(t, decision.Until)
 	require.True(t, wantUntil.Equal(*decision.Until))
 }
@@ -427,6 +428,10 @@ func TestEvaluateAccountSchedulingThreshold_GrokUsesOnlyHeaderQuotaWindow(t *tes
 	require.False(t, decision.ShouldPause, "high billing % alone must not pause under scheduling windows")
 
 	account.Extra["grok_sched_utilization"] = 95.0
+	decision = EvaluateAccountSchedulingThreshold(account, map[string]int{PlatformGrok: 90}, now)
+	require.False(t, decision.ShouldPause)
+
+	account.Extra["grok_sched_utilization"] = 100.0
 	decision = EvaluateAccountSchedulingThreshold(account, map[string]int{PlatformGrok: 90}, now)
 	require.True(t, decision.ShouldPause)
 	require.Equal(t, "grok", decision.Scope)

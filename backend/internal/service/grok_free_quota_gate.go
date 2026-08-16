@@ -17,7 +17,7 @@ import (
 // Config keys (gateway.grok.*):
 //   - free_quota_soft_gate_enabled     (bool, default true)
 //   - free_quota_token_limit           (int64, default 500_000)
-//   - free_quota_soft_gate_percent     (int, default 95) — stop scheduling before the nominal limit
+//   - free_quota_soft_gate_percent     (legacy compatibility; effective value is 100)
 //   - free_quota_window_hours          (int, default 24) — local usage rolling window
 //   - free_quota_stats_cache_seconds   (int, default 60) — stats cache TTL; hot path never waits on DB
 //
@@ -55,13 +55,13 @@ func resolveGrokFreeQuotaGateSettings(cfg *config.Config) (grokFreeQuotaGateSett
 		return grokFreeQuotaGateSettings{}, false
 	}
 	limit := cfg.Gateway.Grok.FreeQuotaTokenLimit
-	percent := cfg.Gateway.Grok.FreeQuotaSoftGatePercent
+	configuredPercent := cfg.Gateway.Grok.FreeQuotaSoftGatePercent
 	windowHours := cfg.Gateway.Grok.FreeQuotaWindowHours
 	cacheSeconds := cfg.Gateway.Grok.FreeQuotaStatsCacheSeconds
-	if limit <= 0 || percent < 1 || percent > 100 || windowHours <= 0 || cacheSeconds < 0 {
+	if limit <= 0 || configuredPercent < 1 || configuredPercent > 100 || windowHours <= 0 || cacheSeconds < 0 {
 		return grokFreeQuotaGateSettings{}, false
 	}
-	gate := calculateGrokFreeQuotaSoftGateTokens(limit, percent)
+	gate := calculateGrokFreeQuotaSoftGateTokens(limit, 100)
 	if gate <= 0 {
 		return grokFreeQuotaGateSettings{}, false
 	}
@@ -113,8 +113,8 @@ func (s *defaultOpenAIAccountScheduler) filterGrokFreeQuotaAccounts(ctx context.
 }
 
 // filterGrokFreeQuotaAccountsForGateway applies the same soft gate on Gateway
-// scheduling (e.g. /v1/web_search) so free accounts near local 95%/1M are not
-// still selected for native search while Responses soft-gates them out.
+// scheduling (e.g. /v1/web_search) so locally exhausted free accounts are
+// handled consistently across native search and Responses.
 func (s *GatewayService) filterGrokFreeQuotaAccountsForGateway(ctx context.Context, accounts []Account) []Account {
 	if s == nil {
 		return accounts

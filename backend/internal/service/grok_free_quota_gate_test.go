@@ -65,7 +65,7 @@ func grokFreeQuotaTestConfig() *config.Config {
 
 func TestFilterGrokFreeQuotaAccountsOnlyBlocksExplicitFreeOAuth(t *testing.T) {
 	repo := &grokFreeQuotaUsageRepoStub{stats: map[int64]*usagestats.AccountStats{
-		1: {Tokens: 475_000}, // 95% of 500k
+		1: {Tokens: 500_000},
 	}}
 	// Clear shared cache for deterministic unit tests.
 	openaiGrokFreeQuotaGateCache = sync.Map{}
@@ -134,7 +134,7 @@ func TestFilterGrokFreeQuotaAccountsUnknownTierFailOpen(t *testing.T) {
 
 func TestFilterGrokFreeQuotaAccountsRecoversAfterRollingUsageFalls(t *testing.T) {
 	repo := &grokFreeQuotaUsageRepoStub{stats: map[int64]*usagestats.AccountStats{
-		1: {Tokens: 490_000},
+		1: {Tokens: 500_000},
 	}}
 	openaiGrokFreeQuotaGateCache = sync.Map{}
 	scheduler := &defaultOpenAIAccountScheduler{service: &OpenAIGatewayService{cfg: grokFreeQuotaTestConfig(), usageLogRepo: repo}}
@@ -165,7 +165,7 @@ func TestFilterGrokFreeQuotaAccountsRecoversAfterRollingUsageFalls(t *testing.T)
 	}
 	callsBeforeExpire := repo.calls
 	scheduler.grokFreeQuotaGateCache.Store(int64(1), grokFreeQuotaGateCacheEntry{
-		tokens: 490_000, checkedAt: time.Now().Add(-2 * time.Minute), known: true, // TTL=60s → stale
+		tokens: 500_000, checkedAt: time.Now().Add(-2 * time.Minute), known: true, // TTL=60s → stale
 	})
 	// Hot path fail-open while refresh is in flight.
 	require.Equal(t, []int64{1}, accountIDs(scheduler.filterGrokFreeQuotaAccounts(context.Background(), accounts)))
@@ -176,12 +176,30 @@ func TestFilterGrokFreeQuotaAccountsRecoversAfterRollingUsageFalls(t *testing.T)
 	}, 2*time.Second, 10*time.Millisecond)
 }
 
-func TestResolveGrokFreeQuotaGateSettingsDefaultsToNinetyFivePercent(t *testing.T) {
+func TestResolveGrokFreeQuotaGateSettingsUsesExhaustionLimit(t *testing.T) {
 	settings, ok := resolveGrokFreeQuotaGateSettings(grokFreeQuotaTestConfig())
 	require.True(t, ok)
 	require.Equal(t, int64(500_000), settings.limitTokens)
-	require.Equal(t, int64(475_000), settings.gateTokens) // 95% of 500k
+	require.Equal(t, int64(500_000), settings.gateTokens)
 	require.Equal(t, 24*time.Hour, settings.window)
+}
+
+func TestFilterGrokFreeQuotaAccountsDoesNotBlockBeforeExhaustion(t *testing.T) {
+	cache := sync.Map{}
+	cache.Store(int64(1), grokFreeQuotaGateCacheEntry{
+		tokens:    499_999,
+		checkedAt: time.Now().UTC(),
+		known:     true,
+	})
+	accounts := []Account{{
+		ID:          1,
+		Platform:    PlatformGrok,
+		Type:        AccountTypeOAuth,
+		Credentials: map[string]any{"subscription_tier": "free"},
+	}}
+
+	filtered := filterGrokFreeQuotaAccountsCore(context.Background(), grokFreeQuotaTestConfig(), &grokFreeQuotaUsageRepoStub{}, &cache, accounts)
+	require.Equal(t, []int64{1}, accountIDs(filtered))
 }
 
 func TestIsExplicitGrokFreeOAuthAccount_OnlyExactFree(t *testing.T) {
@@ -207,7 +225,7 @@ func TestOpenAIAccountSchedulerLoadBalanceAppliesGrokFreeQuotaGate(t *testing.T)
 		cfg:         cfg,
 		accountRepo: &grokFreeQuotaAccountRepoStub{accounts: accounts},
 		usageLogRepo: &grokFreeQuotaUsageRepoStub{stats: map[int64]*usagestats.AccountStats{
-			1: {Tokens: 480_000}, // over 95% of 500k
+			1: {Tokens: 500_000},
 		}},
 	}
 	scheduler := &defaultOpenAIAccountScheduler{service: svc, stats: newOpenAIAccountRuntimeStats()}

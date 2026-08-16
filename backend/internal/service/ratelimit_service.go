@@ -138,15 +138,14 @@ func (s *RateLimitService) notifyAccountSchedulingBlockCleared(accountID int64) 
 	s.runtimeBlocker.ClearAccountSchedulingBlock(accountID)
 }
 
-// ApplyAccountSchedulingThreshold evaluates admin-configured per-platform
-// utilization thresholds and, when breached, parks the account as temp-
-// unschedulable until the winning window resets. Returns true when the account
-// is blocked (either newly or already paused for the same threshold reason).
+// ApplyAccountSchedulingThreshold parks an account only when a trusted quota
+// snapshot reports a fully exhausted window. It returns true when the account
+// is blocked (either newly or already paused for the same exhaustion reason).
 func (s *RateLimitService) ApplyAccountSchedulingThreshold(ctx context.Context, account *Account) bool {
 	if s == nil || s.settingService == nil || s.accountRepo == nil || account == nil || account.ID <= 0 {
 		return false
 	}
-	if !account.IsActive() || !account.Schedulable {
+	if !account.IsActive() || (!account.Schedulable && !account.MihomoPoolManaged()) {
 		return false
 	}
 
