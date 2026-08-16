@@ -26,6 +26,9 @@ import (
 type grokQuotaAccountRepo struct {
 	*mockAccountRepoForPlatform
 	updates               map[int64]map[string]any
+	getByIDSequence       []*Account
+	getByIDSequenceIndex  int
+	getByIDSequenceMu     sync.Mutex
 	updateCalls           int
 	rateLimitedCalls      int
 	lastRateLimitedID     int64
@@ -38,6 +41,20 @@ type grokQuotaAccountRepo struct {
 	recoveryObservedAt    time.Time
 	recoveryObservedReset time.Time
 	recoveryClearResult   bool
+}
+
+func (r *grokQuotaAccountRepo) GetByID(ctx context.Context, id int64) (*Account, error) {
+	r.getByIDSequenceMu.Lock()
+	defer r.getByIDSequenceMu.Unlock()
+	if len(r.getByIDSequence) > 0 {
+		index := r.getByIDSequenceIndex
+		if index >= len(r.getByIDSequence) {
+			index = len(r.getByIDSequence) - 1
+		}
+		r.getByIDSequenceIndex++
+		return r.getByIDSequence[index], nil
+	}
+	return r.mockAccountRepoForPlatform.GetByID(ctx, id)
 }
 
 func (r *grokQuotaAccountRepo) UpdateExtra(_ context.Context, id int64, updates map[string]any) error {
@@ -362,11 +379,12 @@ func TestGrokQuotaServiceFetchBillingRetriesCloudflare520ThenSucceeds(t *testing
 	require.Len(t, upstream.snapshotRequests(), 2)
 }
 
-func TestGrokQuotaServiceFetchBillingReturnsConciseCloudflareErrorAfterRetry(t *testing.T) {
+func TestGrokQuotaServiceFetchBillingReturnsConciseCloudflareErrorAfterRetries(t *testing.T) {
 	account := healthyGrokQuotaOAuthAccount(407)
 	upstream := &grokQuotaSequenceUpstream{steps: []grokQuotaUpstreamStep{
-		{status: 520, body: `The origin web server returned an invalid or incomplete response to Cloudflare.`},
-		{status: 520, body: `<html><body>The origin web server returned an invalid or incomplete response to Cloudflare.</body></html>`},
+		{status: http.StatusBadGateway, body: `The origin web server returned an invalid or incomplete response to Cloudflare.`},
+		{status: http.StatusBadGateway, body: `<html><body>The origin web server returned an invalid or incomplete response to Cloudflare.</body></html>`},
+		{status: http.StatusBadGateway, body: `The origin web server returned an invalid or incomplete response to Cloudflare.`},
 	}}
 	svc := &GrokQuotaService{httpUpstream: upstream}
 
@@ -374,9 +392,9 @@ func TestGrokQuotaServiceFetchBillingReturnsConciseCloudflareErrorAfterRetry(t *
 
 	require.Error(t, err)
 	require.Nil(t, summary)
-	require.Equal(t, 520, status)
-	require.Equal(t, "billing returned 520: Cloudflare upstream temporarily unavailable", infraerrors.Message(err))
-	require.Len(t, upstream.snapshotRequests(), 2)
+	require.Equal(t, http.StatusBadGateway, status)
+	require.Equal(t, "billing returned 502: Cloudflare upstream temporarily unavailable", infraerrors.Message(err))
+	require.Len(t, upstream.snapshotRequests(), 3)
 }
 
 func TestGrokQuotaServiceFetchBillingRetriesTransportErrorThenSucceeds(t *testing.T) {
@@ -395,9 +413,10 @@ func TestGrokQuotaServiceFetchBillingRetriesTransportErrorThenSucceeds(t *testin
 	require.Len(t, upstream.snapshotRequests(), 2)
 }
 
-func TestGrokQuotaServiceFetchBillingStopsAfterSingleTransientRetry(t *testing.T) {
+func TestGrokQuotaServiceFetchBillingStopsAfterTransientRetries(t *testing.T) {
 	account := healthyGrokQuotaOAuthAccount(403)
 	upstream := &grokQuotaSequenceUpstream{steps: []grokQuotaUpstreamStep{
+		{status: http.StatusBadGateway, body: `cloudflare failure`},
 		{status: http.StatusBadGateway, body: `cloudflare failure`},
 		{status: http.StatusBadGateway, body: `cloudflare failure`},
 		{status: http.StatusOK, body: `{"config":{"currentPeriod":{"type":"WEEKLY"}}}`},
@@ -411,7 +430,7 @@ func TestGrokQuotaServiceFetchBillingStopsAfterSingleTransientRetry(t *testing.T
 	require.Equal(t, http.StatusBadGateway, status)
 	require.Equal(t, "GROK_QUOTA_PROBE_UPSTREAM_ERROR", infraerrors.Reason(err))
 	require.Contains(t, infraerrors.Message(err), "billing returned 502: cloudflare failure")
-	require.Len(t, upstream.snapshotRequests(), 2)
+	require.Len(t, upstream.snapshotRequests(), 3)
 }
 
 func TestGrokQuotaServiceFetchBillingDoesNotRetryNonTransientStatuses(t *testing.T) {
@@ -473,7 +492,7 @@ func TestIsRetryableGrokBillingStatus(t *testing.T) {
 	}
 }
 
-func TestGrokQuotaServiceProbeUsageDoesNotRetryResponsesPost(t *testing.T) {
+func TestGrokQuotaServiceProbeUsageRetriesTransientResponsesPost(t *testing.T) {
 	account := healthyGrokQuotaOAuthAccount(405)
 	repo := &grokQuotaAccountRepo{mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
 		accountsByID: map[int64]*Account{account.ID: account},
@@ -486,13 +505,81 @@ func TestGrokQuotaServiceProbeUsageDoesNotRetryResponsesPost(t *testing.T) {
 
 	result, err := svc.ProbeUsage(context.Background(), account.ID)
 
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, http.StatusOK, result.StatusCode)
+	requests := upstream.snapshotRequests()
+	require.Len(t, requests, 2)
+	require.Equal(t, http.MethodPost, requests[0].Method)
+	require.Equal(t, "/v1/responses", requests[0].URL.Path)
+}
+
+func TestGrokQuotaServiceProbeUsageRetriesTransientTransportError(t *testing.T) {
+	account := healthyGrokQuotaOAuthAccount(408)
+	repo := &grokQuotaAccountRepo{mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
+		accountsByID: map[int64]*Account{account.ID: account},
+	}}
+	upstream := &grokQuotaSequenceUpstream{steps: []grokQuotaUpstreamStep{
+		{err: errors.New("The origin web server returned an invalid or incomplete response to Cloudflare")},
+		{status: http.StatusOK, body: `{"id":"probe_ok"}`},
+	}}
+	svc := NewGrokQuotaService(repo, nil, NewGrokTokenProvider(repo, nil), upstream, nil)
+
+	result, err := svc.ProbeUsage(context.Background(), account.ID)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, http.StatusOK, result.StatusCode)
+	require.Len(t, upstream.snapshotRequests(), 2)
+}
+
+func TestGrokQuotaServiceReloadsAccountAfterOAuthRefreshStateChange(t *testing.T) {
+	account := healthyGrokQuotaOAuthAccount(410)
+	latestAccount := *account
+	latestAccount.Credentials = shallowCopyMap(account.Credentials)
+	latestAccount.Credentials["access_token"] = "fresh-access-token"
+	latestAccount.Credentials["_token_version"] = time.Now().UnixMilli()
+	proxyID := int64(99)
+	latestAccount.ProxyID = &proxyID
+	latestAccount.Proxy = &Proxy{ID: proxyID, Protocol: "socks5", Host: "127.0.0.1", Port: 1080, Status: StatusActive}
+	repo := &grokQuotaAccountRepo{
+		mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
+			accountsByID: map[int64]*Account{account.ID: account},
+		},
+		getByIDSequence: []*Account{account, &latestAccount, &latestAccount, &latestAccount},
+	}
+	upstream := &grokQuotaSequenceUpstream{steps: []grokQuotaUpstreamStep{
+		{status: http.StatusOK, body: `{"id":"probe_ok"}`},
+	}}
+	svc := NewGrokQuotaService(repo, nil, NewGrokTokenProvider(repo, &grokTokenCacheForProviderTest{}), upstream, nil)
+
+	result, err := svc.ProbeUsage(context.Background(), account.ID)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, http.StatusOK, result.StatusCode)
+	require.Equal(t, 4, repo.getByIDSequenceIndex)
+	require.Equal(t, "Bearer fresh-access-token", upstream.snapshotRequests()[0].Header.Get("Authorization"))
+}
+
+func TestGrokQuotaServiceProbeUsageStopsAfterTransientRetry(t *testing.T) {
+	account := healthyGrokQuotaOAuthAccount(409)
+	repo := &grokQuotaAccountRepo{mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
+		accountsByID: map[int64]*Account{account.ID: account},
+	}}
+	upstream := &grokQuotaSequenceUpstream{steps: []grokQuotaUpstreamStep{
+		{status: http.StatusBadGateway, body: `cloudflare failure`},
+		{status: http.StatusBadGateway, body: `cloudflare failure`},
+		{status: http.StatusOK, body: `{"id":"unexpected_retry"}`},
+	}}
+	svc := NewGrokQuotaService(repo, nil, NewGrokTokenProvider(repo, nil), upstream, nil)
+
+	result, err := svc.ProbeUsage(context.Background(), account.ID)
+
 	require.Error(t, err)
 	require.Nil(t, result)
 	require.Equal(t, "GROK_QUOTA_PROBE_UPSTREAM_ERROR", infraerrors.Reason(err))
-	requests := upstream.snapshotRequests()
-	require.Len(t, requests, 1)
-	require.Equal(t, http.MethodPost, requests[0].Method)
-	require.Equal(t, "/v1/responses", requests[0].URL.Path)
+	require.Len(t, upstream.snapshotRequests(), 2)
 }
 
 func TestGrokQuotaServiceProbeUsageStoresHeaders(t *testing.T) {
@@ -822,10 +909,18 @@ func TestGrokQuotaServiceQueryQuotaPaidBillingSkipsActiveProbe(t *testing.T) {
 	require.Nil(t, result.LocalUsage24h)
 
 	requests, _ := upstream.snapshot()
-	require.Len(t, requests, 2)
+	billingCalls := 0
+	activeCalls := 0
 	for _, req := range requests {
-		require.Equal(t, "/v1/billing", req.URL.Path)
+		switch req.URL.Path {
+		case "/v1/billing":
+			billingCalls++
+		case "/v1/responses":
+			activeCalls++
+		}
 	}
+	require.Equal(t, 2, billingCalls)
+	require.Zero(t, activeCalls)
 }
 
 func TestGrokQuotaServiceQueryQuotaCustomPaidMonthlyLimitSkipsActiveProbe(t *testing.T) {
@@ -847,10 +942,18 @@ func TestGrokQuotaServiceQueryQuotaCustomPaidMonthlyLimitSkipsActiveProbe(t *tes
 	require.Nil(t, result.Snapshot)
 
 	requests, _ := upstream.snapshot()
-	require.Len(t, requests, 2)
+	billingCalls := 0
+	activeCalls := 0
 	for _, req := range requests {
-		require.Equal(t, "/v1/billing", req.URL.Path)
+		switch req.URL.Path {
+		case "/v1/billing":
+			billingCalls++
+		case "/v1/responses":
+			activeCalls++
+		}
 	}
+	require.Equal(t, 2, billingCalls)
+	require.Zero(t, activeCalls)
 }
 
 func TestGrokLocalUsage24hUsesRollingUTCWindow(t *testing.T) {

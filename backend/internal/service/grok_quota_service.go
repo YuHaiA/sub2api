@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -23,8 +24,9 @@ const (
 	grokQuotaProbeInput      = "hi"
 	grokQuotaDefaultModel    = grokDefaultResponsesModel
 	grokBillingExtraKey      = "grok_billing_snapshot"
-	grokBillingMaxAttempts   = 2
-	grokBillingRetryDelay    = 100 * time.Millisecond
+	grokBillingMaxAttempts   = 3
+	grokActiveMaxAttempts    = 2
+	grokUpstreamRetryDelay   = 200 * time.Millisecond
 )
 
 type GrokQuotaProbeResult struct {
@@ -161,22 +163,41 @@ func (s *GrokQuotaService) probeUsage(ctx context.Context, accountID int64) (*Gr
 
 	callCtx, cancel := context.WithTimeout(ctx, grokQuotaUpstreamTimeout)
 	defer cancel()
-	req, err := http.NewRequestWithContext(callCtx, http.MethodPost, targetURL, bytes.NewReader(body))
-	if err != nil {
-		return nil, infraerrors.Newf(http.StatusInternalServerError, "GROK_QUOTA_PROBE_REQUEST_BUILD_FAILED", "failed to build upstream request: %v", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json, text/event-stream")
-	if account.IsGrokOAuth() {
-		applyGrokCLIHeaders(req.Header)
-	}
-	// 探测请求与真实转发保持同一套账号级请求头覆写，避免探测通过但转发失败。
-	account.ApplyHeaderOverrides(req.Header)
+	var resp *http.Response
+	for attempt := 0; attempt < grokActiveMaxAttempts; attempt++ {
+		req, requestErr := http.NewRequestWithContext(callCtx, http.MethodPost, targetURL, bytes.NewReader(body))
+		if requestErr != nil {
+			return nil, infraerrors.Newf(http.StatusInternalServerError, "GROK_QUOTA_PROBE_REQUEST_BUILD_FAILED", "failed to build upstream request: %v", requestErr)
+		}
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json, text/event-stream")
+		if account.IsGrokOAuth() {
+			applyGrokCLIHeaders(req.Header)
+		}
+		// 探测请求与真实转发保持同一套账号级请求头覆写，避免探测通过但转发失败。
+		account.ApplyHeaderOverrides(req.Header)
 
-	resp, err := s.httpUpstream.Do(req, proxyURL, account.ID, maxInt(account.Concurrency, 1))
-	if err != nil {
-		return nil, infraerrors.Newf(http.StatusBadGateway, "GROK_QUOTA_PROBE_REQUEST_FAILED", "upstream probe failed: %v", err)
+		resp, requestErr = s.httpUpstream.Do(req, proxyURL, account.ID, maxInt(account.Concurrency, 1))
+		shouldRetry := requestErr != nil || (resp != nil && isRetryableGrokBillingStatus(resp.StatusCode))
+		if shouldRetry && attempt+1 < grokActiveMaxAttempts {
+			if resp != nil {
+				_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4<<10))
+				_ = resp.Body.Close()
+				resp = nil
+			}
+			if waitErr := waitForGrokUpstreamRetry(callCtx, attempt); waitErr != nil {
+				return nil, infraerrors.Newf(http.StatusBadGateway, "GROK_QUOTA_PROBE_REQUEST_FAILED", "upstream probe failed: %v", waitErr)
+			}
+			continue
+		}
+		if requestErr != nil {
+			return nil, infraerrors.Newf(http.StatusBadGateway, "GROK_QUOTA_PROBE_REQUEST_FAILED", "upstream probe failed: %s", grokUpstreamErrorMessage(requestErr))
+		}
+		break
+	}
+	if resp == nil {
+		return nil, infraerrors.New(http.StatusBadGateway, "GROK_QUOTA_PROBE_REQUEST_FAILED", "upstream probe returned no response")
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -404,18 +425,14 @@ func (s *GrokQuotaService) fetchBilling(
 
 		shouldRetry := requestErr != nil || isRetryableGrokBillingStatus(statusCode)
 		if shouldRetry && attempt+1 < grokBillingMaxAttempts {
-			timer := time.NewTimer(grokBillingRetryDelay)
-			select {
-			case <-timer.C:
-			case <-ctx.Done():
-				timer.Stop()
-				return nil, statusCode, infraerrors.Newf(http.StatusBadGateway, "GROK_QUOTA_PROBE_REQUEST_FAILED", "billing request failed: %v", ctx.Err())
+			if waitErr := waitForGrokUpstreamRetry(ctx, attempt); waitErr != nil {
+				return nil, statusCode, infraerrors.Newf(http.StatusBadGateway, "GROK_QUOTA_PROBE_REQUEST_FAILED", "billing request failed: %v", waitErr)
 			}
 			continue
 		}
 
 		if requestErr != nil {
-			return nil, 0, infraerrors.Newf(http.StatusBadGateway, "GROK_QUOTA_PROBE_REQUEST_FAILED", "billing request failed: %v", requestErr)
+			return nil, 0, infraerrors.Newf(http.StatusBadGateway, "GROK_QUOTA_PROBE_REQUEST_FAILED", "billing request failed: %s", grokUpstreamErrorMessage(requestErr))
 		}
 		if statusCode == http.StatusTooManyRequests {
 			return nil, statusCode, nil
@@ -435,10 +452,40 @@ func (s *GrokQuotaService) fetchBilling(
 }
 
 func grokBillingErrorBody(statusCode int, bodyBytes []byte) string {
-	if statusCode >= 520 && statusCode <= 524 {
+	bodyText := strings.TrimSpace(string(bodyBytes))
+	if statusCode >= 520 && statusCode <= 524 || isCloudflareIncompleteResponse(bodyText) {
 		return "Cloudflare upstream temporarily unavailable"
 	}
-	return truncate(strings.TrimSpace(string(bodyBytes)), 240)
+	return truncate(bodyText, 240)
+}
+
+func grokUpstreamErrorMessage(err error) string {
+	if err == nil {
+		return ""
+	}
+	message := strings.TrimSpace(err.Error())
+	if isCloudflareIncompleteResponse(message) {
+		return "Cloudflare upstream temporarily unavailable"
+	}
+	return message
+}
+
+func isCloudflareIncompleteResponse(message string) bool {
+	return strings.Contains(
+		strings.ToLower(message),
+		"origin web server returned an invalid or incomplete response to cloudflare",
+	)
+}
+
+func waitForGrokUpstreamRetry(ctx context.Context, attempt int) error {
+	timer := time.NewTimer(grokUpstreamRetryDelay * time.Duration(attempt+1))
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func isRetryableGrokBillingStatus(statusCode int) bool {
@@ -513,6 +560,13 @@ func (s *GrokQuotaService) prepareProbe(ctx context.Context, accountID int64) (*
 	proxyURL := s.resolveProxyURL(ctx, account)
 
 	token, err := s.tokenProvider.GetAccessToken(ctx, account)
+	if errors.Is(err, errOAuthRefreshAccountStateChanged) {
+		if latestAccount, reloadErr := s.loadGrokOAuthAccount(ctx, accountID); reloadErr == nil {
+			account = latestAccount
+			proxyURL = s.resolveProxyURL(ctx, account)
+			token, err = s.tokenProvider.GetAccessToken(ctx, account)
+		}
+	}
 	if err != nil {
 		return nil, "", "", infraerrors.Newf(http.StatusBadGateway, "GROK_QUOTA_TOKEN_UNAVAILABLE", "failed to acquire access token: %v", err)
 	}
