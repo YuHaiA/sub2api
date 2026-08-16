@@ -559,12 +559,12 @@ func (s *GrokQuotaService) prepareProbe(ctx context.Context, accountID int64) (*
 	}
 	proxyURL := s.resolveProxyURL(ctx, account)
 
-	token, err := s.tokenProvider.GetAccessToken(ctx, account)
+	token, err := s.tokenProvider.GetAccessTokenForManualTest(ctx, account)
 	if errors.Is(err, errOAuthRefreshAccountStateChanged) {
 		if latestAccount, reloadErr := s.loadGrokOAuthAccount(ctx, accountID); reloadErr == nil {
 			account = latestAccount
 			proxyURL = s.resolveProxyURL(ctx, account)
-			token, err = s.tokenProvider.GetAccessToken(ctx, account)
+			token, err = s.tokenProvider.GetAccessTokenForManualTest(ctx, account)
 		}
 	}
 	if err != nil {

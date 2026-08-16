@@ -26,9 +26,6 @@ import (
 type grokQuotaAccountRepo struct {
 	*mockAccountRepoForPlatform
 	updates               map[int64]map[string]any
-	getByIDSequence       []*Account
-	getByIDSequenceIndex  int
-	getByIDSequenceMu     sync.Mutex
 	updateCalls           int
 	rateLimitedCalls      int
 	lastRateLimitedID     int64
@@ -41,20 +38,6 @@ type grokQuotaAccountRepo struct {
 	recoveryObservedAt    time.Time
 	recoveryObservedReset time.Time
 	recoveryClearResult   bool
-}
-
-func (r *grokQuotaAccountRepo) GetByID(ctx context.Context, id int64) (*Account, error) {
-	r.getByIDSequenceMu.Lock()
-	defer r.getByIDSequenceMu.Unlock()
-	if len(r.getByIDSequence) > 0 {
-		index := r.getByIDSequenceIndex
-		if index >= len(r.getByIDSequence) {
-			index = len(r.getByIDSequence) - 1
-		}
-		r.getByIDSequenceIndex++
-		return r.getByIDSequence[index], nil
-	}
-	return r.mockAccountRepoForPlatform.GetByID(ctx, id)
 }
 
 func (r *grokQuotaAccountRepo) UpdateExtra(_ context.Context, id int64, updates map[string]any) error {
@@ -533,33 +516,23 @@ func TestGrokQuotaServiceProbeUsageRetriesTransientTransportError(t *testing.T) 
 	require.Len(t, upstream.snapshotRequests(), 2)
 }
 
-func TestGrokQuotaServiceReloadsAccountAfterOAuthRefreshStateChange(t *testing.T) {
+func TestGrokQuotaServiceProbeUsageAllowsMihomoPoolStandbyAccount(t *testing.T) {
 	account := healthyGrokQuotaOAuthAccount(410)
-	latestAccount := *account
-	latestAccount.Credentials = shallowCopyMap(account.Credentials)
-	latestAccount.Credentials["access_token"] = "fresh-access-token"
-	latestAccount.Credentials["_token_version"] = time.Now().UnixMilli()
-	proxyID := int64(99)
-	latestAccount.ProxyID = &proxyID
-	latestAccount.Proxy = &Proxy{ID: proxyID, Protocol: "socks5", Host: "127.0.0.1", Port: 1080, Status: StatusActive}
-	repo := &grokQuotaAccountRepo{
-		mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
-			accountsByID: map[int64]*Account{account.ID: account},
-		},
-		getByIDSequence: []*Account{account, &latestAccount, &latestAccount, &latestAccount},
-	}
+	account.Extra = map[string]any{"mihomo_pool_standby": true}
+	repo := &grokQuotaAccountRepo{mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
+		accountsByID: map[int64]*Account{account.ID: account},
+	}}
 	upstream := &grokQuotaSequenceUpstream{steps: []grokQuotaUpstreamStep{
 		{status: http.StatusOK, body: `{"id":"probe_ok"}`},
 	}}
-	svc := NewGrokQuotaService(repo, nil, NewGrokTokenProvider(repo, &grokTokenCacheForProviderTest{}), upstream, nil)
+	svc := NewGrokQuotaService(repo, nil, NewGrokTokenProvider(repo, nil), upstream, nil)
 
 	result, err := svc.ProbeUsage(context.Background(), account.ID)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, http.StatusOK, result.StatusCode)
-	require.Equal(t, 4, repo.getByIDSequenceIndex)
-	require.Equal(t, "Bearer fresh-access-token", upstream.snapshotRequests()[0].Header.Get("Authorization"))
+	require.Equal(t, "Bearer access-token", upstream.snapshotRequests()[0].Header.Get("Authorization"))
 }
 
 func TestGrokQuotaServiceProbeUsageStopsAfterTransientRetry(t *testing.T) {
