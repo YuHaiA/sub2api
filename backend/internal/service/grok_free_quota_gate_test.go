@@ -30,6 +30,10 @@ type grokFreeQuotaAccountRepoStub struct {
 	accounts []Account
 }
 
+func (r *grokFreeQuotaAccountRepoStub) ListByPlatform(context.Context, string) ([]Account, error) {
+	return append([]Account(nil), r.accounts...), nil
+}
+
 func (r *grokFreeQuotaAccountRepoStub) ListSchedulableByPlatform(context.Context, string) ([]Account, error) {
 	return append([]Account(nil), r.accounts...), nil
 }

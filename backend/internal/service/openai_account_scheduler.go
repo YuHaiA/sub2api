@@ -2136,7 +2136,40 @@ func (s *OpenAIGatewayService) selectAccountWithScheduler(
 	return s.selectAccountWithSchedulerOnce(withOpenAIProxyStreamQuarantineBypass(ctx), groupID, previousResponseID, sessionHash, requestedModel, excludedIDs, requiredTransport, requiredCapability, requiredImageCapability, requireCompact, platform, previousResponseCanMove, useUpstreamTokenCost)
 }
 
+func (s *OpenAIGatewayService) expandGrokPreferredExclusions(ctx context.Context, platform string, excludedIDs map[int64]struct{}) map[int64]struct{} {
+	if s == nil || normalizeOpenAICompatiblePlatform(platform) != PlatformGrok {
+		return excludedIDs
+	}
+	return expandMihomoPoolProxyExclusionsWithRepo(ctx, s.accountRepo, excludedIDs)
+}
+
 func (s *OpenAIGatewayService) selectAccountWithSchedulerOnce(
+	ctx context.Context,
+	groupID *int64,
+	previousResponseID string,
+	sessionHash string,
+	requestedModel string,
+	excludedIDs map[int64]struct{},
+	requiredTransport OpenAIUpstreamTransport,
+	requiredCapability OpenAIEndpointCapability,
+	requiredImageCapability OpenAIImagesCapability,
+	requireCompact bool,
+	platform string,
+	previousResponseCanMove bool,
+	useUpstreamTokenCost bool,
+) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+	if !s.isOpenAIAdvancedSchedulerEnabled(ctx) {
+		return s.selectAccountWithSchedulerOnceWithExclusions(ctx, groupID, previousResponseID, sessionHash, requestedModel, excludedIDs, requiredTransport, requiredCapability, requiredImageCapability, requireCompact, platform, previousResponseCanMove, useUpstreamTokenCost)
+	}
+	preferred := s.expandGrokPreferredExclusions(ctx, platform, excludedIDs)
+	selection, decision, err := s.selectAccountWithSchedulerOnceWithExclusions(ctx, groupID, previousResponseID, sessionHash, requestedModel, preferred, requiredTransport, requiredCapability, requiredImageCapability, requireCompact, platform, previousResponseCanMove, useUpstreamTokenCost)
+	if err != nil && hasAdditionalAccountExclusions(excludedIDs, preferred) && errors.Is(err, ErrNoAvailableAccounts) {
+		return s.selectAccountWithSchedulerOnceWithExclusions(ctx, groupID, previousResponseID, sessionHash, requestedModel, excludedIDs, requiredTransport, requiredCapability, requiredImageCapability, requireCompact, platform, previousResponseCanMove, useUpstreamTokenCost)
+	}
+	return selection, decision, err
+}
+
+func (s *OpenAIGatewayService) selectAccountWithSchedulerOnceWithExclusions(
 	ctx context.Context,
 	groupID *int64,
 	previousResponseID string,

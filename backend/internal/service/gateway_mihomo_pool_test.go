@@ -17,6 +17,16 @@ type mihomoPoolAccountRepo struct {
 	accounts []Account
 }
 
+func (r *mihomoPoolAccountRepo) GetByID(_ context.Context, id int64) (*Account, error) {
+	for i := range r.accounts {
+		if r.accounts[i].ID == id {
+			account := r.accounts[i]
+			return &account, nil
+		}
+	}
+	return nil, ErrAccountNotFound
+}
+
 func (r *mihomoPoolAccountRepo) ListByPlatform(_ context.Context, platform string) ([]Account, error) {
 	accounts := make([]Account, 0, len(r.accounts))
 	for _, account := range r.accounts {
@@ -220,6 +230,83 @@ func TestOpenAICompatibleGrokSelectionRestoresMihomoStandbyAccount(t *testing.T)
 	require.NoError(t, err)
 	require.Equal(t, int64(2), selected.ID)
 }
+
+func TestOpenAIAdvancedSchedulerGrokPrefersAnotherMihomoEgress(t *testing.T) {
+	resetOpenAIAdvancedSchedulerSettingCacheForTest()
+	defer resetOpenAIAdvancedSchedulerSettingCacheForTest()
+
+	proxyOne := int64(101)
+	proxyTwo := int64(102)
+	accounts := []Account{
+		{ID: 1, Platform: PlatformGrok, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 0, ProxyID: &proxyOne, Extra: map[string]any{"mihomo_pool_managed": true}},
+		{ID: 2, Platform: PlatformGrok, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 0, ProxyID: &proxyOne, Extra: map[string]any{"mihomo_pool_managed": true}},
+		{ID: 3, Platform: PlatformGrok, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 10, ProxyID: &proxyTwo, Extra: map[string]any{"mihomo_pool_managed": true}},
+	}
+	cfg := &config.Config{RunMode: config.RunModeSimple}
+	cfg.Gateway.OpenAIWS.LBTopK = 1
+	svc := &OpenAIGatewayService{
+		accountRepo:        &mihomoPoolAccountRepo{accounts: accounts},
+		cfg:                cfg,
+		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{}),
+		rateLimitService:   newOpenAIAdvancedSchedulerRateLimitService("true"),
+	}
+
+	selection, _, err := svc.SelectAccountWithSchedulerForCapability(
+		context.Background(), nil, "", "", "grok-4.5",
+		map[int64]struct{}{1: {}}, OpenAIUpstreamTransportHTTPSSE, "",
+		false, false, false, PlatformGrok,
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, selection)
+	require.NotNil(t, selection.Account)
+	require.Equal(t, int64(3), selection.Account.ID, "another egress should win before the higher-priority sibling")
+}
+
+func TestOpenAIAdvancedSchedulerDoesNotExpandMihomoExclusionsForOpenAI(t *testing.T) {
+	proxyID := int64(101)
+	svc := &OpenAIGatewayService{accountRepo: &mihomoPoolAccountRepo{accounts: []Account{
+		{ID: 1, Platform: PlatformGrok, ProxyID: &proxyID, Extra: map[string]any{"mihomo_pool_managed": true}},
+		{ID: 2, Platform: PlatformGrok, ProxyID: &proxyID, Extra: map[string]any{"mihomo_pool_managed": true}},
+	}}}
+	original := map[int64]struct{}{1: {}}
+
+	preferred := svc.expandGrokPreferredExclusions(context.Background(), PlatformOpenAI, original)
+
+	require.Equal(t, original, preferred)
+	require.NotContains(t, preferred, int64(2))
+}
+
+func TestOpenAIAdvancedSchedulerGrokFallsBackToSameMihomoEgress(t *testing.T) {
+	resetOpenAIAdvancedSchedulerSettingCacheForTest()
+	defer resetOpenAIAdvancedSchedulerSettingCacheForTest()
+
+	proxyID := int64(101)
+	accounts := []Account{
+		{ID: 1, Platform: PlatformGrok, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true, Concurrency: 1, ProxyID: &proxyID, Extra: map[string]any{"mihomo_pool_managed": true}},
+		{ID: 2, Platform: PlatformGrok, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true, Concurrency: 1, ProxyID: &proxyID, Extra: map[string]any{"mihomo_pool_managed": true}},
+	}
+	cfg := &config.Config{RunMode: config.RunModeSimple}
+	cfg.Gateway.OpenAIWS.LBTopK = 1
+	svc := &OpenAIGatewayService{
+		accountRepo:        &mihomoPoolAccountRepo{accounts: accounts},
+		cfg:                cfg,
+		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{}),
+		rateLimitService:   newOpenAIAdvancedSchedulerRateLimitService("true"),
+	}
+
+	selection, _, err := svc.SelectAccountWithSchedulerForCapability(
+		context.Background(), nil, "", "", "grok-4.5",
+		map[int64]struct{}{1: {}}, OpenAIUpstreamTransportHTTPSSE, "",
+		false, false, false, PlatformGrok,
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, selection)
+	require.NotNil(t, selection.Account)
+	require.Equal(t, int64(2), selection.Account.ID, "same-egress sibling must remain available as the fail-open pass")
+}
+
 func TestOpenAISSECommentLine(t *testing.T) {
 	require.True(t, openAISSECommentLine(": ping"))
 	require.True(t, openAISSECommentLine(":"))

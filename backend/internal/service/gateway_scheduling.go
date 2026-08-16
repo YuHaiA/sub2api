@@ -785,10 +785,17 @@ func (s *GatewayService) selectAccountWithLoadAwareness(ctx context.Context, gro
 // for Grok failover. Accounts sharing the failed fixed Mihomo egress are tried
 // only after accounts on other exits, but remain eligible for the fallback pass.
 func (s *GatewayService) expandMihomoPoolProxyExclusions(ctx context.Context, excludedIDs map[int64]struct{}) map[int64]struct{} {
-	if len(excludedIDs) == 0 || s.accountRepo == nil {
+	if s == nil {
 		return excludedIDs
 	}
-	accounts, err := s.accountRepo.ListByPlatform(ctx, PlatformGrok)
+	return expandMihomoPoolProxyExclusionsWithRepo(ctx, s.accountRepo, excludedIDs)
+}
+
+func expandMihomoPoolProxyExclusionsWithRepo(ctx context.Context, repo AccountRepository, excludedIDs map[int64]struct{}) map[int64]struct{} {
+	if len(excludedIDs) == 0 || repo == nil {
+		return excludedIDs
+	}
+	accounts, err := defaultMihomoPoolAccountCache.list(ctx, repo)
 	if err != nil || len(accounts) == 0 {
 		return excludedIDs
 	}
