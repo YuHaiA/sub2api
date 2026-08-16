@@ -107,6 +107,44 @@ func TestMihomoPoolManagedAccountIgnoresLegacyStandbyFlagButHonorsCooldown(t *te
 	require.True(t, account.IsSchedulable())
 }
 
+func TestGrokOAuthAccountIgnoresLegacyStandbyFlagButHonorsManualPause(t *testing.T) {
+	account := &Account{
+		ID:          11,
+		Platform:    PlatformGrok,
+		Type:        AccountTypeOAuth,
+		Status:      StatusActive,
+		Schedulable: false,
+	}
+	require.True(t, account.IsSchedulable())
+
+	account.Extra = map[string]any{ManualSchedulingDisabledExtraKey: true}
+	require.False(t, account.IsSchedulable())
+}
+
+func TestGrokOAuthAccountWithoutPoolMarkerReturnsToCandidatePool(t *testing.T) {
+	account := Account{
+		ID:          12,
+		Platform:    PlatformGrok,
+		Type:        AccountTypeOAuth,
+		Status:      StatusActive,
+		Schedulable: false,
+	}
+	svc := &GatewayService{
+		accountRepo: &mihomoPoolAccountRepo{accounts: []Account{account}},
+		cfg:         &config.Config{RunMode: config.RunModeSimple},
+	}
+
+	selected, err := svc.SelectAccountForModelWithExclusions(
+		context.WithValue(context.Background(), ctxkey.ForcePlatform, PlatformGrok),
+		nil,
+		"",
+		"",
+		nil,
+	)
+	require.NoError(t, err)
+	require.Equal(t, account.ID, selected.ID)
+}
+
 func TestSelectAccountForModelWithExclusionsSkipsExhaustedMihomoAccountAndRestoresStandby(t *testing.T) {
 	proxyOne := int64(101)
 	proxyTwo := int64(102)

@@ -843,7 +843,7 @@ func mergeHealthyMihomoPoolAccounts(ctx context.Context, repo AccountRepository,
 	}
 	for i := range poolAccounts {
 		account := poolAccounts[i]
-		if _, ok := seen[account.ID]; ok || !account.MihomoPoolManaged() || !account.IsSchedulable() {
+		if _, ok := seen[account.ID]; ok || (!account.MihomoPoolManaged() && !account.IsGrokOAuth()) || !account.IsSchedulable() {
 			continue
 		}
 		if !simpleMode && !mihomoPoolAccountMatchesGroup(&account, groupID) {

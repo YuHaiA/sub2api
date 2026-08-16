@@ -112,6 +112,11 @@ const openAIEndpointCapabilitiesCredentialKey = "openai_capabilities"
 // absent/null value uses provider observations.
 const GrokMediaEligibleExtraKey = "grok_media_eligible"
 
+// ManualSchedulingDisabledExtraKey records an administrator's explicit
+// scheduling switch. Runtime failover and quota cooldowns must not use the
+// persistent schedulable column as their state.
+const ManualSchedulingDisabledExtraKey = "manual_schedulable_disabled"
+
 const (
 	OpenAIAuthModePersonalAccessToken = "personalAccessToken"
 	openAIAuthModeCredentialKey       = "auth_mode"
@@ -178,7 +183,10 @@ func (a *Account) EffectiveLoadFactor() int {
 }
 
 func (a *Account) IsSchedulable() bool {
-	if !a.IsActive() || (!a.Schedulable && !a.MihomoPoolManaged()) {
+	if !a.IsActive() || (!a.Schedulable && !a.IsGrokOAuth() && !a.MihomoPoolManaged()) {
+		return false
+	}
+	if a.ManualSchedulingDisabled() {
 		return false
 	}
 	now := time.Now()
@@ -963,6 +971,10 @@ func (a *Account) GetExtraString(key string) string {
 // failover preference; each healthy member remains independently schedulable.
 func (a *Account) MihomoPoolManaged() bool {
 	return a != nil && a.getExtraBool("mihomo_pool_managed")
+}
+
+func (a *Account) ManualSchedulingDisabled() bool {
+	return a != nil && a.getExtraBool(ManualSchedulingDisabledExtraKey)
 }
 
 func (a *Account) GetClaudeUserID() string {

@@ -2462,10 +2462,16 @@ func (r *accountRepository) UpdateSessionWindowEnd(ctx context.Context, id int64
 }
 
 func (r *accountRepository) SetSchedulable(ctx context.Context, id int64, schedulable bool) error {
-	_, err := r.client.Account.Update().
-		Where(dbaccount.IDEQ(id)).
-		SetSchedulable(schedulable).
-		Save(ctx)
+	const query = `
+		UPDATE accounts
+		SET schedulable = $1,
+			extra = CASE
+				WHEN $1 THEN COALESCE(extra, '{}'::jsonb) - $2
+				ELSE jsonb_set(COALESCE(extra, '{}'::jsonb), ARRAY[$2], 'true'::jsonb, true)
+			END,
+			updated_at = NOW()
+		WHERE id = $3 AND deleted_at IS NULL`
+	_, err := r.sql.ExecContext(ctx, query, schedulable, service.ManualSchedulingDisabledExtraKey, id)
 	if err != nil {
 		return err
 	}
@@ -2880,7 +2886,7 @@ func (r *accountRepository) BulkUpdate(ctx context.Context, ids []int64, updates
 				" AND "+ollamaCloudBaseURLMatchesSQL(credentialPlaceholder+"::jsonb ->> 'base_url'")+")")
 	}
 
-	if len(updates.Extra) > 0 || len(ollamaGroupIdentityChanges) > 0 || ollamaProxyIdentityChanged != "" {
+	if updates.Schedulable != nil || len(updates.Extra) > 0 || len(ollamaGroupIdentityChanges) > 0 || ollamaProxyIdentityChanged != "" {
 		extraExpression := "COALESCE(extra, '{}'::jsonb)"
 		if len(updates.Extra) > 0 {
 			payload, err := json.Marshal(updates.Extra)
@@ -2895,6 +2901,13 @@ func (r *accountRepository) BulkUpdate(ctx context.Context, ids []int64, updates
 			}
 			if ollamaCloudUsageSnapshotClearRequested(updates.Extra) {
 				extraExpression = "(" + extraExpression + ") - 'ollama_cloud_usage_snapshot'"
+			}
+		}
+		if updates.Schedulable != nil {
+			if *updates.Schedulable {
+				extraExpression = "(" + extraExpression + ") - '" + service.ManualSchedulingDisabledExtraKey + "'"
+			} else {
+				extraExpression = "jsonb_set(" + extraExpression + ", '{" + service.ManualSchedulingDisabledExtraKey + "}', 'true'::jsonb, true)"
 			}
 		}
 		eligibleAccount := "platform IN ('openai', 'anthropic') AND type = 'apikey'"
