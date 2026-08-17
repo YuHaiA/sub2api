@@ -104,7 +104,7 @@ output="$({
   METADATA_DIR="$test_root/metadata" \
   HEALTH_WAIT_SECONDS=1 \
   HEALTH_POLL_INTERVAL=1 \
-  "$repo_root/deploy/host-agent/deploy-from-package.sh"
+  bash "$repo_root/deploy/host-agent/deploy-from-package.sh"
 } 2>&1)"
 
 grep -q 'docker tag sub2api-gha:docker-deploy -> ghcr.io/yuhaia/sub2api:main-old' <<<"$output"
