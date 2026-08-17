@@ -170,14 +170,21 @@ release_unchanged() {
 prune_old_backups() {
   local repo="${IMAGE_TAG%:*}"
   local keep="${KEEP_BACKUPS}"
-  mapfile -t backups < <("$DOCKER_BINARY" images --format '{{.Repository}}:{{.Tag}} {{.CreatedAt}}' | awk -v repo="$repo" '$1 ~ ("^" repo ":backup-") {print $0}')
+  local backup backup_ref
+  local backups=()
+  while IFS= read -r backup; do
+    [[ -n "$backup" ]] && backups+=("$backup")
+  done < <("$DOCKER_BINARY" images --format '{{.Repository}}:{{.Tag}} {{.CreatedAt}}' | awk -v repo="$repo" '$1 ~ ("^" repo ":backup-") {print $0}')
   local count=${#backups[@]}
   if (( count <= keep )); then
     log "backup images within keep limit: $count/$keep"
     return
   fi
 
-  mapfile -t backup_refs < <(printf '%s\n' "${backups[@]}" | sort -rk2 | awk '{print $1}')
+  local backup_refs=()
+  while IFS= read -r backup_ref; do
+    [[ -n "$backup_ref" ]] && backup_refs+=("$backup_ref")
+  done < <(printf '%s\n' "${backups[@]}" | sort -rk2 | awk '{print $1}')
   local idx=0
   for image_ref in "${backup_refs[@]}"; do
     idx=$((idx + 1))
