@@ -69,6 +69,7 @@ export interface DeployState {
   requested_image?: string
   requested_image_id?: string
   running_image_id?: string
+  runtime_image_ref?: string
   already_up_to_date?: boolean
   last_message?: string
   last_error?: string

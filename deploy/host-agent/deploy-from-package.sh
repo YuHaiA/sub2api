@@ -76,15 +76,17 @@ save_cached_archive_sha() {
 
 compose_up() {
   if [[ -n "$COMPOSE_FILE" ]]; then
-    "$COMPOSE_BINARY" -f "$COMPOSE_FILE" up -d --no-deps "$SERVICE_NAME"
+    "$COMPOSE_BINARY" -f "$COMPOSE_FILE" up -d --no-deps --force-recreate "$SERVICE_NAME"
   else
-    "$COMPOSE_BINARY" up -d --no-deps "$SERVICE_NAME"
+    "$COMPOSE_BINARY" up -d --no-deps --force-recreate "$SERVICE_NAME"
   fi
 }
 
 backup_current_image() {
-  if ! "$DOCKER_BINARY" image inspect "$IMAGE_TAG" >/dev/null 2>&1; then
-    log "skip backup; image not found: $IMAGE_TAG"
+  local running_image_id
+  running_image_id="$(get_running_image_id)"
+  if [[ -z "$running_image_id" ]]; then
+    log "skip backup; running image not found for service: $SERVICE_NAME"
     return
   fi
 
@@ -95,8 +97,8 @@ backup_current_image() {
     backup_tag="${IMAGE_TAG}:backup-$(date '+%Y%m%d%H%M%S')"
   fi
 
-  log "backup image: $IMAGE_TAG -> $backup_tag"
-  "$DOCKER_BINARY" tag "$IMAGE_TAG" "$backup_tag"
+  log "backup image: $running_image_id -> $backup_tag"
+  "$DOCKER_BINARY" tag "$running_image_id" "$backup_tag"
 }
 
 cleanup_archive() {
@@ -108,6 +110,10 @@ cleanup_archive() {
 
 get_running_image_id() {
   "$DOCKER_BINARY" inspect --format '{{.Image}}' "$SERVICE_NAME" 2>/dev/null || true
+}
+
+get_running_image_ref() {
+  "$DOCKER_BINARY" inspect --format '{{.Config.Image}}' "$SERVICE_NAME" 2>/dev/null || true
 }
 
 get_loaded_image_id() {
@@ -130,6 +136,21 @@ archive_matches_running() {
   running_image_id="$(get_running_image_id)"
   loaded_image_id="$(get_loaded_image_id)"
   [[ -n "$running_image_id" && -n "$loaded_image_id" && "$running_image_id" == "$loaded_image_id" ]]
+}
+
+verify_running_image() {
+  local running_image_id loaded_image_id
+  running_image_id="$(get_running_image_id)"
+  loaded_image_id="$(get_loaded_image_id)"
+  if [[ -z "$loaded_image_id" ]]; then
+    log "loaded image ID is unavailable: $LOADED_IMAGE"
+    return 1
+  fi
+  if [[ "$running_image_id" != "$loaded_image_id" ]]; then
+    log "running image mismatch: expected=$loaded_image_id actual=${running_image_id:-missing}"
+    return 1
+  fi
+  log "running image verified: $running_image_id"
 }
 
 release_unchanged() {
@@ -191,11 +212,12 @@ wait_for_health() {
 }
 
 show_result() {
-  local image_id container_image started_at
-  image_id=$("$DOCKER_BINARY" image inspect "$IMAGE_TAG" --format '{{.Id}}' 2>/dev/null || true)
-  container_image=$("$DOCKER_BINARY" inspect --format '{{.Image}}' "$SERVICE_NAME" 2>/dev/null || true)
+  local image_id running_image_id runtime_image_ref started_at
+  image_id="$(get_loaded_image_id)"
+  running_image_id="$(get_running_image_id)"
+  runtime_image_ref="$(get_running_image_ref)"
   started_at=$("$DOCKER_BINARY" inspect --format '{{.State.StartedAt}}' "$SERVICE_NAME" 2>/dev/null || true)
-  log "result image_tag=$IMAGE_TAG image_id=$image_id container_image=$container_image started_at=$started_at"
+  log "result image_tag=$IMAGE_TAG runtime_image_ref=$runtime_image_ref image_id=$image_id running_image_id=$running_image_id started_at=$started_at"
 }
 
 main() {
@@ -238,11 +260,18 @@ main() {
   log "docker tag $LOADED_IMAGE -> $IMAGE_TAG"
   "$DOCKER_BINARY" tag "$LOADED_IMAGE" "$IMAGE_TAG"
 
+  runtime_image_ref="$(get_running_image_ref)"
+  if [[ -n "$runtime_image_ref" && "$runtime_image_ref" != "$IMAGE_TAG" ]]; then
+    log "docker tag $LOADED_IMAGE -> $runtime_image_ref"
+    "$DOCKER_BINARY" tag "$LOADED_IMAGE" "$runtime_image_ref"
+  fi
+
   cd "$COMPOSE_PROJECT_DIR"
-  log "docker compose restart target service: $SERVICE_NAME"
+  log "docker compose recreate target service: $SERVICE_NAME"
   compose_up
 
   wait_for_health
+  verify_running_image
   save_cached_archive_sha "$(fetch_archive_sha || true)"
   save_cached_archive_etag "$(fetch_archive_etag || true)"
   prune_old_backups

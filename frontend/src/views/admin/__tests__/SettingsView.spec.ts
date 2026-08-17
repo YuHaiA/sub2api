@@ -26,6 +26,10 @@ const {
   updateUpstreamBillingProbeSettings,
   getOllamaCloudUsageSettings,
   updateOllamaCloudUsageSettings,
+  getDeployConfig,
+  updateDeployConfig,
+  getDeployStatus,
+  triggerDeploy,
   getGroups,
   listProxies,
   getProviders,
@@ -67,6 +71,10 @@ const {
     debounce_minutes: 1,
   }),
   updateOllamaCloudUsageSettings: vi.fn().mockImplementation(async (payload) => payload),
+  getDeployConfig: vi.fn(),
+  updateDeployConfig: vi.fn(),
+  getDeployStatus: vi.fn(),
+  triggerDeploy: vi.fn(),
   getGroups: vi.fn(),
   listProxies: vi.fn(),
   getProviders: vi.fn(),
@@ -116,6 +124,12 @@ vi.mock("@/api", () => ({
       createProvider,
       deleteProvider,
     },
+    system: {
+      getDeployConfig,
+      updateDeployConfig,
+      getDeployStatus,
+      triggerDeploy,
+    },
   },
 }));
 
@@ -143,6 +157,7 @@ vi.mock("@/composables/useClipboard", () => ({
 
 vi.mock("@/utils/apiError", () => ({
   extractApiErrorMessage: () => "error",
+  extractI18nErrorMessage: () => "error",
 }));
 
 vi.mock("vue-i18n", async () => {
@@ -542,6 +557,25 @@ const baseSettingsResponse = {
   },
 };
 
+const deployConfigResponse = {
+  enabled: true,
+  mode: "docker_compose",
+  execution_mode: "host_agent",
+  source_type: "docker_archive_url",
+  default_image: "sub2api:rollback",
+  archive_url: "https://example.com/sub2api.tar",
+  loaded_image: "sub2api-gha:docker-deploy",
+  service_name: "sub2api",
+  compose_project_dir: "/srv/sub2api",
+  compose_file: "",
+  docker_binary: "docker",
+  compose_binary: "docker-compose",
+  agent_url: "http://172.17.0.1:18080",
+  agent_token: "",
+  agent_timeout_seconds: 900,
+  agent_insecure_tls: false,
+};
+
 function mountView() {
   return mount(SettingsView, {
     global: {
@@ -602,6 +636,67 @@ async function openUsersTab(wrapper: ReturnType<typeof mountView>) {
   await usersTabButton?.trigger("click");
   await flushPromises();
 }
+
+async function openDeployTab(wrapper: ReturnType<typeof mountView>) {
+  const deployTabButton = wrapper
+    .findAll("button")
+    .find((node) => node.text().includes("admin.settings.tabs.deploy"));
+
+  expect(deployTabButton).toBeDefined();
+  await deployTabButton?.trigger("click");
+  await flushPromises();
+}
+
+describe("admin SettingsView Docker updates", () => {
+  beforeEach(() => {
+    getDeployConfig.mockReset().mockResolvedValue(deployConfigResponse);
+    updateDeployConfig.mockReset().mockImplementation(async (payload) => payload);
+    getDeployStatus.mockReset().mockResolvedValue({ status: "idle" });
+    triggerDeploy.mockReset();
+  });
+
+  it("shows a clear failure when target and running images differ", async () => {
+    getDeployStatus.mockResolvedValueOnce({
+      status: "failed",
+      requested_image_id: "sha256:target-image-1234567890",
+      running_image_id: "sha256:running-image-0987654321",
+      last_error: "deployment verification failed",
+      last_output: "compose completed but image did not change",
+    });
+
+    const wrapper = mountView();
+    await flushPromises();
+    await openDeployTab(wrapper);
+
+    const status = wrapper.get('[data-testid="deploy-status"]');
+    expect(status.text()).toContain("更新失败");
+    expect(status.text()).toContain("本次更新未生效");
+    expect(status.text()).toContain("target-image");
+    expect(status.text()).toContain("running-imag");
+    expect(wrapper.text()).toContain("检查并更新");
+    const logDetails = wrapper
+      .findAll("details")
+      .find((node) => node.text().includes("查看本次更新日志"));
+    expect(logDetails).toBeDefined();
+    expect(logDetails?.attributes("open")).toBeUndefined();
+  });
+
+  it("reports a verified successful update", async () => {
+    getDeployStatus.mockResolvedValueOnce({
+      status: "succeeded",
+      requested_image_id: "sha256:same-image-id",
+      running_image_id: "sha256:same-image-id",
+      last_message: "Deploy completed successfully",
+    });
+
+    const wrapper = mountView();
+    await flushPromises();
+    await openDeployTab(wrapper);
+
+    expect(wrapper.get('[data-testid="deploy-status"]').text()).toContain("更新已完成");
+    expect(wrapper.get('[data-testid="deploy-status"]').text()).toContain("已确认运行容器");
+  });
+});
 
 describe("admin SettingsView email domain quota copy", () => {
   it("documents the email domain quota and empty-whitelist behavior in both locales", () => {

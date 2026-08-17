@@ -8632,10 +8632,10 @@
           <div class="card">
             <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
               <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
-                {{ localText("Docker 宿主机更新", "Docker Host Update") }}
+                {{ localText("Docker 在线更新", "Docker Online Update") }}
               </h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                {{ localText("通过宿主机代理下载本仓库发布的镜像包，并只重建 Sub2API 服务。", "Use the host agent to download this fork's image package and recreate only the Sub2API service.") }}
+                {{ localText("检查最新构建并重建 Sub2API 容器，数据库和 Redis 不会重启。", "Check the latest build and recreate the Sub2API container without restarting the database or Redis.") }}
               </p>
             </div>
             <div class="space-y-5 p-6">
@@ -8644,75 +8644,126 @@
                 {{ t("common.loading") }}
               </div>
               <template v-else>
-                <div class="flex items-center justify-between gap-4">
+                <div
+                  data-testid="deploy-status"
+                  class="border-y px-4 py-5 sm:px-5"
+                  :class="deployStatusView.panelClass"
+                >
+                  <div class="flex items-start gap-3">
+                    <Icon
+                      :name="deployStatusView.icon"
+                      size="lg"
+                      class="mt-0.5 shrink-0"
+                      :class="deployStatusView.iconClass"
+                    />
+                    <div class="min-w-0 flex-1">
+                      <div class="font-semibold text-gray-900 dark:text-white">
+                        {{ deployStatusView.title }}
+                      </div>
+                      <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                        {{ deployStatusView.message }}
+                      </p>
+                      <p v-if="deployImageMismatch" class="mt-2 text-sm font-medium text-red-700 dark:text-red-300">
+                        {{ localText("目标镜像与运行镜像不一致，本次更新未生效。", "The target and running images differ, so this update did not take effect.") }}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div v-if="deployState.requested_image_id || deployState.running_image_id" class="mt-5 grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <div class="text-xs font-medium text-gray-500 dark:text-gray-400">
+                        {{ localText("本次目标镜像", "Target image") }}
+                      </div>
+                      <code class="mt-1 block break-all text-sm text-gray-900 dark:text-gray-100">
+                        {{ shortImageId(deployState.requested_image_id) }}
+                      </code>
+                    </div>
+                    <div>
+                      <div class="text-xs font-medium text-gray-500 dark:text-gray-400">
+                        {{ localText("容器正在运行", "Running image") }}
+                      </div>
+                      <code class="mt-1 block break-all text-sm text-gray-900 dark:text-gray-100">
+                        {{ shortImageId(deployState.running_image_id) }}
+                      </code>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <div class="font-medium text-gray-900 dark:text-white">
-                      {{ localText("启用后台部署", "Enable Admin Deploy") }}
+                      {{ localText("允许在线更新", "Allow online updates") }}
                     </div>
                     <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                      {{ localText("启用后，版本面板的“立即更新”也会改为通知宿主机更新 Docker 镜像。", "When enabled, Update Now also asks the host agent to update the Docker image.") }}
+                      {{ localText("关闭后页面只显示状态，不能触发容器更新。", "When disabled, this page only shows status and cannot update the container.") }}
                     </p>
                   </div>
                   <Toggle v-model="deployConfig.enabled" />
                 </div>
 
-                <div class="grid gap-4 md:grid-cols-2">
-                  <label class="block md:col-span-2">
-                    <span class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Archive URL</span>
-                    <input v-model="deployConfig.archive_url" type="url" class="input" />
-                  </label>
-                  <label class="block">
-                    <span class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Loaded Image</span>
-                    <input v-model="deployConfig.loaded_image" type="text" class="input" />
-                  </label>
-                  <label class="block">
-                    <span class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Runtime Image</span>
-                    <input v-model="deployConfig.default_image" type="text" class="input" />
-                  </label>
-                  <label class="block">
-                    <span class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Service Name</span>
-                    <input v-model="deployConfig.service_name" type="text" class="input" />
-                  </label>
-                  <label class="block">
-                    <span class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Agent URL</span>
-                    <input v-model="deployConfig.agent_url" type="url" class="input" />
-                  </label>
-                  <label class="block md:col-span-2">
-                    <span class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Compose Project Dir</span>
-                    <input v-model="deployConfig.compose_project_dir" type="text" class="input" />
-                  </label>
-                  <label class="block">
-                    <span class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Agent Token</span>
-                    <input v-model="deployConfig.agent_token" type="password" autocomplete="new-password" class="input" />
-                  </label>
-                  <label class="block">
-                    <span class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Agent Timeout Seconds</span>
-                    <input v-model.number="deployConfig.agent_timeout_seconds" type="number" min="30" class="input" />
-                  </label>
-                </div>
+                <details class="border-t border-gray-100 pt-4 dark:border-dark-700">
+                  <summary class="flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <Icon name="cog" size="sm" />
+                    {{ localText("高级连接设置", "Advanced connection settings") }}
+                  </summary>
+                  <div class="mt-4 grid gap-4 md:grid-cols-2">
+                    <label class="block md:col-span-2">
+                      <span class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">{{ localText("更新包地址", "Archive URL") }}</span>
+                      <input v-model="deployConfig.archive_url" type="url" class="input" />
+                    </label>
+                    <label class="block">
+                      <span class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">{{ localText("包内镜像", "Loaded image") }}</span>
+                      <input v-model="deployConfig.loaded_image" type="text" class="input" />
+                    </label>
+                    <label class="block">
+                      <span class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">{{ localText("目标镜像标签", "Target image tag") }}</span>
+                      <input v-model="deployConfig.default_image" type="text" class="input" />
+                    </label>
+                    <label class="block">
+                      <span class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">{{ localText("服务名", "Service name") }}</span>
+                      <input v-model="deployConfig.service_name" type="text" class="input" />
+                    </label>
+                    <label class="block">
+                      <span class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">{{ localText("宿主代理地址", "Host agent URL") }}</span>
+                      <input v-model="deployConfig.agent_url" type="url" class="input" />
+                    </label>
+                    <label class="block md:col-span-2">
+                      <span class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">{{ localText("Compose 目录", "Compose project directory") }}</span>
+                      <input v-model="deployConfig.compose_project_dir" type="text" class="input" />
+                    </label>
+                    <label class="block">
+                      <span class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">{{ localText("代理密钥", "Agent token") }}</span>
+                      <input v-model="deployConfig.agent_token" type="password" autocomplete="new-password" class="input" />
+                    </label>
+                    <label class="block">
+                      <span class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">{{ localText("超时秒数", "Timeout seconds") }}</span>
+                      <input v-model.number="deployConfig.agent_timeout_seconds" type="number" min="30" class="input" />
+                    </label>
+                  </div>
+                  <div class="mt-4 flex flex-wrap justify-end gap-2">
+                    <button type="button" class="btn btn-secondary" :disabled="deploySaving" @click="saveDeployConfig">
+                      <Icon name="check" size="sm" />
+                      {{ deploySaving ? t("common.saving") : localText("保存连接设置", "Save connection settings") }}
+                    </button>
+                    <button type="button" class="btn btn-secondary" :disabled="deployRunning || !deployConfig.enabled" @click="runDeploy(true)">
+                      <Icon name="terminal" size="sm" />
+                      {{ localText("仅检查流程", "Dry run") }}
+                    </button>
+                  </div>
+                </details>
 
-                <div class="rounded-lg border border-gray-100 p-4 dark:border-dark-700">
-                  <div class="text-sm font-medium text-gray-900 dark:text-white">
-                    {{ localText("部署状态", "Deploy Status") }}: {{ deployState.status || "idle" }}
-                  </div>
-                  <p v-if="deployState.last_message" class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ deployState.last_message }}</p>
-                  <p v-if="deployState.last_error" class="mt-1 text-sm text-red-600 dark:text-red-400">{{ deployState.last_error }}</p>
-                  <div v-if="deployState.requested_image_id || deployState.running_image_id" class="mt-3 grid gap-2 text-xs text-gray-500 dark:text-gray-400 md:grid-cols-2">
-                    <div>Requested: {{ deployState.requested_image_id || "-" }}</div>
-                    <div>Running: {{ deployState.running_image_id || "-" }}</div>
-                  </div>
-                  <pre v-if="deployState.last_output" class="mt-3 max-h-64 overflow-auto rounded-lg bg-gray-950 p-3 text-xs text-gray-100">{{ deployState.last_output }}</pre>
-                </div>
+                <details v-if="deployState.last_output" class="border-t border-gray-100 pt-4 dark:border-dark-700">
+                  <summary class="flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <Icon name="terminal" size="sm" />
+                    {{ localText("查看本次更新日志", "View update log") }}
+                  </summary>
+                  <pre class="mt-3 max-h-64 overflow-auto rounded bg-gray-950 p-3 text-xs text-gray-100">{{ deployState.last_output }}</pre>
+                </details>
 
                 <div class="flex flex-wrap justify-end gap-2 border-t border-gray-100 pt-4 dark:border-dark-700">
-                  <button type="button" class="btn btn-secondary" :disabled="deploySaving" @click="saveDeployConfig">
-                    {{ deploySaving ? t("common.saving") : t("common.save") }}
-                  </button>
-                  <button type="button" class="btn btn-secondary" :disabled="deployRunning || !deployConfig.enabled" @click="runDeploy(true)">
-                    {{ localText("演练", "Dry Run") }}
-                  </button>
                   <button type="button" class="btn btn-primary" :disabled="deployRunning || !deployConfig.enabled" @click="runDeploy(false)">
-                    {{ deployRunning ? localText("更新中...", "Updating...") : localText("立即更新", "Update Now") }}
+                    <Icon name="refresh" size="sm" :class="{ 'animate-spin': deployRunning }" />
+                    {{ deployRunning ? localText("正在检查并更新...", "Checking and updating...") : localText("检查并更新", "Check and update") }}
                   </button>
                 </div>
               </template>
@@ -8996,6 +9047,62 @@ const deployConfig = reactive<DeployConfig>({
   agent_insecure_tls: false,
 });
 const deployState = reactive<DeployState>({ status: "idle" });
+
+const deployImageMismatch = computed(() =>
+  Boolean(
+    deployState.requested_image_id &&
+      deployState.running_image_id &&
+      deployState.requested_image_id !== deployState.running_image_id,
+  ),
+);
+
+const deployStatusView = computed(() => {
+  if (deployImageMismatch.value || deployState.status === "failed") {
+    return {
+      icon: "xCircle" as const,
+      title: localText("更新失败", "Update failed"),
+      message:
+        deployState.last_error ||
+        localText("容器没有切换到目标镜像，请查看更新日志。", "The container did not switch to the target image. Check the update log."),
+      panelClass: "border-red-200 bg-red-50 dark:border-red-900/70 dark:bg-red-950/20",
+      iconClass: "text-red-600 dark:text-red-400",
+    };
+  }
+  if (deployRunning.value || deployState.status === "pending" || deployState.status === "running") {
+    return {
+      icon: "refresh" as const,
+      title: localText("正在更新", "Updating"),
+      message: localText("正在下载镜像并重建容器，请不要重复点击。", "Downloading the image and recreating the container. Do not start another update."),
+      panelClass: "border-amber-200 bg-amber-50 dark:border-amber-900/70 dark:bg-amber-950/20",
+      iconClass: "animate-spin text-amber-600 dark:text-amber-400",
+    };
+  }
+  if (deployState.status === "succeeded") {
+    return {
+      icon: "checkCircle" as const,
+      title: deployState.already_up_to_date
+        ? localText("已经是最新版本", "Already up to date")
+        : localText("更新已完成", "Update complete"),
+      message: deployState.already_up_to_date
+        ? localText("运行容器与最新构建一致，无需重建。", "The running container matches the latest build; no recreation was needed.")
+        : localText("已确认运行容器使用本次下载的镜像。", "The running container is verified to use the downloaded image."),
+      panelClass: "border-emerald-200 bg-emerald-50 dark:border-emerald-900/70 dark:bg-emerald-950/20",
+      iconClass: "text-emerald-600 dark:text-emerald-400",
+    };
+  }
+  return {
+    icon: "infoCircle" as const,
+    title: localText("等待检查", "Ready to check"),
+    message: localText("点击“检查并更新”后，系统会下载最新构建并核对容器是否真正切换。", "Check and update downloads the latest build and verifies that the container actually switched."),
+    panelClass: "border-gray-200 bg-gray-50 dark:border-dark-600 dark:bg-dark-800/60",
+    iconClass: "text-gray-500 dark:text-gray-400",
+  };
+});
+
+function shortImageId(imageId?: string): string {
+  const normalized = (imageId || "").replace(/^sha256:/, "");
+  return normalized ? normalized.slice(0, 12) : "-";
+}
 
 function applyDeployConfig(config: DeployConfig): void {
   Object.assign(deployConfig, {

@@ -53,6 +53,7 @@ type DeployState struct {
 	RequestedImage   string `json:"requested_image,omitempty"`
 	RequestedImageID string `json:"requested_image_id,omitempty"`
 	RunningImageID   string `json:"running_image_id,omitempty"`
+	RuntimeImageRef  string `json:"runtime_image_ref,omitempty"`
 	AlreadyUpToDate  bool   `json:"already_up_to_date,omitempty"`
 	LastMessage      string `json:"last_message,omitempty"`
 	LastError        string `json:"last_error,omitempty"`
@@ -95,6 +96,7 @@ type deployAgentResponse struct {
 	Image             string   `json:"image,omitempty"`
 	ImageID           string   `json:"image_id,omitempty"`
 	RunningImageID    string   `json:"running_image_id,omitempty"`
+	RuntimeImageRef   string   `json:"runtime_image_ref,omitempty"`
 	AlreadyUpToDate   bool     `json:"already_up_to_date,omitempty"`
 	ServiceName       string   `json:"service_name,omitempty"`
 	ComposeProjectDir string   `json:"compose_project_dir,omitempty"`
@@ -392,6 +394,7 @@ func (s *UpdateService) TriggerDeploy(ctx context.Context, req *DeployTriggerReq
 			state.LastOutput = trimDeployOutput(agentResp.Output)
 			state.RequestedImageID = strings.TrimSpace(agentResp.ImageID)
 			state.RunningImageID = strings.TrimSpace(agentResp.RunningImageID)
+			state.RuntimeImageRef = strings.TrimSpace(agentResp.RuntimeImageRef)
 			state.AlreadyUpToDate = agentResp.AlreadyUpToDate
 		}
 		state.LastMessage = "Deploy failed"
@@ -410,6 +413,7 @@ func (s *UpdateService) TriggerDeploy(ctx context.Context, req *DeployTriggerReq
 		state.LastOutput = trimDeployOutput(agentResp.Output)
 		state.RequestedImageID = strings.TrimSpace(agentResp.ImageID)
 		state.RunningImageID = strings.TrimSpace(agentResp.RunningImageID)
+		state.RuntimeImageRef = strings.TrimSpace(agentResp.RuntimeImageRef)
 		state.AlreadyUpToDate = agentResp.AlreadyUpToDate
 	}
 	_ = s.saveDeployState(context.Background(), state)
@@ -434,9 +438,9 @@ func (s *UpdateService) buildDeployCommands(cfg *DeployConfig) []string {
 
 func buildComposeCommandPreview(cfg *DeployConfig) string {
 	if cfg.ComposeFile != "" {
-		return fmt.Sprintf("cd %s && %s -f %s up -d --no-deps %s", cfg.ComposeProjectDir, cfg.ComposeBinary, cfg.ComposeFile, cfg.ServiceName)
+		return fmt.Sprintf("cd %s && %s -f %s up -d --no-deps --force-recreate %s", cfg.ComposeProjectDir, cfg.ComposeBinary, cfg.ComposeFile, cfg.ServiceName)
 	}
-	return fmt.Sprintf("cd %s && %s up -d --no-deps %s", cfg.ComposeProjectDir, cfg.ComposeBinary, cfg.ServiceName)
+	return fmt.Sprintf("cd %s && %s up -d --no-deps --force-recreate %s", cfg.ComposeProjectDir, cfg.ComposeBinary, cfg.ServiceName)
 }
 
 func (s *UpdateService) executeDeployCommands(ctx context.Context, cfg *DeployConfig) (*deployAgentResponse, error) {
@@ -530,6 +534,14 @@ func (s *UpdateService) executeDeployViaAgent(ctx context.Context, cfg *DeployCo
 	}
 
 	agentResp.Message = strings.TrimSpace(agentResp.Message)
+	if agentResp.Status != "" && agentResp.Status != deployStatusSucceeded {
+		return &agentResp, fmt.Errorf("deploy agent returned status %s", agentResp.Status)
+	}
+	agentResp.ImageID = strings.TrimSpace(agentResp.ImageID)
+	agentResp.RunningImageID = strings.TrimSpace(agentResp.RunningImageID)
+	if agentResp.ImageID != "" && agentResp.RunningImageID != "" && agentResp.ImageID != agentResp.RunningImageID {
+		return &agentResp, fmt.Errorf("deployment verification failed: target image %s, running image %s", agentResp.ImageID, agentResp.RunningImageID)
+	}
 	if agentResp.Message == "" {
 		agentResp.Message = "Deploy completed successfully"
 	}
