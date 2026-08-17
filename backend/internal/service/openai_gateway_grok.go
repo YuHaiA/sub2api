@@ -56,13 +56,37 @@ func (s *OpenAIGatewayService) forwardGrokResponses(
 	if isGrokImageGenerationModel(upstreamModel) {
 		return nil, fmt.Errorf("model %s is an image model and is not available on the Responses endpoint; use /v1/images/generations instead", upstreamModel)
 	}
-	patchedBody, clientToolMapping, err := patchGrokResponsesBodyWithClientTools(body, upstreamModel)
+	guardedBody, repeatedToolCall, err := applyGrokRepeatedFailedToolCallGuard(body)
+	if err != nil {
+		return nil, fmt.Errorf("apply Grok repeated tool-call guard: %w", err)
+	}
+	patchedBody, clientToolMapping, err := patchGrokResponsesBodyWithClientTools(guardedBody, upstreamModel)
 	if err != nil {
 		setOpsUpstreamError(c, http.StatusBadRequest, err.Error(), "")
 		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{
 			"type": "invalid_request_error", "message": err.Error(), "param": "tools",
 		}})
 		return nil, err
+	}
+	toolSuppressed := false
+	if repeatedToolCall != nil && repeatedToolCall.RepeatCount >= grokRepeatedFailedToolSuppressionThreshold {
+		patchedBody, toolSuppressed, err = suppressGrokRepeatedFailedTool(patchedBody, repeatedToolCall.ToolName)
+		if err != nil {
+			return nil, fmt.Errorf("suppress repeated Grok tool call: %w", err)
+		}
+	}
+	if repeatedToolCall != nil {
+		correlation := ExtractClientRequestCorrelation(c, body)
+		slog.Warn("grok_repeated_failed_tool_call_detected",
+			"tool_name", repeatedToolCall.ToolName,
+			"repeat_count", repeatedToolCall.RepeatCount,
+			"tool_suppressed", toolSuppressed,
+			"call_fingerprint", repeatedToolCall.CallFingerprint,
+			"failure_fingerprint", repeatedToolCall.FailureFingerprint,
+			"session_id", correlation.SessionID,
+			"thread_id", correlation.ThreadID,
+			"turn_id", correlation.TurnID,
+		)
 	}
 	setGrokResponsesClientToolMapping(c, clientToolMapping)
 	// OpenAI /responses/compact is not a native xAI endpoint. Convert it into a

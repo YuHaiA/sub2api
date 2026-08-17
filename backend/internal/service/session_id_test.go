@@ -153,3 +153,53 @@ func TestExtractClientSessionID_InjectionHeaderDropped(t *testing.T) {
 	c.Request.Header.Set("session_id", "abc\r\nX-Injected: 1")
 	require.Equal(t, "", ExtractClientSessionID(c))
 }
+
+func TestExtractClientRequestCorrelationFromCodexBody(t *testing.T) {
+	c := newSessionHeaderContext(t, nil)
+	body := []byte(`{
+		"client_metadata": {
+			"session_id": "session-body",
+			"thread_id": "01a00f7a-1ea9-7d71-a006-141f6e7e3555",
+			"turn_id": "turn-direct",
+			"x-codex-turn-metadata": "{\"session_id\":\"session-embedded\",\"thread_id\":\"thread-embedded\",\"turn_id\":\"turn-embedded\"}"
+		},
+		"input": [
+			{"type":"message","internal_chat_message_metadata_passthrough":{"turn_id":"01a00f7a-20e3-7491-91c5-f2abafa3b212"}}
+		]
+	}`)
+
+	correlation := ExtractClientRequestCorrelation(c, body)
+	require.Equal(t, "session-body", correlation.SessionID)
+	require.Equal(t, "01a00f7a-1ea9-7d71-a006-141f6e7e3555", correlation.ThreadID)
+	require.Equal(t, "01a00f7a-20e3-7491-91c5-f2abafa3b212", correlation.TurnID)
+	require.Equal(t, correlation.ThreadID, ExtractClientSessionID(c, body))
+}
+
+func TestExtractClientSessionIDHeaderPrecedesCodexBody(t *testing.T) {
+	c := newSessionHeaderContext(t, map[string]string{"session-id": "header-session"})
+	body := []byte(`{"client_metadata":{"thread_id":"body-thread"}}`)
+	require.Equal(t, "header-session", ExtractClientSessionID(c, body))
+}
+
+func TestExtractClientRequestCorrelationFromCodexTurnMetadataHeader(t *testing.T) {
+	c := newSessionHeaderContext(t, map[string]string{
+		"x-codex-turn-metadata": `{"session_id":"header-session","thread_id":"01a00f7a-1ea9-7d71-a006-141f6e7e3555","turn_id":"01a00f7a-20e3-7491-91c5-f2abafa3b212"}`,
+	})
+
+	correlation := ExtractClientRequestCorrelation(c, nil)
+	require.Equal(t, "header-session", correlation.SessionID)
+	require.Equal(t, "01a00f7a-1ea9-7d71-a006-141f6e7e3555", correlation.ThreadID)
+	require.Equal(t, "01a00f7a-20e3-7491-91c5-f2abafa3b212", correlation.TurnID)
+	require.Equal(t, correlation.ThreadID, ExtractClientSessionID(c, []byte(`{}`)))
+}
+
+func TestExtractClientRequestCorrelationRejectsInvalidMetadataIDs(t *testing.T) {
+	c := newSessionHeaderContext(t, nil)
+	body := []byte(`{"client_metadata":{"thread_id":"bad\nthread","x-codex-turn-metadata":"not-json"}}`)
+
+	correlation := ExtractClientRequestCorrelation(c, body)
+	require.Empty(t, correlation.SessionID)
+	require.Empty(t, correlation.ThreadID)
+	require.Empty(t, correlation.TurnID)
+	require.Empty(t, ExtractClientSessionID(c, body))
+}

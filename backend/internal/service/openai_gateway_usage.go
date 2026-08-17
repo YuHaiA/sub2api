@@ -29,7 +29,7 @@ type OpenAIRecordUsageInput struct {
 	UpstreamEndpoint   string
 	UserAgent          string // 请求的 User-Agent
 	IPAddress          string // 请求的客户端 IP 地址
-	SessionID          string // 客户端显式会话标识（session_id / X-Session-Id 等请求头），仅用于用量行会话关联
+	SessionID          string // 客户端显式会话标识（请求头或 Codex client_metadata），仅用于用量行会话关联
 	RequestPayloadHash string
 	APIKeyService      APIKeyQuotaUpdater
 	QuotaPlatform      string // user×platform quota platform resolved by the handler before async billing.
