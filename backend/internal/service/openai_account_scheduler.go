@@ -2137,7 +2137,7 @@ func (s *OpenAIGatewayService) selectAccountWithScheduler(
 }
 
 func (s *OpenAIGatewayService) expandGrokPreferredExclusions(ctx context.Context, platform string, excludedIDs map[int64]struct{}) map[int64]struct{} {
-	if s == nil || normalizeOpenAICompatiblePlatform(platform) != PlatformGrok {
+	if s == nil || NormalizeOpenAICompatiblePlatform(platform) != PlatformGrok {
 		return excludedIDs
 	}
 	return expandMihomoPoolProxyExclusionsWithRepo(ctx, s.accountRepo, excludedIDs)
