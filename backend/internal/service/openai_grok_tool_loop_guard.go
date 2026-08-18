@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	grokRepeatedFailedToolWarningThreshold     = 3
+	grokRepeatedFailedToolWarningThreshold     = 1
 	grokRepeatedFailedToolSuppressionThreshold = 5
 	grokToolLoopGuardMarker                    = "[Gateway tool-loop guard]"
 )
@@ -49,11 +49,18 @@ func applyGrokRepeatedFailedToolCallGuard(body []byte) ([]byte, *grokRepeatedFai
 	}
 
 	guardInstruction := fmt.Sprintf(
-		"%s The tool %q has returned the same explicit failure %d consecutive times with identical arguments. Do not call it again with those arguments. Inspect the latest error and change the arguments, quoting, tool, or implementation. If no safe alternative exists, explain the blocker instead of retrying.",
+		"%s The latest call to tool %q explicitly failed. Do not repeat it with identical arguments. Inspect the error and change the arguments, quoting, tool, or implementation, then continue the task. If no safe alternative exists, explain the blocker instead of retrying.",
 		grokToolLoopGuardMarker,
 		signal.ToolName,
-		signal.RepeatCount,
 	)
+	if signal.RepeatCount > 1 {
+		guardInstruction = fmt.Sprintf(
+			"%s The tool %q has returned the same explicit failure %d consecutive times with identical arguments. Do not call it again with those arguments. Inspect the latest error and change the arguments, quoting, tool, or implementation, then continue the task. If no safe alternative exists, explain the blocker instead of retrying.",
+			grokToolLoopGuardMarker,
+			signal.ToolName,
+			signal.RepeatCount,
+		)
+	}
 	if signal.RepeatCount >= grokRepeatedFailedToolSuppressionThreshold {
 		guardInstruction += " This tool is temporarily unavailable for this response; use another available tool or report the blocker."
 	}

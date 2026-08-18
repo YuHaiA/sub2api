@@ -29,6 +29,21 @@ func TestApplyGrokRepeatedFailedToolCallGuardInjectsRecoveryInstruction(t *testi
 	require.Contains(t, gjson.GetBytes(guarded, "instructions").String(), "Do not call it again with those arguments")
 }
 
+func TestApplyGrokRepeatedFailedToolCallGuardInjectsAfterFirstFailure(t *testing.T) {
+	body := buildGrokToolLoopTestBody(t, []grokToolLoopTestAttempt{
+		{arguments: `{"cmd":"pwsh -c bad"}`, output: grokToolLoopParserError("first", "0.31")},
+	})
+
+	guarded, signal, err := applyGrokRepeatedFailedToolCallGuard(body)
+	require.NoError(t, err)
+	require.NotNil(t, signal)
+	require.Equal(t, "exec_command", signal.ToolName)
+	require.Equal(t, 1, signal.RepeatCount)
+	require.Contains(t, gjson.GetBytes(guarded, "instructions").String(), "explicitly failed")
+	require.Contains(t, gjson.GetBytes(guarded, "instructions").String(), "then continue the task")
+	require.NotContains(t, gjson.GetBytes(guarded, "instructions").String(), "temporarily unavailable")
+}
+
 func TestApplyGrokRepeatedFailedToolCallGuardPreservesExistingInstructions(t *testing.T) {
 	body := buildGrokToolLoopTestBody(t, []grokToolLoopTestAttempt{
 		{arguments: `{"cmd":"bad"}`, output: grokToolLoopParserError("one", "0.1")},
@@ -48,7 +63,7 @@ func TestApplyGrokRepeatedFailedToolCallGuardPreservesExistingInstructions(t *te
 	require.Contains(t, gjson.GetBytes(guarded, "instructions").String(), grokToolLoopGuardMarker)
 }
 
-func TestApplyGrokRepeatedFailedToolCallGuardIgnoresNonLoops(t *testing.T) {
+func TestApplyGrokRepeatedFailedToolCallGuardResetsChangedFailures(t *testing.T) {
 	tests := []struct {
 		name     string
 		attempts []grokToolLoopTestAttempt
@@ -69,25 +84,29 @@ func TestApplyGrokRepeatedFailedToolCallGuardIgnoresNonLoops(t *testing.T) {
 				{arguments: `{"cmd":"bad"}`, output: "Process exited with code 1\nOutput:\nthird error"},
 			},
 		},
-		{
-			name: "successful repeated reads",
-			attempts: []grokToolLoopTestAttempt{
-				{toolName: "read_file", arguments: `{"path":"a.go"}`, output: "Process exited with code 0\nOutput:\nok"},
-				{toolName: "read_file", arguments: `{"path":"a.go"}`, output: "Process exited with code 0\nOutput:\nok"},
-				{toolName: "read_file", arguments: `{"path":"a.go"}`, output: "Process exited with code 0\nOutput:\nok"},
-			},
-		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			body := buildGrokToolLoopTestBody(t, test.attempts)
-			guarded, signal, err := applyGrokRepeatedFailedToolCallGuard(body)
+			_, signal, err := applyGrokRepeatedFailedToolCallGuard(buildGrokToolLoopTestBody(t, test.attempts))
 			require.NoError(t, err)
-			require.Nil(t, signal)
-			require.JSONEq(t, string(body), string(guarded))
+			require.NotNil(t, signal)
+			require.Equal(t, 1, signal.RepeatCount)
 		})
 	}
+}
+
+func TestApplyGrokRepeatedFailedToolCallGuardIgnoresSuccessfulRepeatedTools(t *testing.T) {
+	body := buildGrokToolLoopTestBody(t, []grokToolLoopTestAttempt{
+		{toolName: "read_file", arguments: `{"path":"a.go"}`, output: "Process exited with code 0\nOutput:\nok"},
+		{toolName: "read_file", arguments: `{"path":"a.go"}`, output: "Process exited with code 0\nOutput:\nok"},
+		{toolName: "read_file", arguments: `{"path":"a.go"}`, output: "Process exited with code 0\nOutput:\nok"},
+	})
+
+	guarded, signal, err := applyGrokRepeatedFailedToolCallGuard(body)
+	require.NoError(t, err)
+	require.Nil(t, signal)
+	require.JSONEq(t, string(body), string(guarded))
 }
 
 func TestSuppressGrokRepeatedFailedToolRemovesOnlyTarget(t *testing.T) {
