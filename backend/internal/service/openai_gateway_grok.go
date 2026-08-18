@@ -25,7 +25,7 @@ const (
 	// grokUpstreamUserAgent lives in grok_upstream_headers.go (shared with TLS header helpers).
 	grokCLIVersion                   = xai.CLIClientVersion
 	grokDefaultResponsesModel        = "grok-4.5"
-	grokRateLimitFallbackCooldown    = 2 * time.Minute
+	grokRateLimitFallbackCooldown    = 10 * time.Minute
 	grokRateLimitRepeatCooldown      = 10 * time.Minute
 	grokRateLimitSustainedCooldown   = 30 * time.Minute
 	grokRateLimitMaxAdaptiveCooldown = time.Hour
