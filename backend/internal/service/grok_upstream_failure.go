@@ -411,6 +411,16 @@ func grokFreeUsageCooldownDuration(low string) time.Duration {
 	return grokFreeUsageProbeCooldown
 }
 
+func grokFreeUsageHasRollingWindow(reason string) bool {
+	low := strings.ToLower(strings.TrimSpace(reason))
+	return strings.Contains(low, "usage resets over a rolling") ||
+		strings.Contains(low, "rolling 24") ||
+		strings.Contains(low, "24-hour rolling") ||
+		strings.Contains(low, "24 hour rolling") ||
+		strings.Contains(low, "滚动 24") ||
+		strings.Contains(low, "滚动24")
+}
+
 const grokFreeUsageProbeCooldown = 10 * time.Minute
 
 func parseGrokTokenPair(errText string) (actual, limit int64, ok bool) {

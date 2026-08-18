@@ -12,16 +12,36 @@ import (
 const grokSpendingLimitProbeCooldown = 10 * time.Minute
 
 func grokSpendingLimitResetAt(account *Account, now time.Time) time.Time {
-	if account != nil {
-		if billing, err := grokBillingSnapshotFromExtra(account.Extra); err == nil && billing != nil {
-			for _, raw := range []string{billing.PeriodEnd, billing.BillingPeriodEnd} {
-				if resetAt, err := time.Parse(time.RFC3339, strings.TrimSpace(raw)); err == nil && resetAt.After(now) {
-					return resetAt
-				}
-			}
-		}
+	if resetAt, ok := grokOfficialUsageResetAt(account, now); ok {
+		return resetAt
 	}
 	return now.Add(grokSpendingLimitProbeCooldown)
+}
+
+func grokOfficialUsageResetAt(account *Account, now time.Time) (time.Time, bool) {
+	if account == nil {
+		return time.Time{}, false
+	}
+	billing, err := grokBillingSnapshotFromExtra(account.Extra)
+	if err != nil || billing == nil {
+		return time.Time{}, false
+	}
+
+	var candidates []string
+	switch strings.ToLower(strings.TrimSpace(billing.PeriodType)) {
+	case "weekly":
+		candidates = []string{billing.PeriodEnd}
+	case "monthly":
+		candidates = []string{billing.BillingPeriodEnd, billing.PeriodEnd}
+	default:
+		candidates = []string{billing.PeriodEnd, billing.BillingPeriodEnd}
+	}
+	for _, raw := range candidates {
+		if resetAt, parseErr := time.Parse(time.RFC3339, strings.TrimSpace(raw)); parseErr == nil && resetAt.After(now) {
+			return resetAt, true
+		}
+	}
+	return time.Time{}, false
 }
 
 // clearGrokNeedsReauthExtra drops the soft reauth flag after successful refresh

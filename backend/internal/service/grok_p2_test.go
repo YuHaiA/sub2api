@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 	"github.com/stretchr/testify/require"
 )
 
@@ -99,4 +100,80 @@ func TestApplyGrokUpstreamFailure_SpendingLimitRemainsRecoverable(t *testing.T) 
 	require.Zero(t, repo.tempUnschedCalls)
 	// Without a billing-period snapshot, use a short recoverable probe cooldown.
 	require.WithinDuration(t, time.Now().Add(grokSpendingLimitProbeCooldown), repo.lastRateLimitResetAt, 2*time.Second)
+}
+
+func TestGrokOfficialUsageResetAtUsesMatchingBillingWindow(t *testing.T) {
+	now := time.Now().UTC().Truncate(time.Second)
+	weeklyEnd := now.Add(3 * 24 * time.Hour)
+	monthlyEnd := now.Add(14 * 24 * time.Hour)
+
+	weekly := &Account{Extra: map[string]any{grokBillingExtraKey: &xai.BillingSummary{
+		PeriodType:       "weekly",
+		PeriodEnd:        weeklyEnd.Format(time.RFC3339),
+		BillingPeriodEnd: monthlyEnd.Format(time.RFC3339),
+	}}}
+	resetAt, ok := grokOfficialUsageResetAt(weekly, now)
+	require.True(t, ok)
+	require.Equal(t, weeklyEnd, resetAt)
+
+	weeklyWithoutEnd := &Account{Extra: map[string]any{grokBillingExtraKey: &xai.BillingSummary{
+		PeriodType:       "weekly",
+		BillingPeriodEnd: monthlyEnd.Format(time.RFC3339),
+	}}}
+	_, ok = grokOfficialUsageResetAt(weeklyWithoutEnd, now)
+	require.False(t, ok)
+
+	monthly := &Account{Extra: map[string]any{grokBillingExtraKey: &xai.BillingSummary{
+		PeriodType:       "monthly",
+		BillingPeriodEnd: monthlyEnd.Format(time.RFC3339),
+	}}}
+	resetAt, ok = grokOfficialUsageResetAt(monthly, now)
+	require.True(t, ok)
+	require.Equal(t, monthlyEnd, resetAt)
+}
+
+func TestApplyGrokUpstreamFailure_WeeklyUsageUsesOfficialReset(t *testing.T) {
+	now := time.Now().UTC().Truncate(time.Second)
+	weeklyEnd := now.Add(3 * 24 * time.Hour)
+	repo := &grokQuotaAccountRepo{}
+	svc := &OpenAIGatewayService{accountRepo: repo}
+	account := &Account{
+		ID:       9111,
+		Platform: PlatformGrok,
+		Type:     AccountTypeOAuth,
+		Extra: map[string]any{grokBillingExtraKey: &xai.BillingSummary{
+			PeriodType: "weekly",
+			PeriodEnd:  weeklyEnd.Format(time.RFC3339),
+		}},
+	}
+	body := []byte(`{"error":{"code":"subscription:free-usage-exhausted","message":"included usage exhausted"}}`)
+
+	svc.handleGrokAccountUpstreamError(context.Background(), account, 429, nil, body)
+
+	require.GreaterOrEqual(t, repo.rateLimitedCalls, 1)
+	require.Zero(t, repo.tempUnschedCalls)
+	require.WithinDuration(t, weeklyEnd, repo.lastRateLimitResetAt, time.Second)
+}
+
+func TestApplyGrokUpstreamFailure_RollingUsageDoesNotUseWeeklyReset(t *testing.T) {
+	now := time.Now().UTC().Truncate(time.Second)
+	weeklyEnd := now.Add(3 * 24 * time.Hour)
+	repo := &grokQuotaAccountRepo{}
+	svc := &OpenAIGatewayService{accountRepo: repo}
+	account := &Account{
+		ID:       9112,
+		Platform: PlatformGrok,
+		Type:     AccountTypeOAuth,
+		Extra: map[string]any{grokBillingExtraKey: &xai.BillingSummary{
+			PeriodType: "weekly",
+			PeriodEnd:  weeklyEnd.Format(time.RFC3339),
+		}},
+	}
+	body := []byte(`{"error":{"code":"subscription:free-usage-exhausted","message":"Usage resets over a rolling 24-hour window."}}`)
+
+	svc.handleGrokAccountUpstreamError(context.Background(), account, 400, nil, body)
+
+	require.Zero(t, repo.rateLimitedCalls)
+	require.Equal(t, 1, repo.tempUnschedCalls)
+	require.WithinDuration(t, now.Add(grokFreeUsageProbeCooldown), repo.lastTempUnschedUntil, 2*time.Second)
 }

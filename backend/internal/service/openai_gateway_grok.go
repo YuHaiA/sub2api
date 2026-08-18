@@ -1708,12 +1708,16 @@ func (s *OpenAIGatewayService) handleGrokAccountUpstreamError(ctx context.Contex
 		if account.IsPoolMode() && !account.MihomoPoolManaged() {
 			// Allow configured temp rules (403) below; skip default body cools.
 		} else {
-			// A free-tier exhaustion message describes a rolling usage window. Use
-			// an upstream absolute reset (or Retry-After) when available; otherwise
-			// apply only a short probe cooldown. Never start a fabricated 24h window
-			// at the instant this error was received.
+			// Use an upstream reset or the observed billing-window end when available;
+			// rolling free-tier exhaustion has no exact reset timestamp in the error.
 			if decision.Class == GrokFailureFreeUsage {
-				if resetAt, limited := grokRateLimitResetAtForAccount(account, parseGrokQuotaSnapshot(headers, statusCode, now), now); limited && resetAt.After(now) {
+				resetAt, limited := grokRateLimitResetAtForAccount(account, parseGrokQuotaSnapshot(headers, statusCode, now), now)
+				if !grokFreeUsageHasRollingWindow(decision.Reason) {
+					if officialResetAt, ok := grokOfficialUsageResetAt(account, now); ok && officialResetAt.After(resetAt) {
+						resetAt, limited = officialResetAt, true
+					}
+				}
+				if limited && resetAt.After(now) {
 					if decision.Model != "" && isGrokModelSpecificFreeUsage(strings.ToLower(decision.Reason), decision.Model) {
 						markGrokModelQuotaBlock(account.ID, decision.Model, resetAt)
 						return
