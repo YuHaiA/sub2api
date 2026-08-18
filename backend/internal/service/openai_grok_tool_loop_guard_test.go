@@ -11,30 +11,31 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func TestApplyGrokRepeatedFailedToolCallGuardInjectsRecoveryInstruction(t *testing.T) {
+func TestApplyGrokRepeatedToolCallGuardInjectsFailureRecoveryInstruction(t *testing.T) {
 	body := buildGrokToolLoopTestBody(t, []grokToolLoopTestAttempt{
 		{arguments: `{"cmd":"pwsh -c bad"}`, output: grokToolLoopParserError("first", "0.31")},
 		{arguments: `{"cmd":"pwsh -c bad"}`, output: grokToolLoopParserError("second", "0.42")},
 		{arguments: `{"cmd":"pwsh -c bad"}`, output: grokToolLoopParserError("third", "0.53")},
 	})
 
-	guarded, signal, err := applyGrokRepeatedFailedToolCallGuard(body)
+	guarded, signal, err := applyGrokRepeatedToolCallGuard(body)
 	require.NoError(t, err)
 	require.NotNil(t, signal)
 	require.Equal(t, "exec_command", signal.ToolName)
 	require.Equal(t, 3, signal.RepeatCount)
 	require.NotEmpty(t, signal.CallFingerprint)
-	require.NotEmpty(t, signal.FailureFingerprint)
+	require.NotEmpty(t, signal.OutputFingerprint)
+	require.True(t, signal.Failed)
 	require.Contains(t, gjson.GetBytes(guarded, "instructions").String(), grokToolLoopGuardMarker)
 	require.Contains(t, gjson.GetBytes(guarded, "instructions").String(), "Do not call it again with those arguments")
 }
 
-func TestApplyGrokRepeatedFailedToolCallGuardInjectsAfterFirstFailure(t *testing.T) {
+func TestApplyGrokRepeatedToolCallGuardInjectsAfterFirstFailure(t *testing.T) {
 	body := buildGrokToolLoopTestBody(t, []grokToolLoopTestAttempt{
 		{arguments: `{"cmd":"pwsh -c bad"}`, output: grokToolLoopParserError("first", "0.31")},
 	})
 
-	guarded, signal, err := applyGrokRepeatedFailedToolCallGuard(body)
+	guarded, signal, err := applyGrokRepeatedToolCallGuard(body)
 	require.NoError(t, err)
 	require.NotNil(t, signal)
 	require.Equal(t, "exec_command", signal.ToolName)
@@ -44,7 +45,7 @@ func TestApplyGrokRepeatedFailedToolCallGuardInjectsAfterFirstFailure(t *testing
 	require.NotContains(t, gjson.GetBytes(guarded, "instructions").String(), "temporarily unavailable")
 }
 
-func TestApplyGrokRepeatedFailedToolCallGuardPreservesExistingInstructions(t *testing.T) {
+func TestApplyGrokRepeatedToolCallGuardPreservesExistingInstructions(t *testing.T) {
 	body := buildGrokToolLoopTestBody(t, []grokToolLoopTestAttempt{
 		{arguments: `{"cmd":"bad"}`, output: grokToolLoopParserError("one", "0.1")},
 		{arguments: `{"cmd":"bad"}`, output: grokToolLoopParserError("two", "0.2")},
@@ -56,14 +57,14 @@ func TestApplyGrokRepeatedFailedToolCallGuardPreservesExistingInstructions(t *te
 	body, err := json.Marshal(request)
 	require.NoError(t, err)
 
-	guarded, signal, err := applyGrokRepeatedFailedToolCallGuard(body)
+	guarded, signal, err := applyGrokRepeatedToolCallGuard(body)
 	require.NoError(t, err)
 	require.NotNil(t, signal)
 	require.Contains(t, gjson.GetBytes(guarded, "instructions").String(), "existing system instruction")
 	require.Contains(t, gjson.GetBytes(guarded, "instructions").String(), grokToolLoopGuardMarker)
 }
 
-func TestApplyGrokRepeatedFailedToolCallGuardResetsChangedFailures(t *testing.T) {
+func TestApplyGrokRepeatedToolCallGuardResetsChangedFailures(t *testing.T) {
 	tests := []struct {
 		name     string
 		attempts []grokToolLoopTestAttempt
@@ -88,7 +89,7 @@ func TestApplyGrokRepeatedFailedToolCallGuardResetsChangedFailures(t *testing.T)
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, signal, err := applyGrokRepeatedFailedToolCallGuard(buildGrokToolLoopTestBody(t, test.attempts))
+			_, signal, err := applyGrokRepeatedToolCallGuard(buildGrokToolLoopTestBody(t, test.attempts))
 			require.NoError(t, err)
 			require.NotNil(t, signal)
 			require.Equal(t, 1, signal.RepeatCount)
@@ -96,23 +97,38 @@ func TestApplyGrokRepeatedFailedToolCallGuardResetsChangedFailures(t *testing.T)
 	}
 }
 
-func TestApplyGrokRepeatedFailedToolCallGuardIgnoresSuccessfulRepeatedTools(t *testing.T) {
+func TestApplyGrokRepeatedToolCallGuardInjectsForUnchangedSuccessfulOutput(t *testing.T) {
 	body := buildGrokToolLoopTestBody(t, []grokToolLoopTestAttempt{
-		{toolName: "read_file", arguments: `{"path":"a.go"}`, output: "Process exited with code 0\nOutput:\nok"},
-		{toolName: "read_file", arguments: `{"path":"a.go"}`, output: "Process exited with code 0\nOutput:\nok"},
-		{toolName: "read_file", arguments: `{"path":"a.go"}`, output: "Process exited with code 0\nOutput:\nok"},
+		{toolName: "read_file", arguments: `{"path":"a.go"}`, output: grokToolLoopSuccess("first", "0.1", "same content")},
+		{toolName: "read_file", arguments: `{"path":"a.go"}`, output: grokToolLoopSuccess("second", "0.2", "same content")},
+		{toolName: "read_file", arguments: `{"path":"a.go"}`, output: grokToolLoopSuccess("third", "0.3", "same content")},
 	})
 
-	guarded, signal, err := applyGrokRepeatedFailedToolCallGuard(body)
+	guarded, signal, err := applyGrokRepeatedToolCallGuard(body)
+	require.NoError(t, err)
+	require.NotNil(t, signal)
+	require.False(t, signal.Failed)
+	require.Equal(t, 3, signal.RepeatCount)
+	require.Contains(t, gjson.GetBytes(guarded, "instructions").String(), "materially unchanged successful output")
+	require.Contains(t, gjson.GetBytes(guarded, "instructions").String(), "continue the task")
+}
+
+func TestApplyGrokRepeatedToolCallGuardIgnoresChangedSuccessfulOutput(t *testing.T) {
+	body := buildGrokToolLoopTestBody(t, []grokToolLoopTestAttempt{
+		{toolName: "read_file", arguments: `{"path":"a.go"}`, output: "first content"},
+		{toolName: "read_file", arguments: `{"path":"a.go"}`, output: "second content"},
+	})
+
+	guarded, signal, err := applyGrokRepeatedToolCallGuard(body)
 	require.NoError(t, err)
 	require.Nil(t, signal)
 	require.JSONEq(t, string(body), string(guarded))
 }
 
-func TestSuppressGrokRepeatedFailedToolRemovesOnlyTarget(t *testing.T) {
+func TestSuppressGrokRepeatedToolRemovesOnlyTarget(t *testing.T) {
 	body := []byte(`{"tools":[{"type":"function","name":"exec_command"},{"type":"function","name":"apply_patch"}],"tool_choice":{"type":"function","name":"exec_command"},"input":[]}`)
 
-	suppressed, changed, err := suppressGrokRepeatedFailedTool(body, "exec_command")
+	suppressed, changed, err := suppressGrokRepeatedTool(body, "exec_command")
 	require.NoError(t, err)
 	require.True(t, changed)
 	require.Len(t, gjson.GetBytes(suppressed, "tools").Array(), 1)
@@ -120,8 +136,8 @@ func TestSuppressGrokRepeatedFailedToolRemovesOnlyTarget(t *testing.T) {
 	require.Equal(t, "auto", gjson.GetBytes(suppressed, "tool_choice").String())
 }
 
-func TestApplyGrokRepeatedFailedToolCallGuardMarksSuppressionThreshold(t *testing.T) {
-	attempts := make([]grokToolLoopTestAttempt, grokRepeatedFailedToolSuppressionThreshold)
+func TestApplyGrokRepeatedToolCallGuardMarksSuppressionThreshold(t *testing.T) {
+	attempts := make([]grokToolLoopTestAttempt, grokRepeatedToolSuppressionThreshold)
 	for index := range attempts {
 		attempts[index] = grokToolLoopTestAttempt{
 			arguments: `{"cmd":"pwsh -c bad"}`,
@@ -129,10 +145,10 @@ func TestApplyGrokRepeatedFailedToolCallGuardMarksSuppressionThreshold(t *testin
 		}
 	}
 
-	guarded, signal, err := applyGrokRepeatedFailedToolCallGuard(buildGrokToolLoopTestBody(t, attempts))
+	guarded, signal, err := applyGrokRepeatedToolCallGuard(buildGrokToolLoopTestBody(t, attempts))
 	require.NoError(t, err)
 	require.NotNil(t, signal)
-	require.Equal(t, grokRepeatedFailedToolSuppressionThreshold, signal.RepeatCount)
+	require.Equal(t, grokRepeatedToolSuppressionThreshold, signal.RepeatCount)
 	require.Contains(t, gjson.GetBytes(guarded, "instructions").String(), "temporarily unavailable")
 }
 
@@ -167,4 +183,8 @@ func buildGrokToolLoopTestBody(t *testing.T, attempts []grokToolLoopTestAttempt)
 
 func grokToolLoopParserError(chunkID, wallTime string) string {
 	return fmt.Sprintf("Chunk ID: %s\nWall time: %s seconds\nProcess exited with code 1\nOriginal token count: 60\nOutput:\nParserError: Unexpected token '120' in expression or statement.", chunkID, wallTime)
+}
+
+func grokToolLoopSuccess(chunkID, wallTime, output string) string {
+	return fmt.Sprintf("Chunk ID: %s\nWall time: %s seconds\nProcess exited with code 0\nOriginal token count: 20\nOutput:\n%s", chunkID, wallTime, output)
 }

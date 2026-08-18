@@ -1655,6 +1655,11 @@ func (s *GatewayService) isAccountBlockedBySchedulingThreshold(ctx context.Conte
 
 func (s *GatewayService) hydrateSelectedAccount(ctx context.Context, account *Account) (*Account, error) {
 	if account == nil || s.schedulerSnapshot == nil {
+		if account != nil {
+			if _, err := resolvedAccountProxyURL(account); err != nil {
+				return nil, fmt.Errorf("selected gateway account has invalid egress: %w", err)
+			}
+		}
 		return account, nil
 	}
 	hydrated, err := s.schedulerSnapshot.GetAccount(ctx, account.ID)
@@ -1664,12 +1669,18 @@ func (s *GatewayService) hydrateSelectedAccount(ctx context.Context, account *Ac
 	if hydrated == nil {
 		return nil, fmt.Errorf("selected gateway account %d not found during hydration", account.ID)
 	}
+	if _, err := resolvedAccountProxyURL(hydrated); err != nil {
+		return nil, fmt.Errorf("selected gateway account has invalid egress: %w", err)
+	}
 	return hydrated, nil
 }
 
 func (s *GatewayService) newSelectionResult(ctx context.Context, account *Account, acquired bool, release func(), waitPlan *AccountWaitPlan) (*AccountSelectionResult, error) {
 	hydrated, err := s.hydrateSelectedAccount(ctx, account)
 	if err != nil {
+		if acquired && release != nil {
+			release()
+		}
 		return nil, err
 	}
 	return attachSelectionProfitGate(ctx, &AccountSelectionResult{

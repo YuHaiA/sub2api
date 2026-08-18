@@ -35,6 +35,18 @@ const (
 	// AccountID 当前请求最终命中的账号 ID（用于统一请求链路日志字段）。
 	AccountID Key = "ctx_account_id"
 
+	// ProxyID 当前请求最终命中的代理 ID（用于统一请求链路日志字段）。
+	ProxyID Key = "ctx_proxy_id"
+
+	// ProxyName 当前请求最终命中的代理名称（用于统一请求链路日志字段）。
+	ProxyName Key = "ctx_proxy_name"
+
+	// ProxyHost 当前请求最终命中的代理主机（用于统一请求链路日志字段）。
+	ProxyHost Key = "ctx_proxy_host"
+
+	// ProxyPort 当前请求最终命中的代理端口（用于统一请求链路日志字段）。
+	ProxyPort Key = "ctx_proxy_port"
+
 	// RetryCount 表示当前请求在网关层的重试次数（用于 Ops 记录与排障）。
 	RetryCount Key = "ctx_retry_count"
 

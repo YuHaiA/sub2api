@@ -603,9 +603,9 @@ func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 	}
 	SetActualOpenAIUpstreamEndpoint(c, grokChatResponsesEndpoint)
 
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
+	proxyURL, err := resolvedAccountProxyURL(account)
+	if err != nil {
+		return nil, fmt.Errorf("resolve Grok chat account egress: %w", err)
 	}
 	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
 	if err != nil {

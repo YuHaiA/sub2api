@@ -56,9 +56,9 @@ func (s *OpenAIGatewayService) forwardGrokResponses(
 	if isGrokImageGenerationModel(upstreamModel) {
 		return nil, fmt.Errorf("model %s is an image model and is not available on the Responses endpoint; use /v1/images/generations instead", upstreamModel)
 	}
-	guardedBody, repeatedToolCall, err := applyGrokRepeatedFailedToolCallGuard(body)
+	guardedBody, repeatedToolCall, err := applyGrokRepeatedToolCallGuard(body)
 	if err != nil {
-		return nil, fmt.Errorf("apply Grok repeated tool-call guard: %w", err)
+		return nil, fmt.Errorf("apply Grok tool-loop guard: %w", err)
 	}
 	patchedBody, clientToolMapping, err := patchGrokResponsesBodyWithClientTools(guardedBody, upstreamModel)
 	if err != nil {
@@ -69,20 +69,25 @@ func (s *OpenAIGatewayService) forwardGrokResponses(
 		return nil, err
 	}
 	toolSuppressed := false
-	if repeatedToolCall != nil && repeatedToolCall.RepeatCount >= grokRepeatedFailedToolSuppressionThreshold {
-		patchedBody, toolSuppressed, err = suppressGrokRepeatedFailedTool(patchedBody, repeatedToolCall.ToolName)
+	if repeatedToolCall != nil && repeatedToolCall.RepeatCount >= grokRepeatedToolSuppressionThreshold {
+		patchedBody, toolSuppressed, err = suppressGrokRepeatedTool(patchedBody, repeatedToolCall.ToolName)
 		if err != nil {
 			return nil, fmt.Errorf("suppress repeated Grok tool call: %w", err)
 		}
 	}
 	if repeatedToolCall != nil {
 		correlation := ExtractClientRequestCorrelation(c, body)
-		slog.Warn("grok_repeated_failed_tool_call_detected",
+		outcome := "unchanged_success"
+		if repeatedToolCall.Failed {
+			outcome = "failure"
+		}
+		slog.Warn("grok_repeated_tool_call_detected",
 			"tool_name", repeatedToolCall.ToolName,
+			"outcome", outcome,
 			"repeat_count", repeatedToolCall.RepeatCount,
 			"tool_suppressed", toolSuppressed,
 			"call_fingerprint", repeatedToolCall.CallFingerprint,
-			"failure_fingerprint", repeatedToolCall.FailureFingerprint,
+			"output_fingerprint", repeatedToolCall.OutputFingerprint,
 			"session_id", correlation.SessionID,
 			"thread_id", correlation.ThreadID,
 			"turn_id", correlation.TurnID,
@@ -121,9 +126,9 @@ func (s *OpenAIGatewayService) forwardGrokResponses(
 	upstreamCtx, releaseUpstreamCtx := requestBoundUpstreamContext(ctx)
 	defer releaseUpstreamCtx()
 
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
+	proxyURL, err := resolvedAccountProxyURL(account)
+	if err != nil {
+		return nil, fmt.Errorf("resolve Grok account egress: %w", err)
 	}
 
 	upstreamStart := time.Now()
@@ -1088,9 +1093,9 @@ func (s *OpenAIGatewayService) describeGrokComposerImage(
 		return "", OpenAIUsage{}, fmt.Errorf("build grok composer image bridge request: %w", err)
 	}
 
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
+	proxyURL, err := resolvedAccountProxyURL(account)
+	if err != nil {
+		return "", OpenAIUsage{}, fmt.Errorf("resolve Grok composer account egress: %w", err)
 	}
 
 	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)

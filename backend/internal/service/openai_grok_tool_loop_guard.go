@@ -12,9 +12,10 @@ import (
 )
 
 const (
-	grokRepeatedFailedToolWarningThreshold     = 1
-	grokRepeatedFailedToolSuppressionThreshold = 5
-	grokToolLoopGuardMarker                    = "[Gateway tool-loop guard]"
+	grokRepeatedFailedToolWarningThreshold  = 1
+	grokRepeatedSuccessToolWarningThreshold = 2
+	grokRepeatedToolSuppressionThreshold    = 5
+	grokToolLoopGuardMarker                 = "[Gateway tool-loop guard]"
 )
 
 var (
@@ -22,11 +23,12 @@ var (
 	grokToolNonZeroExitCodePattern    = regexp.MustCompile(`(?im)\bexit code\s*[:=]?\s*([1-9][0-9]*)\b`)
 )
 
-type grokRepeatedFailedToolCall struct {
-	ToolName           string
-	RepeatCount        int
-	CallFingerprint    string
-	FailureFingerprint string
+type grokRepeatedToolCall struct {
+	ToolName          string
+	RepeatCount       int
+	CallFingerprint   string
+	OutputFingerprint string
+	Failed            bool
 }
 
 type grokToolCallHistoryItem struct {
@@ -34,7 +36,7 @@ type grokToolCallHistoryItem struct {
 	fingerprint string
 }
 
-func applyGrokRepeatedFailedToolCallGuard(body []byte) ([]byte, *grokRepeatedFailedToolCall, error) {
+func applyGrokRepeatedToolCallGuard(body []byte) ([]byte, *grokRepeatedToolCall, error) {
 	if !json.Valid(body) {
 		return body, nil, nil
 	}
@@ -43,26 +45,31 @@ func applyGrokRepeatedFailedToolCallGuard(body []byte) ([]byte, *grokRepeatedFai
 	if err != nil {
 		return body, nil, err
 	}
-	signal := detectGrokRepeatedFailedToolCall(requestBody)
-	if signal == nil || signal.RepeatCount < grokRepeatedFailedToolWarningThreshold {
+	signal := detectGrokRepeatedToolCall(requestBody)
+	if signal == nil {
 		return body, nil, nil
 	}
 
-	guardInstruction := fmt.Sprintf(
-		"%s The latest call to tool %q explicitly failed. Do not repeat it with identical arguments. Inspect the error and change the arguments, quoting, tool, or implementation, then continue the task. If no safe alternative exists, explain the blocker instead of retrying.",
-		grokToolLoopGuardMarker,
-		signal.ToolName,
-	)
-	if signal.RepeatCount > 1 {
+	var guardInstruction string
+	if signal.Failed && signal.RepeatCount == 1 {
 		guardInstruction = fmt.Sprintf(
-			"%s The tool %q has returned the same explicit failure %d consecutive times with identical arguments. Do not call it again with those arguments. Inspect the latest error and change the arguments, quoting, tool, or implementation, then continue the task. If no safe alternative exists, explain the blocker instead of retrying.",
+			"%s The latest call to tool %q explicitly failed. Do not repeat it with identical arguments. Inspect the error and change the arguments, quoting, tool, or implementation, then continue the task. If no safe alternative exists, explain the blocker instead of retrying.",
 			grokToolLoopGuardMarker,
 			signal.ToolName,
-			signal.RepeatCount,
+		)
+	} else if signal.Failed {
+		guardInstruction = fmt.Sprintf(
+			"%s The tool %q has returned the same explicit failure %d consecutive times with identical arguments. Do not call it again with those arguments. Inspect the latest error and change the arguments, quoting, tool, or implementation, then continue the task. If no safe alternative exists, explain the blocker instead of retrying.",
+			grokToolLoopGuardMarker, signal.ToolName, signal.RepeatCount,
+		)
+	} else {
+		guardInstruction = fmt.Sprintf(
+			"%s The tool %q has returned materially unchanged successful output %d consecutive times for identical arguments. The latest result is already available in the conversation history. Do not call it again with those arguments; use that result to make progress on the remaining task. If the result is insufficient, change the arguments or use another tool, then continue the task.",
+			grokToolLoopGuardMarker, signal.ToolName, signal.RepeatCount,
 		)
 	}
-	if signal.RepeatCount >= grokRepeatedFailedToolSuppressionThreshold {
-		guardInstruction += " This tool is temporarily unavailable for this response; use another available tool or report the blocker."
+	if signal.RepeatCount >= grokRepeatedToolSuppressionThreshold {
+		guardInstruction += " This tool is temporarily unavailable for this response; continue with another available tool or complete the remaining work without it."
 	}
 
 	if existing, ok := requestBody["instructions"].(string); ok && strings.TrimSpace(existing) != "" {
@@ -80,7 +87,7 @@ func applyGrokRepeatedFailedToolCallGuard(body []byte) ([]byte, *grokRepeatedFai
 	return rebuilt, signal, nil
 }
 
-func detectGrokRepeatedFailedToolCall(requestBody map[string]any) *grokRepeatedFailedToolCall {
+func detectGrokRepeatedToolCall(requestBody map[string]any) *grokRepeatedToolCall {
 	input, ok := requestBody["input"].([]any)
 	if !ok || len(input) == 0 {
 		return nil
@@ -88,7 +95,7 @@ func detectGrokRepeatedFailedToolCall(requestBody map[string]any) *grokRepeatedF
 
 	pending := make(map[string]grokToolCallHistoryItem)
 	var latestPending grokToolCallHistoryItem
-	var previous grokRepeatedFailedToolCall
+	var previous grokRepeatedToolCall
 	for _, rawItem := range input {
 		item, ok := rawItem.(map[string]any)
 		if !ok {
@@ -121,23 +128,29 @@ func detectGrokRepeatedFailedToolCall(requestBody map[string]any) *grokRepeatedF
 			continue
 		}
 
-		failureFingerprint, failed := grokToolFailureFingerprint(item["output"])
-		if !failed {
-			previous = grokRepeatedFailedToolCall{}
+		outputFingerprint, failed, comparable := grokToolOutputFingerprint(item["output"])
+		if !comparable {
+			previous = grokRepeatedToolCall{}
 			continue
 		}
-		if previous.CallFingerprint == call.fingerprint && previous.FailureFingerprint == failureFingerprint {
+		if previous.CallFingerprint == call.fingerprint &&
+			previous.OutputFingerprint == outputFingerprint && previous.Failed == failed {
 			previous.RepeatCount++
 		} else {
-			previous = grokRepeatedFailedToolCall{
-				ToolName:           call.name,
-				RepeatCount:        1,
-				CallFingerprint:    call.fingerprint,
-				FailureFingerprint: failureFingerprint,
+			previous = grokRepeatedToolCall{
+				ToolName:          call.name,
+				RepeatCount:       1,
+				CallFingerprint:   call.fingerprint,
+				OutputFingerprint: outputFingerprint,
+				Failed:            failed,
 			}
 		}
 	}
-	if previous.RepeatCount < grokRepeatedFailedToolWarningThreshold {
+	warningThreshold := grokRepeatedSuccessToolWarningThreshold
+	if previous.Failed {
+		warningThreshold = grokRepeatedFailedToolWarningThreshold
+	}
+	if previous.RepeatCount < warningThreshold {
 		return nil
 	}
 	return &previous
@@ -235,6 +248,34 @@ func grokToolFailureFingerprint(output any) (string, bool) {
 	return hashGrokToolLoopValue(canonical), true
 }
 
+func grokToolOutputFingerprint(output any) (string, bool, bool) {
+	if fingerprint, failed := grokToolFailureFingerprint(output); failed {
+		return fingerprint, true, true
+	}
+	if grokToolOutputPending(output) {
+		return "", false, false
+	}
+
+	canonical := canonicalGrokToolOutputText(grokToolOutputText(output))
+	if canonical == "" {
+		canonical = "empty-tool-output"
+	}
+	return hashGrokToolLoopValue(canonical), false, true
+}
+
+func grokToolOutputPending(output any) bool {
+	object, ok := output.(map[string]any)
+	if ok {
+		switch strings.ToLower(strings.TrimSpace(grokToolLoopString(object["status"]))) {
+		case "pending", "running", "in_progress":
+			return true
+		}
+	}
+	text := strings.ToLower(strings.TrimSpace(grokToolOutputText(output)))
+	return strings.HasPrefix(text, "script running with session id") ||
+		strings.HasPrefix(text, "process running with session id")
+}
+
 func grokToolOutputExplicitlyFailed(output any) bool {
 	object, ok := output.(map[string]any)
 	if !ok {
@@ -290,6 +331,10 @@ func grokToolOutputText(output any) string {
 }
 
 func canonicalGrokToolFailureText(text string) string {
+	return canonicalGrokToolOutputText(text)
+}
+
+func canonicalGrokToolOutputText(text string) string {
 	lines := strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n")
 	kept := make([]string, 0, len(lines))
 	for _, line := range lines {
@@ -301,6 +346,11 @@ func canonicalGrokToolFailureText(text string) string {
 		if strings.HasPrefix(lower, "chunk id:") ||
 			strings.HasPrefix(lower, "wall time:") ||
 			strings.HasPrefix(lower, "process exited with code ") ||
+			strings.HasPrefix(lower, "command exited with code ") ||
+			strings.HasPrefix(lower, "script exited with code ") ||
+			strings.HasPrefix(lower, "process exited with status ") ||
+			strings.HasPrefix(lower, "command exited with status ") ||
+			strings.HasPrefix(lower, "script exited with status ") ||
 			strings.HasPrefix(lower, "original token count:") ||
 			lower == "output:" {
 			continue
@@ -325,7 +375,7 @@ func decodeGrokToolLoopRequest(body []byte) (map[string]any, error) {
 	return requestBody, nil
 }
 
-func suppressGrokRepeatedFailedTool(body []byte, toolName string) ([]byte, bool, error) {
+func suppressGrokRepeatedTool(body []byte, toolName string) ([]byte, bool, error) {
 	requestBody, err := decodeGrokToolLoopRequest(body)
 	if err != nil {
 		return body, false, err
@@ -339,7 +389,7 @@ func suppressGrokRepeatedFailedTool(body []byte, toolName string) ([]byte, bool,
 	removed := false
 	for _, rawTool := range tools {
 		tool, ok := rawTool.(map[string]any)
-		if !ok || strings.TrimSpace(grokToolLoopString(tool["name"])) != toolName {
+		if !ok || grokToolDefinitionName(tool) != toolName {
 			filtered = append(filtered, rawTool)
 			continue
 		}
@@ -349,7 +399,7 @@ func suppressGrokRepeatedFailedTool(body []byte, toolName string) ([]byte, bool,
 		return body, false, nil
 	}
 	requestBody["tools"] = filtered
-	if choice, ok := requestBody["tool_choice"].(map[string]any); ok && strings.TrimSpace(grokToolLoopString(choice["name"])) == toolName {
+	if choice, ok := requestBody["tool_choice"].(map[string]any); ok && grokToolDefinitionName(choice) == toolName {
 		if len(filtered) == 0 {
 			requestBody["tool_choice"] = "none"
 		} else {
@@ -362,6 +412,14 @@ func suppressGrokRepeatedFailedTool(body []byte, toolName string) ([]byte, bool,
 		return body, false, fmt.Errorf("encode suppressed Grok tool request: %w", err)
 	}
 	return rebuilt, true, nil
+}
+
+func grokToolDefinitionName(tool map[string]any) string {
+	name := strings.TrimSpace(grokToolLoopString(tool["name"]))
+	if namespace := strings.TrimSpace(grokToolLoopString(tool["namespace"])); namespace != "" && name != "" {
+		return namespace + "." + name
+	}
+	return name
 }
 
 func grokToolLoopString(value any) string {

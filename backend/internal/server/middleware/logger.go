@@ -71,6 +71,18 @@ func Logger() gin.HandlerFunc {
 		if hasAccountID && accountID > 0 {
 			fields = append(fields, zap.Int64("account_id", accountID))
 		}
+		if proxyID, ok := c.Request.Context().Value(ctxkey.ProxyID).(int64); ok && proxyID > 0 {
+			fields = append(fields, zap.Int64("proxy_id", proxyID))
+			if proxyName, ok := c.Request.Context().Value(ctxkey.ProxyName).(string); ok && proxyName != "" {
+				fields = append(fields, zap.String("proxy_name", proxyName))
+			}
+			if proxyHost, ok := c.Request.Context().Value(ctxkey.ProxyHost).(string); ok && proxyHost != "" {
+				fields = append(fields, zap.String("proxy_host", proxyHost))
+			}
+			if proxyPort, ok := c.Request.Context().Value(ctxkey.ProxyPort).(int); ok && proxyPort > 0 {
+				fields = append(fields, zap.Int("proxy_port", proxyPort))
+			}
+		}
 		if platform != "" {
 			fields = append(fields, zap.String("platform", platform))
 		}

@@ -480,6 +480,34 @@ func setOpsSelectedAccount(c *gin.Context, accountID int64, platform ...string) 
 	}
 }
 
+func setOpsSelectedProxy(c *gin.Context, account *service.Account) {
+	if c == nil {
+		return
+	}
+	var proxyID int64
+	var proxyName string
+	var proxyHost string
+	var proxyPort int
+	if account != nil && account.Proxy != nil {
+		proxyID = account.Proxy.ID
+		proxyName = account.Proxy.Name
+		proxyHost = account.Proxy.Host
+		proxyPort = account.Proxy.Port
+	}
+	c.Set("ops_proxy_id", proxyID)
+	c.Set("ops_proxy_name", proxyName)
+	c.Set("ops_proxy_host", proxyHost)
+	c.Set("ops_proxy_port", proxyPort)
+	if c.Request == nil {
+		return
+	}
+	ctx := context.WithValue(c.Request.Context(), ctxkey.ProxyID, proxyID)
+	ctx = context.WithValue(ctx, ctxkey.ProxyName, proxyName)
+	ctx = context.WithValue(ctx, ctxkey.ProxyHost, proxyHost)
+	ctx = context.WithValue(ctx, ctxkey.ProxyPort, proxyPort)
+	c.Request = c.Request.WithContext(ctx)
+}
+
 func markOpsRoutingCapacityLimited(c *gin.Context) {
 	if c == nil {
 		return

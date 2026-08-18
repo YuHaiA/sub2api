@@ -4,6 +4,7 @@ package service
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"hash/fnv"
 	"log/slog"
 	"net/url"
@@ -81,6 +82,39 @@ type Account struct {
 	headerOverrideCacheRawPtr         uintptr
 	headerOverrideCacheRawLen         int
 	headerOverrideCacheRawSig         uint64
+}
+
+// isAccountProxyBindingResolved must only be used after full account hydration.
+// Scheduler metadata intentionally omits proxy fields.
+func isAccountProxyBindingResolved(account *Account) bool {
+	_, err := resolvedAccountProxyURL(account)
+	return err == nil
+}
+
+func resolvedAccountProxyURL(account *Account) (string, error) {
+	if account == nil {
+		return "", fmt.Errorf("account is nil")
+	}
+	if account.MihomoPoolStandby() {
+		return "", fmt.Errorf("account %d is waiting for a Mihomo egress binding", account.ID)
+	}
+	if account.Proxy != nil {
+		if account.ProxyID != nil && account.Proxy.ID != *account.ProxyID {
+			return "", fmt.Errorf("account %d proxy binding mismatch: configured=%d loaded=%d", account.ID, *account.ProxyID, account.Proxy.ID)
+		}
+		proxyURL := strings.TrimSpace(account.Proxy.URL())
+		if proxyURL == "" {
+			return "", fmt.Errorf("account %d proxy URL is empty", account.ID)
+		}
+		return proxyURL, nil
+	}
+	if account.ProxyID != nil {
+		return "", fmt.Errorf("account %d proxy %d is not loaded", account.ID, *account.ProxyID)
+	}
+	if account.MihomoPoolManaged() {
+		return "", fmt.Errorf("account %d is managed by the Mihomo pool but has no egress binding", account.ID)
+	}
+	return "", nil
 }
 
 type OpenAIEndpointCapability string

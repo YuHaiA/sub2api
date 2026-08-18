@@ -216,9 +216,9 @@ func (s *OpenAIGatewayService) sendCCUpstreamRequest(
 	// 使配置值获得除共享传输层强制头之外的最高优先级。
 	account.ApplyHeaderOverrides(upstreamReq.Header)
 
-	proxyURL := ""
-	if account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
+	proxyURL, err := resolvedAccountProxyURL(account)
+	if err != nil {
+		return nil, fmt.Errorf("resolve chat completions account egress: %w", err)
 	}
 	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
 	if err != nil {
