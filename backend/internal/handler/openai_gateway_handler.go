@@ -481,9 +481,8 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 	c.Request = c.Request.WithContext(pricingCtx)
 
 	for {
-		// Streaming Forward intentionally detaches the upstream request so usage can
-		// be drained after a disconnect. Re-check the client context before every
-		// account attempt so a canceled request never starts a failover replay.
+		// Re-check the client context before every account attempt so a canceled
+		// request never starts a failover replay.
 		if !openAIRequestAllowsFailoverReplay(c) {
 			return
 		}

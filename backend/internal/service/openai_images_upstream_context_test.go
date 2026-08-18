@@ -65,8 +65,7 @@ func openAIImagesJSONResponse() *http.Response {
 
 // issue #5411：生图是长耗时、上游侧已经产生实际成本的操作。客户端中途断开时，
 // 如果连带取消上游请求，就会出现「上游已出图并计费、网关记 502 context canceled、
-// 用户不扣费」。非流式路径以前走 detachStreamUpstreamContext(ctx, false)，
-// 该函数在非流式时原样返回请求 context，因此不脱钩。
+// 用户不扣费」，因此生图路径保持脱钩。
 func TestForwardOpenAIImagesAPIKey_NonStreamDetachesUpstreamContext(t *testing.T) {
 	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","response_format":"b64_json"}`)
 	c, _ := newOpenAIImagesTestContext(t, body)
@@ -122,32 +121,23 @@ func TestForwardOpenAIImagesAPIKey_StreamKeepsDetachedUpstreamContext(t *testing
 
 	require.NotNil(t, recorder.lastReq)
 	require.NoError(t, recorder.lastReq.Context().Err(),
-		"流式路径原本就脱钩，不能被改回随客户端取消")
+		"生图路径继续脱钩，客户端取消不能打断已提交的上游生成")
 }
 
-// 两个 detach 辅助函数的语义差异是本次修复的根据，锁死它们防止被悄悄改动。
-func TestDetachUpstreamContextSemantics(t *testing.T) {
-	t.Run("detachUpstreamContext_always_detaches", func(t *testing.T) {
+// 对话请求跟随客户端取消；生图等有副作用路径继续使用脱钩上下文。
+func TestUpstreamContextSemantics(t *testing.T) {
+	t.Run("requestBoundUpstreamContext_follows_cancel", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		bound, release := requestBoundUpstreamContext(ctx)
+		defer release()
+		require.ErrorIs(t, bound.Err(), context.Canceled)
+	})
+
+	t.Run("detachUpstreamContext_ignores_cancel", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 		detached, release := detachUpstreamContext(ctx)
-		defer release()
-		require.NoError(t, detached.Err())
-	})
-
-	t.Run("detachStreamUpstreamContext_keeps_cancel_when_not_streaming", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel()
-		same, release := detachStreamUpstreamContext(ctx, false)
-		defer release()
-		require.ErrorIs(t, same.Err(), context.Canceled,
-			"非流式时该函数原样返回请求 context —— 生图路径不能用它")
-	})
-
-	t.Run("detachStreamUpstreamContext_detaches_when_streaming", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel()
-		detached, release := detachStreamUpstreamContext(ctx, true)
 		defer release()
 		require.NoError(t, detached.Err())
 	})

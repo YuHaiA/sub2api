@@ -175,13 +175,13 @@ func TestGatewayService_StreamingKeepaliveKeepsPingForOlderClaudeCodeVersion(t *
 	require.NotContains(t, body, `"delta":{"type":"text_delta","text":""}`)
 }
 
-func TestDetachUpstreamContextIgnoresClientCancel(t *testing.T) {
+func TestRequestBoundUpstreamContextFollowsClientCancel(t *testing.T) {
 	parent, cancel := context.WithCancel(context.WithValue(context.Background(), upstreamContextTestKey("test-key"), "test-value"))
-	upstreamCtx, release := detachUpstreamContext(parent)
+	upstreamCtx, release := requestBoundUpstreamContext(parent)
 	defer release()
 
 	cancel()
 
-	require.NoError(t, upstreamCtx.Err())
+	require.ErrorIs(t, upstreamCtx.Err(), context.Canceled)
 	require.Equal(t, "test-value", upstreamCtx.Value(upstreamContextTestKey("test-key")))
 }
