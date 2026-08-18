@@ -2117,12 +2117,21 @@ func (s *OpenAIGatewayService) selectAccountWithScheduler(
 	previousResponseCanMove bool,
 	useUpstreamTokenCost bool,
 ) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
-	selection, decision, err := s.selectAccountWithSchedulerOnce(ctx, groupID, previousResponseID, sessionHash, requestedModel, excludedIDs, requiredTransport, requiredCapability, requiredImageCapability, requireCompact, platform, previousResponseCanMove, useUpstreamTokenCost)
+	selectOnce := func() (*AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+		return s.selectAccountWithSchedulerOnce(ctx, groupID, previousResponseID, sessionHash, requestedModel, excludedIDs, requiredTransport, requiredCapability, requiredImageCapability, requireCompact, platform, previousResponseCanMove, useUpstreamTokenCost)
+	}
+	selection, decision, err := selectOnce()
 	if err == nil || openAIProxyStreamQuarantineBypassed(ctx) {
 		return selection, decision, err
 	}
 	if !errors.Is(err, ErrNoAvailableAccounts) && !errors.Is(err, ErrNoAvailableCompactAccounts) {
 		return selection, decision, err
+	}
+	if s.shouldWaitForGrokMihomoRebind(ctx, platform, excludedIDs) {
+		selection, decision, err = retryGrokMihomoSelectionAfterRebind(ctx, grokMihomoRebindWaitTimeout, grokMihomoRebindPollInterval, selectOnce)
+		if err == nil {
+			return selection, decision, nil
+		}
 	}
 	// The circuit only ever quarantines PlatformOpenAI accounts.
 	if NormalizeOpenAICompatiblePlatform(platform) != PlatformOpenAI {
@@ -2134,6 +2143,59 @@ func (s *OpenAIGatewayService) selectAccountWithScheduler(
 	}
 	s.logOpenAIProxyStreamQuarantineFailOpen(requestedModel, blocked)
 	return s.selectAccountWithSchedulerOnce(withOpenAIProxyStreamQuarantineBypass(ctx), groupID, previousResponseID, sessionHash, requestedModel, excludedIDs, requiredTransport, requiredCapability, requiredImageCapability, requireCompact, platform, previousResponseCanMove, useUpstreamTokenCost)
+}
+
+const (
+	grokMihomoRebindPollInterval = 250 * time.Millisecond
+	grokMihomoRebindWaitTimeout  = 6 * time.Second
+)
+
+func (s *OpenAIGatewayService) shouldWaitForGrokMihomoRebind(ctx context.Context, platform string, excludedIDs map[int64]struct{}) bool {
+	if s == nil || s.accountRepo == nil || NormalizeOpenAICompatiblePlatform(platform) != PlatformGrok || len(excludedIDs) == 0 {
+		return false
+	}
+	for id := range excludedIDs {
+		account, err := s.accountRepo.GetByID(ctx, id)
+		if err == nil && isGrokOAuthAccount(account) && account.MihomoPoolManaged() && account.IsRateLimited() {
+			return true
+		}
+	}
+	return false
+}
+
+func retryGrokMihomoSelectionAfterRebind(
+	ctx context.Context,
+	timeout time.Duration,
+	interval time.Duration,
+	selectAccount func() (*AccountSelectionResult, OpenAIAccountScheduleDecision, error),
+) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if timeout <= 0 || interval <= 0 || selectAccount == nil {
+		return nil, OpenAIAccountScheduleDecision{}, ErrNoAvailableAccounts
+	}
+	timeoutTimer := time.NewTimer(timeout)
+	defer timeoutTimer.Stop()
+	pollTimer := time.NewTimer(interval)
+	defer pollTimer.Stop()
+	var selection *AccountSelectionResult
+	var decision OpenAIAccountScheduleDecision
+	lastErr := error(ErrNoAvailableAccounts)
+	for {
+		select {
+		case <-ctx.Done():
+			return selection, decision, ctx.Err()
+		case <-timeoutTimer.C:
+			return selection, decision, lastErr
+		case <-pollTimer.C:
+			selection, decision, lastErr = selectAccount()
+			if lastErr == nil || (!errors.Is(lastErr, ErrNoAvailableAccounts) && !errors.Is(lastErr, ErrNoAvailableCompactAccounts)) {
+				return selection, decision, lastErr
+			}
+			pollTimer.Reset(interval)
+		}
+	}
 }
 
 func (s *OpenAIGatewayService) expandGrokPreferredExclusions(ctx context.Context, platform string, excludedIDs map[int64]struct{}) map[int64]struct{} {

@@ -17,6 +17,7 @@ const (
 	openAIOAuth429StormThreshold          = 20
 	openAIOAuth429StormMaxAccountSwitches = 1
 	grokOAuth429FollowupAttempts          = 2
+	grokMihomoOAuth429FollowupAttempts    = 4
 )
 
 // OpenAIOAuth429FailoverState tracks the request-local follow-up budget after
@@ -25,6 +26,13 @@ const (
 // broad quota event still cannot fan out across the whole pool.
 type OpenAIOAuth429FailoverState struct {
 	grokOAuth429FollowupsRemaining int
+}
+
+func grokOAuth429FollowupAttemptsFor(account *Account) int {
+	if account != nil && account.MihomoPoolManaged() {
+		return grokMihomoOAuth429FollowupAttempts
+	}
+	return grokOAuth429FollowupAttempts
 }
 
 func openAIAccountStateContext(ctx context.Context) (context.Context, context.CancelFunc) {
@@ -349,11 +357,12 @@ func (s *OpenAIGatewayService) ShouldStopOpenAIOAuth429Failover(account *Account
 		return state.grokOAuth429FollowupsRemaining == 0
 	}
 	if isGrokOAuthAccount(account) {
+		followupAttempts := grokOAuth429FollowupAttemptsFor(account)
 		if state == nil {
-			return statusCode == http.StatusTooManyRequests && failedSwitches >= grokOAuth429FollowupAttempts+1
+			return statusCode == http.StatusTooManyRequests && failedSwitches >= followupAttempts+1
 		}
 		if statusCode == http.StatusTooManyRequests {
-			state.grokOAuth429FollowupsRemaining = grokOAuth429FollowupAttempts
+			state.grokOAuth429FollowupsRemaining = followupAttempts
 		}
 		return false
 	}

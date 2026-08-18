@@ -307,6 +307,46 @@ func TestOpenAIAdvancedSchedulerGrokFallsBackToSameMihomoEgress(t *testing.T) {
 	require.Equal(t, int64(2), selection.Account.ID, "same-egress sibling must remain available as the fail-open pass")
 }
 
+func TestShouldWaitForGrokMihomoRebindRequiresManagedRateLimit(t *testing.T) {
+	resetAt := time.Now().Add(time.Minute)
+	managed := Account{
+		ID:               1,
+		Platform:         PlatformGrok,
+		Type:             AccountTypeOAuth,
+		RateLimitResetAt: &resetAt,
+		Extra:            map[string]any{"mihomo_pool_managed": true},
+	}
+	regular := managed
+	regular.ID = 2
+	regular.Extra = nil
+	svc := &OpenAIGatewayService{accountRepo: &mihomoPoolAccountRepo{accounts: []Account{managed, regular}}}
+
+	require.True(t, svc.shouldWaitForGrokMihomoRebind(context.Background(), PlatformGrok, map[int64]struct{}{managed.ID: {}}))
+	require.False(t, svc.shouldWaitForGrokMihomoRebind(context.Background(), PlatformGrok, map[int64]struct{}{regular.ID: {}}))
+	require.False(t, svc.shouldWaitForGrokMihomoRebind(context.Background(), PlatformOpenAI, map[int64]struct{}{managed.ID: {}}))
+}
+
+func TestRetryGrokMihomoSelectionAfterRebind(t *testing.T) {
+	attempts := 0
+	selection, _, err := retryGrokMihomoSelectionAfterRebind(
+		context.Background(),
+		100*time.Millisecond,
+		time.Millisecond,
+		func() (*AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+			attempts++
+			if attempts == 1 {
+				return nil, OpenAIAccountScheduleDecision{}, ErrNoAvailableAccounts
+			}
+			return &AccountSelectionResult{Account: &Account{ID: 3}}, OpenAIAccountScheduleDecision{}, nil
+		},
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, 2, attempts)
+	require.NotNil(t, selection)
+	require.Equal(t, int64(3), selection.Account.ID)
+}
+
 func TestOpenAISSECommentLine(t *testing.T) {
 	require.True(t, openAISSECommentLine(": ping"))
 	require.True(t, openAISSECommentLine(":"))

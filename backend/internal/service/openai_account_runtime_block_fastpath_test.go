@@ -452,3 +452,23 @@ func TestShouldStopOpenAIOAuth429Failover_TracksTwoGrokFollowupAttempts(t *testi
 	require.False(t, svc.ShouldStopOpenAIOAuth429Failover(account, http.StatusTooManyRequests, 0, &state))
 	require.False(t, svc.ShouldStopOpenAIOAuth429Failover(apiKeyAccount, http.StatusTooManyRequests, 2, &state))
 }
+
+func TestShouldStopOpenAIOAuth429Failover_AllowsFourMihomoFollowupAttempts(t *testing.T) {
+	svc := &OpenAIGatewayService{}
+	account := &Account{
+		ID:       46,
+		Platform: PlatformGrok,
+		Type:     AccountTypeOAuth,
+		Extra:    map[string]any{"mihomo_pool_managed": true},
+	}
+	var state OpenAIOAuth429FailoverState
+
+	require.False(t, svc.ShouldStopOpenAIOAuth429Failover(account, http.StatusTooManyRequests, 1, &state))
+	for failedSwitches := 2; failedSwitches <= 4; failedSwitches++ {
+		require.False(t, svc.ShouldStopOpenAIOAuth429Failover(account, http.StatusTooManyRequests, failedSwitches, &state))
+	}
+	require.True(t, svc.ShouldStopOpenAIOAuth429Failover(account, http.StatusTooManyRequests, 5, &state))
+
+	require.False(t, svc.ShouldStopOpenAIOAuth429Failover(account, http.StatusTooManyRequests, 4, nil))
+	require.True(t, svc.ShouldStopOpenAIOAuth429Failover(account, http.StatusTooManyRequests, 5, nil))
+}
