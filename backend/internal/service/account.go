@@ -84,13 +84,6 @@ type Account struct {
 	headerOverrideCacheRawSig         uint64
 }
 
-// isAccountProxyBindingResolved must only be used after full account hydration.
-// Scheduler metadata intentionally omits proxy fields.
-func isAccountProxyBindingResolved(account *Account) bool {
-	_, err := resolvedAccountProxyURL(account)
-	return err == nil
-}
-
 func resolvedAccountProxyURL(account *Account) (string, error) {
 	if account == nil {
 		return "", fmt.Errorf("account is nil")

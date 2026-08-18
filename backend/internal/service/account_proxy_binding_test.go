@@ -47,7 +47,6 @@ func TestResolvedAccountProxyURLFailsClosedForInvalidBindings(t *testing.T) {
 			proxyURL, err := resolvedAccountProxyURL(test.account)
 			require.Error(t, err)
 			require.Empty(t, proxyURL)
-			require.False(t, isAccountProxyBindingResolved(test.account))
 		})
 	}
 }
@@ -66,7 +65,6 @@ func TestResolvedAccountProxyURLAllowsDirectAndBoundAccounts(t *testing.T) {
 	proxyURL, err := resolvedAccountProxyURL(bound)
 	require.NoError(t, err)
 	require.Equal(t, "http://127.0.0.1:8080", proxyURL)
-	require.True(t, isAccountProxyBindingResolved(bound))
 }
 
 func TestHydrateSelectedAccountRejectsInvalidEgressWithoutSnapshot(t *testing.T) {
