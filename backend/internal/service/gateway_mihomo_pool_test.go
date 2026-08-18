@@ -51,7 +51,7 @@ func init() {
 	mihomoPoolAccountCacheDisabled = true
 }
 
-func TestExpandMihomoPoolProxyExclusionsDefersSiblingEgressAccount(t *testing.T) {
+func TestExpandMihomoPoolProxyExclusionsExcludesSiblingEgressAccount(t *testing.T) {
 	proxyOne := int64(101)
 	proxyTwo := int64(102)
 	repo := &mihomoPoolAccountRepo{accounts: []Account{
@@ -70,21 +70,15 @@ func TestExpandMihomoPoolProxyExclusionsDefersSiblingEgressAccount(t *testing.T)
 	require.NotContains(t, excluded, int64(4))
 }
 
-func TestHasAdditionalAccountExclusionsAllowsSiblingFallback(t *testing.T) {
-	original := map[int64]struct{}{1: {}}
-	preferred := map[int64]struct{}{1: {}, 2: {}}
-
-	require.True(t, hasAdditionalAccountExclusions(original, preferred))
-	require.False(t, hasAdditionalAccountExclusions(original, original))
-}
-
-func TestSelectAccountForModelWithExclusionsPrefersOtherEgressAndFallsBackToSibling(t *testing.T) {
+func TestSelectAccountForModelWithExclusionsRequiresDifferentEgress(t *testing.T) {
 	proxyOne := int64(101)
 	proxyTwo := int64(102)
+	egressOne := &Proxy{ID: proxyOne, Protocol: "http", Host: "127.0.0.1", Port: 7901}
+	egressTwo := &Proxy{ID: proxyTwo, Protocol: "http", Host: "127.0.0.1", Port: 7902}
 	accounts := []Account{
-		{ID: 1, Platform: PlatformGrok, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true, ProxyID: &proxyOne, Extra: map[string]any{"mihomo_pool_managed": true}},
-		{ID: 2, Platform: PlatformGrok, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: false, ProxyID: &proxyOne, Extra: map[string]any{"mihomo_pool_managed": true}},
-		{ID: 3, Platform: PlatformGrok, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: false, ProxyID: &proxyTwo, Extra: map[string]any{"mihomo_pool_managed": true}},
+		{ID: 1, Platform: PlatformGrok, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true, ProxyID: &proxyOne, Proxy: egressOne, Extra: map[string]any{"mihomo_pool_managed": true}},
+		{ID: 2, Platform: PlatformGrok, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: false, ProxyID: &proxyOne, Proxy: egressOne, Extra: map[string]any{"mihomo_pool_managed": true}},
+		{ID: 3, Platform: PlatformGrok, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: false, ProxyID: &proxyTwo, Proxy: egressTwo, Extra: map[string]any{"mihomo_pool_managed": true}},
 	}
 	ctx := context.WithValue(context.Background(), ctxkey.ForcePlatform, PlatformGrok)
 
@@ -98,8 +92,8 @@ func TestSelectAccountForModelWithExclusionsPrefersOtherEgressAndFallsBackToSibl
 
 	svc.accountRepo = &mihomoPoolAccountRepo{accounts: accounts[:2]}
 	selected, err = svc.SelectAccountForModelWithExclusions(ctx, nil, "", "", map[int64]struct{}{1: {}})
-	require.NoError(t, err)
-	require.Equal(t, int64(2), selected.ID, "same-egress sibling remains eligible as fallback")
+	require.ErrorIs(t, err, ErrNoAvailableAccounts)
+	require.Nil(t, selected)
 }
 
 func TestMihomoPoolManagedLegacySchedulableFalseHonorsCooldown(t *testing.T) {
@@ -181,10 +175,12 @@ func TestGrokOAuthAccountWithoutPoolMarkerReturnsToCandidatePool(t *testing.T) {
 func TestSelectAccountForModelWithExclusionsSkipsExhaustedMihomoAccountAndRestoresStandby(t *testing.T) {
 	proxyOne := int64(101)
 	proxyTwo := int64(102)
+	egressOne := &Proxy{ID: proxyOne, Protocol: "http", Host: "127.0.0.1", Port: 7901}
+	egressTwo := &Proxy{ID: proxyTwo, Protocol: "http", Host: "127.0.0.1", Port: 7902}
 	resetAt := time.Now().Add(time.Hour)
 	accounts := []Account{
-		{ID: 1, Platform: PlatformGrok, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true, ProxyID: &proxyOne, RateLimitResetAt: &resetAt, Extra: map[string]any{"mihomo_pool_managed": true}},
-		{ID: 2, Platform: PlatformGrok, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: false, ProxyID: &proxyTwo, Extra: map[string]any{"mihomo_pool_managed": true}},
+		{ID: 1, Platform: PlatformGrok, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true, ProxyID: &proxyOne, Proxy: egressOne, RateLimitResetAt: &resetAt, Extra: map[string]any{"mihomo_pool_managed": true}},
+		{ID: 2, Platform: PlatformGrok, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: false, ProxyID: &proxyTwo, Proxy: egressTwo, Extra: map[string]any{"mihomo_pool_managed": true}},
 	}
 	svc := &GatewayService{
 		accountRepo: &mihomoPoolAccountRepo{accounts: accounts},
@@ -205,10 +201,12 @@ func TestSelectAccountForModelWithExclusionsSkipsExhaustedMihomoAccountAndRestor
 func TestOpenAICompatibleGrokSelectionRestoresMihomoStandbyAccount(t *testing.T) {
 	proxyOne := int64(101)
 	proxyTwo := int64(102)
+	egressOne := &Proxy{ID: proxyOne, Protocol: "http", Host: "127.0.0.1", Port: 7901}
+	egressTwo := &Proxy{ID: proxyTwo, Protocol: "http", Host: "127.0.0.1", Port: 7902}
 	resetAt := time.Now().Add(time.Hour)
 	accounts := []Account{
-		{ID: 1, Platform: PlatformGrok, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true, ProxyID: &proxyOne, RateLimitResetAt: &resetAt, Extra: map[string]any{"mihomo_pool_managed": true}},
-		{ID: 2, Platform: PlatformGrok, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: false, ProxyID: &proxyTwo, Extra: map[string]any{"mihomo_pool_managed": true}},
+		{ID: 1, Platform: PlatformGrok, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true, ProxyID: &proxyOne, Proxy: egressOne, RateLimitResetAt: &resetAt, Extra: map[string]any{"mihomo_pool_managed": true}},
+		{ID: 2, Platform: PlatformGrok, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: false, ProxyID: &proxyTwo, Proxy: egressTwo, Extra: map[string]any{"mihomo_pool_managed": true}},
 	}
 	svc := &OpenAIGatewayService{
 		accountRepo: &mihomoPoolAccountRepo{accounts: accounts},
@@ -271,13 +269,13 @@ func TestOpenAIAdvancedSchedulerDoesNotExpandMihomoExclusionsForOpenAI(t *testin
 	}}}
 	original := map[int64]struct{}{1: {}}
 
-	preferred := svc.expandGrokPreferredExclusions(context.Background(), PlatformOpenAI, original)
+	preferred := svc.expandGrokMihomoExclusions(context.Background(), PlatformOpenAI, original)
 
 	require.Equal(t, original, preferred)
 	require.NotContains(t, preferred, int64(2))
 }
 
-func TestOpenAIAdvancedSchedulerGrokFallsBackToSameMihomoEgress(t *testing.T) {
+func TestOpenAIAdvancedSchedulerGrokRequiresDifferentMihomoEgress(t *testing.T) {
 	resetOpenAIAdvancedSchedulerSettingCacheForTest()
 	defer resetOpenAIAdvancedSchedulerSettingCacheForTest()
 
@@ -301,10 +299,8 @@ func TestOpenAIAdvancedSchedulerGrokFallsBackToSameMihomoEgress(t *testing.T) {
 		false, false, false, PlatformGrok,
 	)
 
-	require.NoError(t, err)
-	require.NotNil(t, selection)
-	require.NotNil(t, selection.Account)
-	require.Equal(t, int64(2), selection.Account.ID, "same-egress sibling must remain available as the fail-open pass")
+	require.ErrorIs(t, err, ErrNoAvailableAccounts)
+	require.Nil(t, selection)
 }
 
 func TestShouldWaitForGrokMihomoRebindRequiresManagedRateLimit(t *testing.T) {

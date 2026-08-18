@@ -2198,7 +2198,7 @@ func retryGrokMihomoSelectionAfterRebind(
 	}
 }
 
-func (s *OpenAIGatewayService) expandGrokPreferredExclusions(ctx context.Context, platform string, excludedIDs map[int64]struct{}) map[int64]struct{} {
+func (s *OpenAIGatewayService) expandGrokMihomoExclusions(ctx context.Context, platform string, excludedIDs map[int64]struct{}) map[int64]struct{} {
 	if s == nil || NormalizeOpenAICompatiblePlatform(platform) != PlatformGrok {
 		return excludedIDs
 	}
@@ -2223,12 +2223,8 @@ func (s *OpenAIGatewayService) selectAccountWithSchedulerOnce(
 	if !s.isOpenAIAdvancedSchedulerEnabled(ctx) {
 		return s.selectAccountWithSchedulerOnceWithExclusions(ctx, groupID, previousResponseID, sessionHash, requestedModel, excludedIDs, requiredTransport, requiredCapability, requiredImageCapability, requireCompact, platform, previousResponseCanMove, useUpstreamTokenCost)
 	}
-	preferred := s.expandGrokPreferredExclusions(ctx, platform, excludedIDs)
-	selection, decision, err := s.selectAccountWithSchedulerOnceWithExclusions(ctx, groupID, previousResponseID, sessionHash, requestedModel, preferred, requiredTransport, requiredCapability, requiredImageCapability, requireCompact, platform, previousResponseCanMove, useUpstreamTokenCost)
-	if err != nil && hasAdditionalAccountExclusions(excludedIDs, preferred) && errors.Is(err, ErrNoAvailableAccounts) {
-		return s.selectAccountWithSchedulerOnceWithExclusions(ctx, groupID, previousResponseID, sessionHash, requestedModel, excludedIDs, requiredTransport, requiredCapability, requiredImageCapability, requireCompact, platform, previousResponseCanMove, useUpstreamTokenCost)
-	}
-	return selection, decision, err
+	excludedIDs = s.expandGrokMihomoExclusions(ctx, platform, excludedIDs)
+	return s.selectAccountWithSchedulerOnceWithExclusions(ctx, groupID, previousResponseID, sessionHash, requestedModel, excludedIDs, requiredTransport, requiredCapability, requiredImageCapability, requireCompact, platform, previousResponseCanMove, useUpstreamTokenCost)
 }
 
 func (s *OpenAIGatewayService) selectAccountWithSchedulerOnceWithExclusions(

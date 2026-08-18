@@ -6,7 +6,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	mathrand "math/rand"
@@ -34,11 +33,8 @@ func (s *GatewayService) SelectAccountForModel(ctx context.Context, groupID *int
 
 // SelectAccountForModelWithExclusions selects an account supporting the requested model while excluding specified accounts.
 func (s *GatewayService) SelectAccountForModelWithExclusions(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}) (*Account, error) {
-	preferredExcludedIDs := s.expandMihomoPoolProxyExclusions(ctx, excludedIDs)
-	account, err := s.selectAccountForModelWithExclusions(ctx, groupID, sessionHash, requestedModel, preferredExcludedIDs)
-	if err != nil && hasAdditionalAccountExclusions(excludedIDs, preferredExcludedIDs) && errors.Is(err, ErrNoAvailableAccounts) {
-		account, err = s.selectAccountForModelWithExclusions(ctx, groupID, sessionHash, requestedModel, excludedIDs)
-	}
+	excludedIDs = s.expandMihomoPoolProxyExclusions(ctx, excludedIDs)
+	account, err := s.selectAccountForModelWithExclusions(ctx, groupID, sessionHash, requestedModel, excludedIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -104,12 +100,8 @@ func (s *GatewayService) selectAccountForModelWithExclusions(ctx context.Context
 // metadataUserID: 用于客户端亲和调度，从中提取客户端 ID
 // sub2apiUserID: 系统用户 ID，用于二维亲和调度
 func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}, metadataUserID string, sub2apiUserID int64) (*AccountSelectionResult, error) {
-	preferredExcludedIDs := s.expandMihomoPoolProxyExclusions(ctx, excludedIDs)
-	result, err := s.selectAccountWithLoadAwareness(ctx, groupID, sessionHash, requestedModel, preferredExcludedIDs, metadataUserID, sub2apiUserID)
-	if err != nil && hasAdditionalAccountExclusions(excludedIDs, preferredExcludedIDs) && errors.Is(err, ErrNoAvailableAccounts) {
-		return s.selectAccountWithLoadAwareness(ctx, groupID, sessionHash, requestedModel, excludedIDs, metadataUserID, sub2apiUserID)
-	}
-	return result, err
+	excludedIDs = s.expandMihomoPoolProxyExclusions(ctx, excludedIDs)
+	return s.selectAccountWithLoadAwareness(ctx, groupID, sessionHash, requestedModel, excludedIDs, metadataUserID, sub2apiUserID)
 }
 
 func (s *GatewayService) selectAccountWithLoadAwareness(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}, metadataUserID string, sub2apiUserID int64) (*AccountSelectionResult, error) {
@@ -781,9 +773,8 @@ func (s *GatewayService) selectAccountWithLoadAwareness(ctx context.Context, gro
 	return nil, ErrNoAvailableAccounts
 }
 
-// expandMihomoPoolProxyExclusions builds the preferred first-pass exclusions
-// for Grok failover. Accounts sharing the failed fixed Mihomo egress are tried
-// only after accounts on other exits, but remain eligible for the fallback pass.
+// expandMihomoPoolProxyExclusions keeps every account on a failed fixed Mihomo
+// egress out of the current request so failover always changes both account and exit.
 func (s *GatewayService) expandMihomoPoolProxyExclusions(ctx context.Context, excludedIDs map[int64]struct{}) map[int64]struct{} {
 	if s == nil {
 		return excludedIDs
@@ -824,15 +815,6 @@ func expandMihomoPoolProxyExclusionsWithRepo(ctx context.Context, repo AccountRe
 		}
 	}
 	return expanded
-}
-
-func hasAdditionalAccountExclusions(original, expanded map[int64]struct{}) bool {
-	for id := range expanded {
-		if _, exists := original[id]; !exists {
-			return true
-		}
-	}
-	return false
 }
 
 // mihomoPoolAccountCacheTTL matches the 5s Mihomo reconcile interval so
