@@ -559,6 +559,9 @@ func (s *GrokQuotaService) prepareProbe(ctx context.Context, accountID int64) (*
 	}
 	proxyURL := s.resolveProxyURL(ctx, account)
 
+	// Quota diagnostics must remain available while scheduling is paused (for
+	// example after a 402). Use the same credential checks and refresh protocol
+	// as an admin connection test, without the model-request scheduling gate.
 	token, err := s.tokenProvider.GetAccessTokenForManualTest(ctx, account)
 	if errors.Is(err, errOAuthRefreshAccountStateChanged) {
 		if latestAccount, reloadErr := s.loadGrokOAuthAccount(ctx, accountID); reloadErr == nil {
