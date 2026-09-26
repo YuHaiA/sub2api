@@ -2256,6 +2256,8 @@ func (s *OpenAIGatewayService) expandGrokMihomoExclusions(ctx context.Context, p
 		return excludedIDs
 	}
 	return expandMihomoPoolProxyExclusionsWithRepo(ctx, s.accountRepo, excludedIDs)
+}
+
 type openAIGroupPrivacyRequirementContextKey struct{}
 
 type openAIGroupPrivacyRequirement struct {
